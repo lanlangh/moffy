@@ -32,8 +32,14 @@
 - ✅ **差し戻し修正(F-01〜F-04)実装完了** — F-01 `fn_claim_warmup`(0003_warmup_grants.sql,生涯1回冪等+starter卵)/F-02 ストリーク倍率を`streak_multiplier(streak+1)`に修正/F-03 退会=論理削除`deleted_at`+RLS`deleted_at is null`+`fn_purge_deleted_accounts`(service_role専用,pg_cron)/F-04 quest報酬を初回ガードに統一。`dart analyze`=No issues
 - 🔴 **環境問題: `flutter`がWDAC(企業管理ポリシー)でブロック【原因確定】** — `dart.exe`が`dartvm.exe`をロード時に "did not meet the **Enterprise** signing level requirements" で拒否(CodeIntegrity 3033/3077)。企業WDACがEnforce(カーネル/ユーザー=2)。06-23頃にMDM/GPOでポリシー更新・強制適用されたためセッション途中から発生。Google署名のFlutter SDKは要求署名レベル未達。
   - **解除は管理者/IT権限が必要**(WDAC許可ルール追加・署名レベル変更・無効化は admin+ポリシー再コンパイル+再起動)。回避は不可・不適切。パス移動(Program Files)も署名問題のため無効。
-  - **検証手段**: `dart analyze`=非フォークのため可(現状No issues)。`flutter test`(72+件)は①ITによるFlutter SDKのWDAC許可 ②CI(GitHub Actions等)や別環境での実行 のいずれかが必要。
+  - **検証手段**: `dart analyze`=非フォークのため可。`flutter test`はWDACで不可 → **CIで解決済み**。
   - F-01配線UI(claimWarmup呼出箇所)も後続
+- ✅ **CI構築・検証ギャップ解消** — git初期化→**private GitHub repo `lanlangh/moffy`** へpush。`.github/workflows/ci.yml`(ubuntu, Flutter 3.44.2)で `pub get`/`analyze`/`test` を自動実行。**CI実行=analyze No issues + テスト89件全パス**(F-01〜F-04修正の追加テスト含む)。以後ローカルWDACに依存せずクラウドで緑を担保。コード生成は未使用のためbuild_runner不要。
+- 🟦 **残るライブ検証** — SQL経済(0001〜0003)の実行・`distribution_check`(§4分布)・統合テスト(孵化/受取/退会/同時操作)は**要Supabaseプロジェクト**。QAのGOはここまで通って確定。
+- ✅ **価格・IAP設計(財務)** — `docs/PRICING.md`・`lib/core/constants/pricing.dart`(SSOT)。**月額¥480 / 年額¥4,800(約17%OFF,おすすめ) / 7日無料トライアル**。無料↔プレミアム境界=保管枠20↔200・広告無料のみ・限定Mofi/プレミアム卵はプレミアム・育成3枠はプラン非依存・詳細分析v1.1(課金画面で宣伝しない)。RevenueCat: offering`default`→monthly/annual→entitlement`premium`(サーバー検証が正)。Apple小規模事業者プログラム(30→15%)はlaunch前申請。`dart analyze`緑
+
+## 確定価格（法務=特商法/サブスク表記用）
+- 月額 ¥480/月(自動更新) / 年額 ¥4,800/年(自動更新・月あたり¥400・約17%OFF) / 7日無料→以後自動更新 / 解約は各ストアの定期購読管理(アプリ内不可) / 期間終了24h前まで未解約で自動更新
 - ⬜ **残り** — fn_finalize_dayのクライアント配線+Drift永続化、課金(RevenueCat→entitlements Webhook)、iOS実装、イラストアセット、APK実機ビルド(Android SDK)
 - ⬜ 課金(RevenueCat)・iOS実装(DeviceActivity/ThresholdAchievement)・イラストアセット供給・APK実機ビルド(Android SDK)
 - ⚠️ 企画要確定: quest_definitionsのseed内容 / 法務URL・mailto宛先 / アカウント連携の出現トリガー
