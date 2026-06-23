@@ -34,7 +34,7 @@
   - **解除は管理者/IT権限が必要**(WDAC許可ルール追加・署名レベル変更・無効化は admin+ポリシー再コンパイル+再起動)。回避は不可・不適切。パス移動(Program Files)も署名問題のため無効。
   - **検証手段**: `dart analyze`=非フォークのため可。`flutter test`はWDACで不可 → **CIで解決済み**。
   - F-01配線UI(claimWarmup呼出箇所)も後続
-- ✅ **CI構築・検証ギャップ解消** — git初期化→**private GitHub repo `lanlangh/moffy`** へpush。`.github/workflows/ci.yml`(ubuntu, Flutter 3.44.2)で `pub get`/`analyze`/`test` を自動実行。**CI実行=analyze No issues + テスト89件全パス**(F-01〜F-04修正の追加テスト含む)。以後ローカルWDACに依存せずクラウドで緑を担保。コード生成は未使用のためbuild_runner不要。
+- ✅ **CI構築・検証ギャップ解消** — git初期化→**private GitHub repo `lanlangh/moffy`** へpush。`.github/workflows/ci.yml`(ubuntu, Flutter 3.44.2)で `pub get`/`analyze`/`test` を自動実行。**CI実行=analyze No issues + テスト全パス(最新112件)**。以後ローカルWDACに依存せずクラウドで緑を担保。コード生成は未使用のためbuild_runner不要。`purchases_flutter`もCIで解決・通過。
 - 🟦 **残るライブ検証** — SQL経済(0001〜0003)の実行・`distribution_check`(§4分布)・統合テスト(孵化/受取/退会/同時操作)は**要Supabaseプロジェクト**。QAのGOはここまで通って確定。
 - ✅ **価格・IAP設計(財務)** — `docs/PRICING.md`・`lib/core/constants/pricing.dart`(SSOT)。**月額¥480 / 年額¥4,800(約17%OFF,おすすめ) / 7日無料トライアル**。無料↔プレミアム境界=保管枠20↔200・広告無料のみ・限定Mofi/プレミアム卵はプレミアム・育成3枠はプラン非依存・詳細分析v1.1(課金画面で宣伝しない)。RevenueCat: offering`default`→monthly/annual→entitlement`premium`(サーバー検証が正)。Apple小規模事業者プログラム(30→15%)はlaunch前申請。`dart analyze`緑
 
