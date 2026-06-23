@@ -1,6 +1,6 @@
 name: DB Verify
 
-# Supabase の DB に経済マイグレーション(0001-0003)を適用し、抽選分布(distribution_check)を検証する。
+# Supabase の DB に経済マイグレーション(0001-0004)を適用し、抽選分布(distribution_check)を検証する。
 # 手動実行のみ。接続情報は GitHub Secret `SUPABASE_DB_URL`（あなたが設定。値は CI 以外に出ない）。
 # 推奨: まっさらな Supabase プロジェクトに対して実行（0001 は新規作成 DDL のため）。
 on:
@@ -23,7 +23,7 @@ jobs:
           fi
           echo "psql version:"; psql --version
 
-      - name: Apply migrations (0001 -> 0002 -> 0003)
+      - name: Apply migrations (0001 -> 0002 -> 0003 -> 0004)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
@@ -31,6 +31,7 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0001_init.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0002_economy_rpcs.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0003_warmup_grants.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0004_security_hardening.sql
 
       - name: Run distribution check (§4 抽選分布 / drop_tables 合計=1.0)
         env:

@@ -48,13 +48,21 @@ supabase db push
 ```
 
 `supabase/migrations/` 配下の `0001_init.sql` → `0002_economy_rpcs.sql` →
-`0003_warmup_grants.sql` がファイル名順に適用される。
+`0003_warmup_grants.sql` → `0004_security_hardening.sql` がファイル名順に適用される。
 
 > `0003_warmup_grants.sql` は QA 差し戻し (F-01 / F-03) の追補:
 > - **F-01**: `fn_claim_warmup(p_day)` (ウォームアップ自動付与 Day1=200/Day2=300 +
 >   初回ボーナス卵生成・充当)。
 > - **F-03**: `profiles` の SELECT RLS を `deleted_at is null` 条件付きへ更新 +
 >   `fn_purge_deleted_accounts()` (30日経過の論理削除アカウントを物理削除 / pg_cron 運用)。
+
+> `0004_security_hardening.sql` は信頼境界の物理的な締め直し (CEO承認済み):
+> - **G-1**: `baselines` の RLS 有効化 + 本人限定 select ポリシー (0001 の積み残し)。
+> - **G-2**: `profiles` の列レベル UPDATE 制限。authenticated が直接更新できるのは
+>   `display_name` / `timezone` のみ (通貨・プール・削除・連携状態は RPC/Webhook 専管)。
+> - **G-3**: `eggs` の列レベル UPDATE 制限。authenticated が直接更新できるのは
+>   `slot_index` / `location` / `is_active` (枠操作) のみ (成長・孵化は RPC 専管)。
+> - definer 関数 (所有者権限) は列レベル GRANT / RLS の対象外のため、全列書込みを継続。
 
 ### 2-B. psql で直接流す場合
 
@@ -63,11 +71,13 @@ supabase db push
 psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql
 psql "$DATABASE_URL" -f supabase/migrations/0002_economy_rpcs.sql
 psql "$DATABASE_URL" -f supabase/migrations/0003_warmup_grants.sql
+psql "$DATABASE_URL" -f supabase/migrations/0004_security_hardening.sql
 ```
 
 > **冪等性**: どちらも再実行を想定。0002 の関数は `create or replace`、権限は
-> `revoke`/`grant` で再付与安全。0001 を再実行する場合は既存オブジェクトの
-> `drop` が必要 (初回はクリーンDBに適用すること)。
+> `revoke`/`grant` で再付与安全。0004 は policy を `drop policy if exists` 先行で
+> 再作成し、`enable rls` / `revoke` / `grant` も再実行安全。0001 を再実行する場合は
+> 既存オブジェクトの `drop` が必要 (初回はクリーンDBに適用すること)。
 
 ---
 
