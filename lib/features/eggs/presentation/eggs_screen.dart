@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -199,11 +200,22 @@ class _EggsBody extends ConsumerWidget {
           onShare: (imageBytes) async {
             // S13 グロースの種: 結果カードのキャプチャ画像 + 文面をSNSへ共有。
             // 画像生成・共有はサービスに委譲（プラグイン依存の隔離 / ベストエフォート）。
-            await ref.read(hatchShareServiceProvider).shareHatch(
-                  text: buildHatchShareText(hatched),
+            final text = buildHatchShareText(hatched);
+            final ok = await ref.read(hatchShareServiceProvider).shareHatch(
+                  text: text,
                   subject: buildHatchShareSubject(hatched),
                   imageBytes: imageBytes,
                 );
+            // 失敗/未対応時のフォールバック: 文面をクリップボードへコピーしトースト通知
+            // （拡散の起点を完全には失わせない / プラットフォーム未対応時の分岐）。
+            if (!ok) {
+              await Clipboard.setData(ClipboardData(text: text));
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('シェア用のテキストをコピーしました。'),
+                ),
+              );
+            }
           },
         ),
       ),

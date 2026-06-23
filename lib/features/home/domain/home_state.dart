@@ -36,6 +36,12 @@ class HomeState {
   /// 経済パラメータ（SSOT。表示の単位・しきい値はここから）。
   final EconomyParams params;
 
+  /// ウォームアップ自動付与（F-01 / S1）の今回結果。
+  ///
+  /// 付与に成功（新規付与）した場合のみ非null。未対象/オフライン/エラー/受取済みは null
+  /// （= 通常ホーム。責めない・黙って通常表示 / 受け入れ §5-1）。
+  final WarmupGrantSummary? warmupGrant;
+
   const HomeState({
     required this.permission,
     required this.todayUsage,
@@ -48,6 +54,7 @@ class HomeState {
     required this.pooledPoints,
     required this.isOffline,
     required this.params,
+    this.warmupGrant,
   });
 
   /// 権限が無く削減計算できない（フォールバックUI / §5-1）。
@@ -73,6 +80,23 @@ class HomeState {
 
   /// 育成枠にアクティブ卵が無い空状態（空枠誘導 / §5-2）。
   bool get hasNoActiveEgg => activeEgg == null;
+
+  /// ウォームアップ付与の祝福表示を出すか（新規付与時のみ / F-01 ハッピーパス）。
+  bool get showWarmupCelebration => warmupGrant != null;
+}
+
+/// ウォームアップ付与（F-01 / S1）の祝福表示用サマリ。
+///
+/// サーバー RPC `fn_claim_warmup` の結果のうち、UIで使う分だけを domain 型へ落とす
+/// （wire モデル [WarmupClaimResult] をプレゼンテーション層へ漏らさない / ARCHITECTURE §1）。
+class WarmupGrantSummary {
+  /// 対象日（1 | 2）。
+  final int day;
+
+  /// 今回新規に付与された pt（Day1=200 / Day2=300）。
+  final int grantedPoints;
+
+  const WarmupGrantSummary({required this.day, required this.grantedPoints});
 }
 
 /// ホームに出す育成中卵の最小情報。

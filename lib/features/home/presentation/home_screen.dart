@@ -11,6 +11,7 @@ import 'home_controller.dart';
 import 'widgets/active_egg_panel.dart';
 import 'widgets/app_usage_chips.dart';
 import 'widgets/reduction_card.dart';
+import 'widgets/warmup_celebration.dart';
 
 /// ホーム画面（最も開く画面 / SCREEN_FLOWS §2）。
 ///
@@ -78,6 +79,12 @@ class _HomeBody extends StatelessWidget {
               children: [
                 _TopBar(state: state),
                 const SizedBox(height: AppSpace.xl),
+
+                // F-01 付与成功: 祝福カード（初日体験 / S1）。未対象/エラー/オフラインは出さない。
+                if (state.showWarmupCelebration) ...[
+                  WarmupCelebration(grant: state.warmupGrant!),
+                  const SizedBox(height: AppSpace.xl),
+                ],
 
                 // 主役: 育成卵 or 空枠誘導（§5-2）。
                 ActiveEggPanel(

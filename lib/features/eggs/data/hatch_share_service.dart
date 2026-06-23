@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -17,15 +17,34 @@ import '../domain/egg_models.dart';
 class HatchShareService {
   const HatchShareService();
 
+  /// このプラットフォームでネイティブ共有シートが使えるか。
+  ///
+  /// share_plus はモバイル（iOS/Android）/ デスクトップ / Web を対象とする。
+  /// それ以外（テスト/未対応プラットフォーム）では共有を試みず、呼び出し側の
+  /// フォールバック（クリップボードコピー等）に委ねる（プラットフォーム未対応時の分岐）。
+  bool get isSupported {
+    if (kIsWeb) return true;
+    return Platform.isAndroid ||
+        Platform.isIOS ||
+        Platform.isMacOS ||
+        Platform.isWindows ||
+        Platform.isLinux;
+  }
+
   /// 孵化結果を共有する。[imageBytes] があれば画像付き、無ければテキストのみ。
   ///
-  /// 共有はベストエフォート: 失敗（キャンセル/権限/IO）でも例外を投げずログのみ。
-  /// 抽選・図鑑はサーバー確定済みで、共有失敗がコアループを壊さないため（信頼境界）。
-  Future<void> shareHatch({
+  /// 戻り値: 共有シートを起動できたら true、起動できなかったら false
+  /// （= 呼び出し側がフォールバック〈コピー/トースト〉を出す）。
+  /// 失敗（キャンセル/権限/IO/未対応）でも例外は投げない: 抽選・図鑑はサーバー確定済みで、
+  /// 共有失敗がコアループを壊さないため（信頼境界 / ベストエフォート）。
+  Future<bool> shareHatch({
     required String text,
     String? subject,
     Uint8List? imageBytes,
   }) async {
+    // プラットフォーム未対応: 共有を試みず false（呼び出し側がコピーへフォールバック）。
+    if (!isSupported) return false;
+
     try {
       if (imageBytes != null && imageBytes.isNotEmpty) {
         // 一時ディレクトリにPNGを書き出して画像付きシェア。
@@ -43,8 +62,10 @@ class HatchShareService {
         // 画像生成に失敗した場合のフォールバック（テキストのみでも拡散は成立）。
         await Share.share(text, subject: subject);
       }
+      return true;
     } catch (e, st) {
       Log.e('shareHatch failed', error: e, stack: st);
+      return false; // 失敗時は呼び出し側のフォールバックへ。
     }
   }
 }
