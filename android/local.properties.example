@@ -1,0 +1,7 @@
+# Moffy Android ローカル設定テンプレート（SETUP.md 参照）。
+# 実体 `local.properties` は端末固有・gitignore 対象。各自コピーして編集する。
+# 例（Windows）:
+#   sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\sdk
+#   flutter.sdk=C\:\\src\\flutter
+sdk.dir=<ANDROID_SDK_PATH>
+flutter.sdk=<FLUTTER_SDK_PATH>

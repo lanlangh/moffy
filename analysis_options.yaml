@@ -1,0 +1,32 @@
+# Moffy 静的解析設定
+# 方針: flutter_lints をベースに、保守性・信頼境界を守るための追加ルールを有効化。
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+  errors:
+    # 本番ログ禁止（console.log相当の print は __DEV__ ガード必須 / 組織ルール）
+    avoid_print: error
+    # 未使用 import / 死にコードはエラー扱いで残さない
+    unused_import: error
+    unused_local_variable: error
+    dead_code: error
+  exclude:
+    - "**/*.g.dart" # 生成コード（build_runner）
+    - "**/*.freezed.dart"
+    - "build/**"
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_constructors_in_immutables: true
+    prefer_final_locals: true
+    always_declare_return_types: true
+    avoid_dynamic_calls: true
+    require_trailing_commas: true
+    use_super_parameters: true
+
+# Riverpod 用 custom_lint を有効化（riverpod_lint）
+# 実行: dart run custom_lint

@@ -1,0 +1,39 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# 生成コード（build_runner）はコミット方針次第。MVPでは生成物を無視。
+*.g.dart
+*.freezed.dart
+
+# Android（端末固有・秘密情報）
+android/local.properties
+android/key.properties
+*.keystore
+*.jks
+android/.gradle/
+.gradle/
+
+# 環境変数（Supabase URL/anon key を埋め込まない / 信頼境界）
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App-dev tooling / 大容量物（アプリ本体のリポジトリには含めない）
+.claude/
+app-dev-org/
+asc-mcp/
+flutter_sdk.zip

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- nest.cream（DESIGN_SYSTEM §2）。styles.xml の colorBackground 用。 -->
+    <color name="background">#FBF6EA</color>
+</resources>
