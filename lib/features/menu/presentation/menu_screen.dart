@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/iap/iap_providers.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../paywall/presentation/paywall_screen.dart';
 import '../../profile/data/profile_repository.dart';
 import '../../profile/domain/legal_links.dart';
 import '../../profile/domain/profile_models.dart';
@@ -27,6 +29,8 @@ class MenuScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(profileStateProvider);
+    // クライアント側のプレミアム状態（即時UI反映 / 機能解放の正はサーバー）。
+    final isPremium = ref.watch(isPremiumProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -39,7 +43,7 @@ class MenuScreen extends ConsumerWidget {
             message: 'プロフィールの読み込みに失敗しました。通信環境を確認してもう一度お試しください。',
             onRetry: () => ref.invalidate(profileStateProvider),
           ),
-          data: (state) => _MenuBody(state: state),
+          data: (state) => _MenuBody(state: state, isPremium: isPremium),
         ),
       ),
     );
@@ -47,8 +51,9 @@ class MenuScreen extends ConsumerWidget {
 }
 
 class _MenuBody extends StatelessWidget {
-  const _MenuBody({required this.state});
+  const _MenuBody({required this.state, required this.isPremium});
   final ProfileState state;
+  final bool isPremium;
 
   @override
   Widget build(BuildContext context) {
@@ -85,11 +90,13 @@ class _MenuBody extends StatelessWidget {
                 subtitle: '5種類の通知を個別にON/OFF',
                 onTap: () => context.push(NotificationSettingsScreen.routePath),
               ),
-              const _MenuTile(
+              _MenuTile(
                 icon: Icons.workspace_premium_outlined,
-                title: 'プレミアム',
-                subtitle: 'まもなく登場',
-                onTap: null, // TODO(課金パス): paywall へ遷移（RevenueCat）。
+                title: isPremium ? 'プレミアム（加入中）' : 'プレミアムにする',
+                subtitle: isPremium
+                    ? '特典が解放されています'
+                    : '保管枠アップ・限定Mofi・プレミアム卵',
+                onTap: () => context.push(PaywallScreen.routePath),
               ),
               const SizedBox(height: AppSpace.xl),
 

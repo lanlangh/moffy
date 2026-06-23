@@ -44,7 +44,8 @@
 ## 確定価格（法務=特商法/サブスク表記用）
 - 月額 ¥480/月(自動更新) / 年額 ¥4,800/年(自動更新・月あたり¥400・約17%OFF) / 7日無料→以後自動更新 / 解約は各ストアの定期購読管理(アプリ内不可) / 期間終了24h前まで未解約で自動更新
 - ⬜ **残り** — fn_finalize_dayのクライアント配線+Drift永続化、課金(RevenueCat→entitlements Webhook)、iOS実装、イラストアセット、APK実機ビルド(Android SDK)
-- ⬜ 課金(RevenueCat)・iOS実装(DeviceActivity/ThresholdAchievement)・イラストアセット供給・APK実機ビルド(Android SDK)
+- ✅ **課金(RevenueCat)実装** — `lib/core/iap/`(抽象+RevenueCat実装+Noopフォールバック)・`lib/features/paywall/`(5状態,価格はStoreProduct値,トライアルはELIGIBLE時のみ,復元/管理リンク)・導線(メニューCTA/保管枠アップセル)・`docs/IAP_SETUP.md`。キーは--dart-define注入。`dart analyze`緑。**サーバー側TODO**: Webhook→Supabase entitlements反映/`Purchases.logIn`/レビュアーバイパス。**ユーザー突合**: RC商品ID/entitlement/公開SDKキーを既存3アプリと混同せずMoffy実値に(SSOT=pricing.dartのRevenueCatIds)。実購入はサンドボックス実機検証必須
+- ⬜ iOS実装(DeviceActivity/ThresholdAchievement)・イラストアセット供給・APK実機ビルド(Android SDK)・F-01ウォームアップUI配線・色違いシェア(share_plus)配線
 - ⚠️ 企画要確定: quest_definitionsのseed内容 / 法務URL・mailto宛先 / アカウント連携の出現トリガー
 
 ## 並行で回せる未着手ゲート

@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/pricing.dart';
+import '../../../core/iap/iap_providers.dart';
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../paywall/presentation/paywall_screen.dart';
 import '../data/hatch_share_service.dart';
 import '../domain/egg_models.dart';
 import 'eggs_controller.dart';
@@ -109,9 +112,11 @@ class _EggsBody extends ConsumerWidget {
                   _NoActiveEggPanel(pooledPoints: state.pooledPoints),
                 const SizedBox(height: AppSpace.xl),
 
-                // 保管枠（無制限）グリッド。
+                // 保管枠グリッド。
                 Text('保管庫', style: AppType.bodyStrong),
                 const SizedBox(height: AppSpace.md),
+                // 保管枠アップセル（無料上限に近づいたら表示。プレミアムは非表示）。
+                _StorageUpsell(storageCount: state.storage.length),
                 StorageGrid(
                   state: state,
                   onSelect: (egg) => _openDetail(context, ref, egg),
@@ -241,6 +246,79 @@ class _ActiveEggPanel extends StatelessWidget {
             Text(
               '${stage.label}・${(egg.progress(params) * 100).round()}%',
               style: AppType.numLabel,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 保管枠アップセル（無料上限に近づいたらペイウォールへ誘導）。
+///
+/// 表示条件: クライアント非プレミアム かつ 保管数が無料上限の8割以上。
+/// しきい値・上限は [StorageLimits]（SSOT）を参照しハードコードしない。
+/// 注意（信頼境界）: ここはあくまで導線。実際の保管枠ガード（200解放）はサーバー検証が正。
+class _StorageUpsell extends ConsumerWidget {
+  const _StorageUpsell({required this.storageCount});
+  final int storageCount;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isPremium = ref.watch(isPremiumProvider);
+    if (isPremium) return const SizedBox.shrink();
+
+    const freeLimit = StorageLimits.freeStorageSlots;
+    // 上限の8割（= freeLimit * 4 / 5）に達したら訴求。マジックナンバーを避け整数演算。
+    const threshold = (freeLimit * 4) ~/ 5;
+    if (storageCount < threshold) return const SizedBox.shrink();
+
+    final atLimit = storageCount >= freeLimit;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.md),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpace.lg),
+        decoration: const BoxDecoration(
+          color: AppColors.primarySoft,
+          borderRadius: AppRadius.lgR,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: AppColors.primaryDeep,
+                  size: 20,
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Text(
+                    atLimit ? '保管庫がいっぱいです' : '保管庫の空きが少なくなっています',
+                    style: AppType.bodyStrong,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              'プレミアムなら保管枠が '
+              '${StorageLimits.freeStorageSlots} → ${StorageLimits.premiumStorageSlots} に。'
+              'たっぷり集められます。',
+              style: AppType.caption,
+            ),
+            const SizedBox(height: AppSpace.md),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => context.push(PaywallScreen.routePath),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primaryDeep,
+                ),
+                child: const Text('プレミアムを見る'),
+              ),
             ),
           ],
         ),

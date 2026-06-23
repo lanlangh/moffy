@@ -20,6 +20,33 @@ abstract final class Env {
   static bool get hasSupabase =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 
+  // --- RevenueCat（IAP / 課金）の公開SDKキー ---
+  //
+  // 信頼境界（env.dart 冒頭の原則と同じ）:
+  //   * RevenueCat の「公開SDKキー（appl_xxx / goog_xxx）」は端末に焼き込んで安全な
+  //     公開鍵。これは入れてよい。一方で **Webhook/REST の Secret キー（sk_xxx）は
+  //     絶対にクライアントへ入れない**（サーバー〈Supabase Edge Function〉専用）。
+  //   * キーはソースに直書きせず `--dart-define` で注入する（Supabase と同方式）。
+  //     例: flutter run \
+  //           --dart-define=REVENUECAT_ANDROID_KEY=goog_xxx \
+  //           --dart-define=REVENUECAT_IOS_KEY=appl_xxx
+  //   * 未設定時は IAP サービスを no-op モック（プレミアム=false）にフォールバックし、
+  //     PoC・UI確認・テストでクラッシュさせない（hasRevenueCat で判定）。
+  static const revenueCatAndroidKey =
+      String.fromEnvironment('REVENUECAT_ANDROID_KEY', defaultValue: '');
+  static const revenueCatIosKey =
+      String.fromEnvironment('REVENUECAT_IOS_KEY', defaultValue: '');
+
+  /// プラットフォーム別の公開SDKキーが設定されているか。
+  /// [isApplePlatform] が true なら iOS キー、false なら Android キーを見る。
+  /// 未設定なら IAP は no-op（モック）で動作する。
+  static bool hasRevenueCat({required bool isApplePlatform}) =>
+      (isApplePlatform ? revenueCatIosKey : revenueCatAndroidKey).isNotEmpty;
+
+  /// 現在プラットフォームに対応する RevenueCat 公開SDKキー（未設定は空文字）。
+  static String revenueCatKey({required bool isApplePlatform}) =>
+      isApplePlatform ? revenueCatIosKey : revenueCatAndroidKey;
+
   /// 本番ログ抑止（組織ルール: console.log は __DEV__ ガード）。
   static bool get isDev => kDebugMode;
 }

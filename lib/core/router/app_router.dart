@@ -8,6 +8,7 @@ import '../../features/home/presentation/home_screen.dart';
 import '../../features/menu/presentation/menu_screen.dart';
 import '../../features/onboarding/data/onboarding_repository.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/paywall/presentation/paywall_screen.dart';
 import '../../features/profile/presentation/account_link_screen.dart';
 import '../../features/profile/presentation/delete_account_screen.dart';
 import '../../features/profile/presentation/notification_settings_screen.dart';
@@ -123,6 +124,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: DeleteAccountScreen.routePath,
         name: DeleteAccountScreen.routeName,
         builder: (context, state) => const DeleteAccountScreen(),
+      ),
+      // ペイウォール（プレミアム購入 / RevenueCat）。メニュー・保管枠満杯から push。
+      GoRoute(
+        path: PaywallScreen.routePath,
+        name: PaywallScreen.routeName,
+        builder: (context, state) => const PaywallScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

@@ -41,6 +41,14 @@ dependencies:
   # --- 共有 (S13 グロースの種: 色違い孵化のSNSシェア / 画像生成) ---
   share_plus: ^10.1.0
 
+  # --- 課金 / IAP (RevenueCat / PRICING §4・docs/IAP_SETUP.md) ---
+  # 公開SDKキーは --dart-define で注入（env.dart）。未設定時は no-op モックにフォールバック。
+  # v10 系: Dart >=3.4.0 / Flutter >=3.22.0（本プロジェクトの SDK 制約・CI と一致）。
+  purchases_flutter: ^10.0.0
+
+  # --- 外部リンク起動 (サブスク管理＝ストアの定期購読画面 / 法務リンク) ---
+  url_launcher: ^6.3.0
+
   # --- 監視/分析（レール。第1パスでは初期化のみ・実送信は後続） ---
   # sentry_flutter: ^8.2.0
   # posthog_flutter: ^4.0.0

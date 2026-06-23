@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moffy/features/collection/presentation/collection_screen.dart';
 import 'package:moffy/features/eggs/presentation/eggs_screen.dart';
 import 'package:moffy/features/menu/presentation/menu_screen.dart';
+import 'package:moffy/features/paywall/presentation/paywall_screen.dart';
 import 'package:moffy/features/quests/presentation/quests_screen.dart';
 
 /// 新規画面のスモークテスト（合成エラー・致命的なビルド崩れの検知）。
@@ -47,5 +48,16 @@ void main() {
     expect(find.text('メニュー'), findsOneWidget);
     expect(find.text('プロフィール'), findsOneWidget);
     expect(find.text('総削減時間'), findsOneWidget);
+  });
+
+  testWidgets('PaywallScreen が未設定時（no-op）に空状態へ落ちる（クラッシュしない）',
+      (tester) async {
+    // RevenueCat キー未注入のテスト環境では no-op サービス → 商品なし → 空状態。
+    await tester.pumpWidget(host(const PaywallScreen()));
+    await tester.pump(); // FutureProvider（offerings）解決
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('プレミアム'), findsOneWidget); // AppBar タイトル
+    // 空状態の文言（プラン準備中）が出る（5状態の空が成立）。
+    expect(find.text('プランを準備中です'), findsOneWidget);
   });
 }
