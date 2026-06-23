@@ -48,7 +48,8 @@ supabase db push
 ```
 
 `supabase/migrations/` 配下の `0001_init.sql` → `0002_economy_rpcs.sql` →
-`0003_warmup_grants.sql` → `0004_security_hardening.sql` がファイル名順に適用される。
+`0003_warmup_grants.sql` → `0004_security_hardening.sql` →
+`0005_economy_exploit_fix.sql` がファイル名順に適用される。
 
 > `0003_warmup_grants.sql` は QA 差し戻し (F-01 / F-03) の追補:
 > - **F-01**: `fn_claim_warmup(p_day)` (ウォームアップ自動付与 Day1=200/Day2=300 +
@@ -64,6 +65,19 @@ supabase db push
 >   `slot_index` / `location` / `is_active` (枠操作) のみ (成長・孵化は RPC 専管)。
 > - definer 関数 (所有者権限) は列レベル GRANT / RLS の対象外のため、全列書込みを継続。
 
+> `0005_economy_exploit_fix.sql` は Codex 第三者レビューの経済偽装穴の修正:
+> - **C-1**: クエスト報酬偽造の封鎖。`user_quests` の列レベル GRANT を進捗系
+>   (`progress` 等) に限定し、`is_completed` / `completed_at` / `reward_granted` を
+>   authenticated が直接書けないようにする。`fn_grant_quest_reward` はクライアントの
+>   `is_completed` を信用せず、`quest_definitions.condition` (rule_json) とサーバー権威
+>   データ (usage_daily / eggs / streaks / point_ledger) から `quest_condition_met` で
+>   達成を再判定してから付与する。達成確定用の `fn_evaluate_quest` を新設 (is_completed
+>   はサーバー専管)。
+> - **H-1**: 孵化済み卵の再孵化封鎖。`fn_hatch_egg` が孵化時に `growth_points=0` リセット +
+>   対象を `incubating`/`storage` に限定。`eggs` の BEFORE UPDATE トリガー
+>   `trg_eggs_block_hatched_mutation` が `OLD.location='hatched'` の行更新を一律拒否
+>   (クライアントも definer も孵化済みを復活不可。孵化遷移は OLD≠hatched で許可)。
+
 ### 2-B. psql で直接流す場合
 
 ```bash
@@ -72,11 +86,14 @@ psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql
 psql "$DATABASE_URL" -f supabase/migrations/0002_economy_rpcs.sql
 psql "$DATABASE_URL" -f supabase/migrations/0003_warmup_grants.sql
 psql "$DATABASE_URL" -f supabase/migrations/0004_security_hardening.sql
+psql "$DATABASE_URL" -f supabase/migrations/0005_economy_exploit_fix.sql
 ```
 
 > **冪等性**: どちらも再実行を想定。0002 の関数は `create or replace`、権限は
 > `revoke`/`grant` で再付与安全。0004 は policy を `drop policy if exists` 先行で
-> 再作成し、`enable rls` / `revoke` / `grant` も再実行安全。0001 を再実行する場合は
+> 再作成し、`enable rls` / `revoke` / `grant` も再実行安全。0005 は関数が
+> `create or replace`、トリガーは `drop trigger if exists` 先行で再作成、列 GRANT は
+> `revoke`/`grant` で再付与安全。0001 を再実行する場合は
 > 既存オブジェクトの `drop` が必要 (初回はクリーンDBに適用すること)。
 
 ---

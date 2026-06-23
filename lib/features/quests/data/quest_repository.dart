@@ -271,7 +271,13 @@ class SupabaseQuestRepository implements QuestRepository {
       throw const ServerFailure('クエストが見つかりませんでした');
     }
     try {
-      // 残高加算・卵生成・冪等はすべてサーバー。クライアントは要求のみ。
+      // 信頼境界 (C-1): 達成判定はサーバー権威。クライアントの is_completed は信用されない。
+      //   付与前に fn_evaluate_quest でサーバーが quest_definitions.condition と
+      //   サーバー権威データ (usage_daily/eggs/streaks/ledger) から達成を確定する。
+      //   未達なら is_completed は立たず、続く fn_grant_quest_reward が再判定で拒否する。
+      await _client
+          .rpc('fn_evaluate_quest', params: {'p_user_quest_id': userQuestId});
+      // 残高加算・卵生成・冪等・達成の最終再判定はすべてサーバー。クライアントは要求のみ。
       await _client
           .rpc('fn_grant_quest_reward', params: {'p_user_quest_id': userQuestId});
       // 受取後の状態を再取得して返す（信頼境界: サーバー確定値を採用）。

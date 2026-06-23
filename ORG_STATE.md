@@ -43,6 +43,12 @@
 
 - 🔒 **セキュリティ監査(CEO)＋修正0004** — Supabase RLS監査で3件の穴を発見・修正(`0004_security_hardening.sql`)。**G-1**:`baselines`のRLS未有効→有効化+select-own(漏洩穴)。**G-2**:`profiles`全列更新可→列GRANTで`display_name/timezone`のみ許可(gem/point/pooled/deleted_at/is_linked除外＝**課金通貨の直接改ざん防止**)。**G-3**:`eggs`全列更新可→`slot_index/location/is_active`のみ許可(growth_points/hatched_into除外＝即孵化チート防止)。definer関数は所有者権限で全列書込継続。**残存リスク**:usage_daily自己申告(OS時間はサーバー検証不能・480pt上限+anomalyで緩和)。db-verify.ymlも0004適用に更新。**QA再点検＋第三者レビュー要**(Codexはヘッドレスでハングし不可→Claude-QA代替を都度開示)
 
+- 🟥 **Codexクロスレビュー成功(gpt-5.5)＝2件の重大穴を新規検出(Claude-QA見逃し)** — クロスモデルレビューが機能した:
+  - **C-1(Critical) クエスト報酬偽造**: `user_quests`はクライアントが`is_completed=true`行を直接作成可(insert/update列無制限) → `fn_grant_quest_reward`が`is_completed`を信用しpt/ジェム/卵付与 → プレミアム通貨の無限偽造
+  - **H-1(High) 再孵化**: G-3で`location`更新許可 → 孵化済み卵を`incubating`に戻す+growth維持 → `fn_hatch_egg`(location='hatched'のみ拒否)で再孵化し放題=図鑑無限増殖
+  - Codex検証OK: baselines/profiles/eggs列ロック・definer整合・冪等・他人読取なし。
+  - ✅ **0005で修正済(要再レビュー)** — C-1: user_questsの`is_completed/completed_at/reward_granted`をクライアント書込不可(列GRANT)＋`fn_grant_quest_reward`がサーバー権威データから達成を再判定(quest_condition_met・5条件型)＋`fn_evaluate_quest`新設。H-1: `fn_hatch_egg`が孵化時growth_points=0リセット＋対象をincubating/storage限定＋`eggs`にBEFORE UPDATEトリガーで孵化済み行の変更を一律拒否(多層防御)。`dart analyze`緑。Codex再クロスレビュー予定
+
 ## 確定価格（法務=特商法/サブスク表記用）
 - 月額 ¥480/月(自動更新) / 年額 ¥4,800/年(自動更新・月あたり¥400・約17%OFF) / 7日無料→以後自動更新 / 解約は各ストアの定期購読管理(アプリ内不可) / 期間終了24h前まで未解約で自動更新
 - ⬜ **残り** — fn_finalize_dayのクライアント配線+Drift永続化、課金(RevenueCat→entitlements Webhook)、iOS実装、イラストアセット、APK実機ビルド(Android SDK)
