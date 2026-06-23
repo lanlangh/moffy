@@ -46,7 +46,8 @@
 - ⬜ **残り** — fn_finalize_dayのクライアント配線+Drift永続化、課金(RevenueCat→entitlements Webhook)、iOS実装、イラストアセット、APK実機ビルド(Android SDK)
 - ✅ **課金(RevenueCat)実装** — `lib/core/iap/`(抽象+RevenueCat実装+Noopフォールバック)・`lib/features/paywall/`(5状態,価格はStoreProduct値,トライアルはELIGIBLE時のみ,復元/管理リンク)・導線(メニューCTA/保管枠アップセル)・`docs/IAP_SETUP.md`。キーは--dart-define注入。`dart analyze`緑。**サーバー側TODO**: Webhook→Supabase entitlements反映/`Purchases.logIn`/レビュアーバイパス。**ユーザー突合**: RC商品ID/entitlement/公開SDKキーを既存3アプリと混同せずMoffy実値に(SSOT=pricing.dartのRevenueCatIds)。実購入はサンドボックス実機検証必須
 - ✅ **F-01ウォームアップUI配線・色違いシェア(share_plus)・UI磨き** — `warmup_tracker`+`claimWarmupIfNeeded`トリガー+`warmup_celebration`(S1祝福/5状態)、孵化色違いの実シェア(フォールバック付)。CI=**118テスト全パス**・analyze緑
-- ⬜ **残(要外部リソース)**: iOS実装(DeviceActivity/ThresholdAchievement・要Mac)・イラストアセット統合(要素材)・APK実機ビルド(Android SDK)・SQL経済ライブ検証(要Supabase)・課金ライブ(要RC実値/Webhook)
+- 🟦 **ライブ検証ハーネス準備済み** — `.github/workflows/db-verify.yml`(手動実行)がSupabaseへ`0001→0003`適用＋`distribution_check`実行。**待ち=ユーザーがSupabaseプロジェクト作成＋repo Secret `SUPABASE_DB_URL`(接続URI)設定**。設定後CEOが`gh workflow run "DB Verify"`で起動し結果報告。DBパスワードはSecret管理(チャットに出さない)
+- ⬜ **残(要外部リソース)**: iOS実装(DeviceActivity/ThresholdAchievement・要Mac)・イラストアセット統合(要素材)・APK実機ビルド(Android SDK)・課金ライブ(要RC実値/Webhook)
 - ⚠️ 企画要確定: quest_definitionsのseed内容 / 法務URL・mailto宛先 / アカウント連携の出現トリガー
 
 ## 並行で回せる未着手ゲート
