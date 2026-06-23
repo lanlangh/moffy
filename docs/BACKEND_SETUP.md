@@ -74,9 +74,21 @@ supabase db push
 >   達成を再判定してから付与する。達成確定用の `fn_evaluate_quest` を新設 (is_completed
 >   はサーバー専管)。
 > - **H-1**: 孵化済み卵の再孵化封鎖。`fn_hatch_egg` が孵化時に `growth_points=0` リセット +
->   対象を `incubating`/`storage` に限定。`eggs` の BEFORE UPDATE トリガー
->   `trg_eggs_block_hatched_mutation` が `OLD.location='hatched'` の行更新を一律拒否
->   (クライアントも definer も孵化済みを復活不可。孵化遷移は OLD≠hatched で許可)。
+>   対象を `incubating`/`storage` に限定。
+> - **C-2** (Codex 再レビュー): クエスト捏造と達成判定の fail-open を封鎖。
+>   - **fail-closed**: `quest_condition_met` の `app_under` / `reduce_total` は、当該 period の
+>     `usage_daily` 行が**存在し `is_finalized=true`** の場合のみ判定。行が無い (未提出) /
+>     未確定 (端末暫定) なら未達 (false) に倒す (= 利用データ未提出の日付で達成扱いにしない)。
+>   - **サーバー専管**: `user_quests` への authenticated INSERT を**剥奪**。クエストインスタンス
+>     生成はサーバーRPC **`fn_sync_quests()`** (security definer / authenticated に grant) のみが
+>     `quest_definitions`(is_active) から当日(daily)/当週(weekly)を**冪等生成**する
+>     (`unique(user_id,quest_id,period_start)` で重複防止 / period はサーバー now()+登録TZ基準)。
+>     クライアント (`SupabaseQuestRepository.loadQuests`) は読み取り前に `fn_sync_quests` を呼ぶ。
+> - **M-2** (Codex 再レビュー): `fn_eggs_block_hatched_mutation` を精緻化。
+>   `OLD.location='hatched'` かつ `NEW.location` が OLD と**異なる**更新のみ拒否する。
+>   - 再孵化 (hatched→incubating/storage) は依然拒否 (H-1 防御維持)。
+>   - `hatched_into` の `ON DELETE SET NULL` カスケード (mofi_collection 削除・退会パージ) は
+>     location が hatched のまま不変のため**許可**される (旧実装はこれを巻き込んで失敗していた)。
 
 ### 2-B. psql で直接流す場合
 
@@ -116,9 +128,11 @@ join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
   and p.proname in (
     'fn_finalize_day','fn_hatch_egg','fn_grant_quest_reward',
+    'fn_evaluate_quest','fn_sync_quests',
     'fn_spend_currency','fn_delete_account','fn_claim_warmup',
     'fn_purge_deleted_accounts',
-    'fn_apply_growth','cfg','cfg_int','cfg_num','streak_multiplier')
+    'fn_apply_growth','quest_condition_met',
+    'cfg','cfg_int','cfg_num','streak_multiplier')
 order by p.proname;
 ```
 
@@ -129,11 +143,14 @@ order by p.proname;
 | `fn_finalize_day` | **true** | false | **true** |
 | `fn_hatch_egg` | **true** | false | **true** |
 | `fn_grant_quest_reward` | **true** | false | **true** |
+| `fn_evaluate_quest` (公開RPC / C-1) | **true** | false | **true** |
+| `fn_sync_quests` (公開RPC / C-2) | **true** | false | **true** |
 | `fn_spend_currency` | **true** | false | **true** |
 | `fn_delete_account` | **true** | false | **true** |
 | `fn_claim_warmup` (公開RPC / F-01) | **true** | false | **true** |
 | `fn_purge_deleted_accounts` (バッチ専用 / F-03) | **false** | false | **true** |
 | `fn_apply_growth` (内部専用) | **false** | false | **true** |
+| `quest_condition_met` (内部専用 / C-1) | **false** | false | **true** |
 | `cfg` / `cfg_int` / `cfg_num` (内部専用) | **false** | false | true |
 | `streak_multiplier` (内部専用) | **false** | false | true |
 

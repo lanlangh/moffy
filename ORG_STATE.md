@@ -47,7 +47,10 @@
   - **C-1(Critical) クエスト報酬偽造**: `user_quests`はクライアントが`is_completed=true`行を直接作成可(insert/update列無制限) → `fn_grant_quest_reward`が`is_completed`を信用しpt/ジェム/卵付与 → プレミアム通貨の無限偽造
   - **H-1(High) 再孵化**: G-3で`location`更新許可 → 孵化済み卵を`incubating`に戻す+growth維持 → `fn_hatch_egg`(location='hatched'のみ拒否)で再孵化し放題=図鑑無限増殖
   - Codex検証OK: baselines/profiles/eggs列ロック・definer整合・冪等・他人読取なし。
-  - ✅ **0005で修正済(要再レビュー)** — C-1: user_questsの`is_completed/completed_at/reward_granted`をクライアント書込不可(列GRANT)＋`fn_grant_quest_reward`がサーバー権威データから達成を再判定(quest_condition_met・5条件型)＋`fn_evaluate_quest`新設。H-1: `fn_hatch_egg`が孵化時growth_points=0リセット＋対象をincubating/storage限定＋`eggs`にBEFORE UPDATEトリガーで孵化済み行の変更を一律拒否(多層防御)。`dart analyze`緑。Codex再クロスレビュー予定
+  - 0005で C-1元経路/H-1 を修正 → **Codex再レビュー: H-1完全クローズ✅・C-1元経路クローズ。但し新規2件検出**:
+    - **C-2(Critical/新規)**: `quest_condition_met('app_under')`が**fail-open**(usage行無し=0分扱いで0<targetが真)＋クライアントが`user_quests`を任意INSERT可 → データ無し日でクエスト捏造し報酬取得。要: 条件をfail-closed化＋クエスト生成をサーバー専管(client INSERT剥奪)
+    - **M-2(Medium/新規)**: 孵化済み全UPDATE拒否トリガーが`hatched_into ON DELETE SET NULL`カスケード(退会パージ)を巻き込み失敗。要: 「location が hatched から変わる時のみ拒否」に精緻化
+  - 🔧 **0005を修正中(C-2/M-2)。判定NO-GO**。Codex(gpt-5.5)は当環境で正常動作確認済＝以後クロスレビュー可
 
 ## 確定価格（法務=特商法/サブスク表記用）
 - 月額 ¥480/月(自動更新) / 年額 ¥4,800/年(自動更新・月あたり¥400・約17%OFF) / 7日無料→以後自動更新 / 解約は各ストアの定期購読管理(アプリ内不可) / 期間終了24h前まで未解約で自動更新

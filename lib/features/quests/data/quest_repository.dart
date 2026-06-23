@@ -181,6 +181,8 @@ class MockQuestRepository implements QuestRepository {
 
 /// Supabase 本実装（信頼境界準拠）。
 ///
+/// 生成（loadQuests 冒頭）は**サーバーRPC `fn_sync_quests`**（当日/当週インスタンスの
+/// 冪等生成 / C-2: クライアントは user_quests へ直接 INSERT できない）。
 /// 読み取り（loadQuests）は `user_quests`（本人select）×`quest_definitions`（公開select）
 /// ×`streaks`（本人select）。進捗は user_quests.progress / is_completed をそのまま表示。
 /// **受取はサーバーRPC `fn_grant_quest_reward`**（残高加算はサーバー）。
@@ -199,6 +201,14 @@ class SupabaseQuestRepository implements QuestRepository {
   Future<QuestsState> loadQuests(EconomyParams params) async {
     final isOnline = _ref.read(isOnlineProvider);
     try {
+      // 信頼境界 (C-2): クエストインスタンスの生成はサーバー専管。クライアントは
+      //   user_quests へ INSERT できない (列GRANT で剥奪)。当日/当週のインスタンスは
+      //   サーバーRPC fn_sync_quests が quest_definitions(is_active) から冪等生成する
+      //   (period はサーバー now()+登録TZ 基準)。読み取り前に同期しておく。
+      //   オフライン時は同期せず、ローカルに既にある (前回同期済みの) 行だけを表示する。
+      if (isOnline) {
+        await _client.rpc('fn_sync_quests');
+      }
       // user_quests に quest_definitions を join（PostgREST のリレーション展開）。
       final rows = await _client.from('user_quests').select(
             'id, quest_id, kind, is_completed, reward_granted, progress, '
