@@ -1,0 +1,38 @@
+name: DB Verify
+
+# Supabase の DB に経済マイグレーション(0001-0003)を適用し、抽選分布(distribution_check)を検証する。
+# 手動実行のみ。接続情報は GitHub Secret `SUPABASE_DB_URL`（あなたが設定。値は CI 以外に出ない）。
+# 推奨: まっさらな Supabase プロジェクトに対して実行（0001 は新規作成 DDL のため）。
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。リポジトリ Settings → Secrets and variables → Actions で設定してください。"
+            exit 1
+          fi
+          echo "psql version:"; psql --version
+
+      - name: Apply migrations (0001 -> 0002 -> 0003)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -e
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0001_init.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0002_economy_rpcs.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0003_warmup_grants.sql
+
+      - name: Run distribution check (§4 抽選分布 / drop_tables 合計=1.0)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/distribution_check.sql
