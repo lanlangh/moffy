@@ -50,7 +50,9 @@
   - 0005で C-1元経路/H-1 を修正 → **Codex再レビュー: H-1完全クローズ✅・C-1元経路クローズ。但し新規2件検出**:
     - **C-2(Critical/新規)**: `quest_condition_met('app_under')`が**fail-open**(usage行無し=0分扱いで0<targetが真)＋クライアントが`user_quests`を任意INSERT可 → データ無し日でクエスト捏造し報酬取得。要: 条件をfail-closed化＋クエスト生成をサーバー専管(client INSERT剥奪)
     - **M-2(Medium/新規)**: 孵化済み全UPDATE拒否トリガーが`hatched_into ON DELETE SET NULL`カスケード(退会パージ)を巻き込み失敗。要: 「location が hatched から変わる時のみ拒否」に精緻化
-  - 🔧 **0005を修正中(C-2/M-2)。判定NO-GO**。Codex(gpt-5.5)は当環境で正常動作確認済＝以後クロスレビュー可
+  - ✅ **0005でC-2/M-2修正・CEO直接コード検証でクローズ確認** — C-2: `quest_condition_met`のapp_under/reduce_totalを**fail-closed**(usage行が存在し`is_finalized=true`の時のみ達成。行無し/未確定→未達)＋`user_quests`のクライアントINSERT剥奪＋サーバー専管`fn_sync_quests`で冪等生成。M-2: トリガーを`old.location='hatched' and new.location is distinct from old.location`に精緻化(復活のみ拒否・hatched_into=nullカスケード許可)。CI=118テスト緑。
+  - ⚠️ **Codex 3巡目はレート制限でハング(停止済)** → C-2/M-2はCEO直接コード検証で確認(対象が小さく要件明確)。**完全に独立な3巡目Codex確認は制限解除後に再実行推奨**＋ライブSQL Editor実行でも裏取り。
+  - **経済信頼境界の現状**: 無制限の偽造経路(is_completed偽装/クエスト捏造/無データ日報酬/無限再孵化/通貨直書き/プレミアム偽装)は全て封鎖。残るは**H-2(usage自己申告・構造的・480pt上限+anomaly+is_finalized確定+クエスト固定数で緩和)**のみ＝MVP妥当。
 
 ## 確定価格（法務=特商法/サブスク表記用）
 - 月額 ¥480/月(自動更新) / 年額 ¥4,800/年(自動更新・月あたり¥400・約17%OFF) / 7日無料→以後自動更新 / 解約は各ストアの定期購読管理(アプリ内不可) / 期間終了24h前まで未解約で自動更新
