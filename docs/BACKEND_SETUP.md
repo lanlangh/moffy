@@ -89,6 +89,26 @@ supabase db push
 >   - 再孵化 (hatched→incubating/storage) は依然拒否 (H-1 防御維持)。
 >   - `hatched_into` の `ON DELETE SET NULL` カスケード (mofi_collection 削除・退会パージ) は
 >     location が hatched のまま不変のため**許可**される (旧実装はこれを巻き込んで失敗していた)。
+> - **C-3** (Codex 3巡目 / High): hatch_count クエストの偽造封鎖。クライアントは 0004 の列
+>   GRANT で `eggs.location` を直接更新できる。M-2 までのトリガーは「hatched から**出る**」更新
+>   しか拒否しなかったため、未孵化 (incubating/storage) の自分の卵を
+>   `update eggs set location='hatched'` で直接 hatched に書き換えられた (OLD≠hatched なので
+>   通過)。`quest_condition_met('hatch_count')` は `eggs.location='hatched'` を数えるため、
+>   `fn_hatch_egg` を経ず (成長閾値・図鑑作成・サーバー抽選なしで) hatch_count 系クエストを達成
+>   し報酬/ジェムを偽造できてしまっていた。
+>   - **修正**: `fn_eggs_block_hatched_mutation` に「**`NEW.location='hatched'` かつ
+>     `OLD.location<>'hatched'` かつ `NEW.hatched_into IS NULL`**」を拒否するルールを追加。
+>     判別はクライアントが書けない不変条件 `hatched_into` で行う。正規孵化 (`fn_hatch_egg`) は
+>     同一 UPDATE で `location='hatched'` と `hatched_into=<collection_id>` を**同時に set** する
+>     ため `NEW.hatched_into` が非NULL → **通過**。クライアントは列GRANT で `hatched_into` を
+>     書けないため、直接 `location='hatched'` にしても `NEW.hatched_into` は NULL のまま →
+>     **拒否** (`egg_hatch_must_use_rpc`)。
+>   - これにより「hatched に入る」のはサーバー孵化のみとなり、`location='hatched'` 計数
+>     (hatch_count) がサーバー権威データとして信頼できる。M-2 ルール (hatched からの離脱拒否 /
+>     SET NULL カスケード許可) はそのまま維持。
+> - **受容リスク** (Codex 指摘 / 今回スコープ外): `profiles.timezone` は本人が更新可能なため、
+>   クエストの period 窓 (日/週境界) を TZ 変更で多少ずらせる。ただし条件判定そのもの
+>   (利用実績・孵化数・基礎pt 等のサーバー権威データ) は破れず影響は限定的。低リスクとして受容。
 
 ### 2-B. psql で直接流す場合
 

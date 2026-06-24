@@ -52,7 +52,9 @@
     - **M-2(Medium/新規)**: 孵化済み全UPDATE拒否トリガーが`hatched_into ON DELETE SET NULL`カスケード(退会パージ)を巻き込み失敗。要: 「location が hatched から変わる時のみ拒否」に精緻化
   - ✅ **0005でC-2/M-2修正・CEO直接コード検証でクローズ確認** — C-2: `quest_condition_met`のapp_under/reduce_totalを**fail-closed**(usage行が存在し`is_finalized=true`の時のみ達成。行無し/未確定→未達)＋`user_quests`のクライアントINSERT剥奪＋サーバー専管`fn_sync_quests`で冪等生成。M-2: トリガーを`old.location='hatched' and new.location is distinct from old.location`に精緻化(復活のみ拒否・hatched_into=nullカスケード許可)。CI=118テスト緑。
   - ⚠️ **Codex 3巡目はレート制限でハング(停止済)** → C-2/M-2はCEO直接コード検証で確認(対象が小さく要件明確)。**完全に独立な3巡目Codex確認は制限解除後に再実行推奨**＋ライブSQL Editor実行でも裏取り。
-  - **経済信頼境界の現状**: 無制限の偽造経路(is_completed偽装/クエスト捏造/無データ日報酬/無限再孵化/通貨直書き/プレミアム偽装)は全て封鎖。残るは**H-2(usage自己申告・構造的・480pt上限+anomaly+is_finalized確定+クエスト固定数で緩和)**のみ＝MVP妥当。
+  - **Codex 3巡目(制限解除後)**: C-2/M-2とも**CLOSED確認**✅。但し**新規C-3(High)検出**: `hatch_count`偽装 — 0004で`location`更新をクライアント許可したため、未孵化卵を直接`location='hatched'`に書き換え可(トリガーはhatchedから出る変更のみ拒否)→`quest_condition_met('hatch_count')`が`fn_hatch_egg`非経由の偽hatchを計数。fn_sync_questsは健全(timezone可変は低リスク)。
+  - 🔧 **C-3を0005で修正中** — トリガーに「`NEW.location='hatched'`かつ`NEW.hatched_into IS NULL`なら拒否」を追加(hatched_intoはクライアント書込不可＝サーバー孵化のみ許可)。判定NO-GO→修正後Codex4巡目で確認。
+  - **経済信頼境界の現状**: is_completed偽装/クエスト捏造/無データ日報酬/無限再孵化/通貨直書き/プレミアム偽装/hatch_count偽装(修正中)を封鎖。残る構造的リスクは**H-2(usage自己申告・480pt上限+anomaly+is_finalized+クエスト固定数で緩和)**のみ。
 
 ## 確定価格（法務=特商法/サブスク表記用）
 - 月額 ¥480/月(自動更新) / 年額 ¥4,800/年(自動更新・月あたり¥400・約17%OFF) / 7日無料→以後自動更新 / 解約は各ストアの定期購読管理(アプリ内不可) / 期間終了24h前まで未解約で自動更新
