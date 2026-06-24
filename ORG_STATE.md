@@ -56,8 +56,10 @@
   - ✅ **C-3修正・CEO直接コード検証でクローズ** — eggsトリガーに `new.location='hatched' and old.location is distinct from 'hatched' and new.hatched_into is null → raise` 追加。fn_hatch_eggはhatched_into同時setで通過、クライアント直接hatched化(hatched_into NULL)は拒否＝`location='hatched'`計数が信頼可能に。
   - ⚠️ **Codex 4巡目はまた制限でハング(停止済)** — Codexは大きいレビュー約1回ごとに制限到達。C-3はCEO直接検証で確認。**注意**: Codexは毎回新規issueを検出してきた実績(2巡目C-1/H-1→3巡目C-3)があるため、制限解除後に**クリーンな最終ラウンド**を1回回す価値あり。
   - **Claude-QAサブエージェント4巡目(Codex制限のため代替)**: C-3 CLOSED確認✅。但し**新規H4-1(High)検出**: `usage_daily.is_finalized`をクライアントが直接true化可(0004列GRANTがusage_dailyに未適用) → fn_finalize_day非経由で「0分・確定」行をINSERT→`app_under`クエストのジェム/卵/pt偽造(480上限外)。C-2 fail-closed修正の前提が破れていた。関連Medium: is_anomaly改ざん/pooled無限累積。
-  - 🔧 **H4-1修正中** — `usage_daily`に0004同様の列GRANT適用(client INSERT/UPDATEは total_minutes/per_app_minutes/usage_date/source_mode等のみ、**is_finalized/is_anomalyはdefiner専管**)。M4-1も同時解決。判定NO-GO→修正後GO見込み。
-  - 封鎖済: C-1/C-2/C-3/H-1/G-1/G-2/G-3/M-2(+H4-1修正中)。残る構造リスクはH-2(reduction自己申告・480上限/anomalyで緩和)＋低リスクtimezone窓。最終独立Codexラウンドは制限解除後に推奨。
+  - ✅ **H4-1/M4-1修正(CI 118緑)** — `usage_daily`列GRANT(client書込はuser_id/usage_date/total_minutes/per_app_minutes/source_modeのみ、is_finalized/is_anomaly除外)＋`fn_finalize_day`が`is_anomaly`をサーバー算出(total_minutes>daily_minutes_max=1440)。client同期から is_anomaly 除去。M4-2(pooled上限)/L4-1は後続明記。→ round-5確認中
+  - ✅ **round-5(Claude-QA確認ラウンド)＝収束/GO** — H4-1/M4-1 CLOSED確定。**新規Critical 0/High 0/Medium 0**(Low1件のみ・実害なし)。全クライアント書込可能列から報酬/通貨/図鑑/プレミアムへの新経路を能動探索→発見なし。
+  - **【経済セキュリティ・エピック完了】封鎖済: C-1/C-2/C-3/H-1/H4-1/G-1/G-2/G-3/M-2/M4-1。残る構造リスク=H-2(reduction自己申告・480上限+anomalyサーバー算出で緩和)＋低リスクtimezone窓のみ＝MVP健全。
+  - **残る念押し(任意)**: ①Codex制限解除後に別モデルで最終1ラウンド ②ライブDBで「is_finalized付きPOSTが42501拒否」実機確認(出荷前)。M4-2(pooled上限)/L4-1は後続。
   - **経済信頼境界の現状**: is_completed偽装/クエスト捏造/無データ日報酬/無限再孵化/通貨直書き/プレミアム偽装/hatch_count偽装(修正中)を封鎖。残る構造的リスクは**H-2(usage自己申告・480pt上限+anomaly+is_finalized+クエスト固定数で緩和)**のみ。
 
 ## 確定価格（法務=特商法/サブスク表記用）
