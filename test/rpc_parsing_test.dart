@@ -141,7 +141,10 @@ void main() {
       expect(row['usage_date'], '2026-06-22');
       expect(row['total_minutes'], 60);
       expect(row['source_mode'], 'exact-minutes');
-      expect(row['is_anomaly'], isFalse);
+      // 信頼境界 (H4-1/M4-1 / migration 0004 G-4): is_anomaly / is_finalized は
+      // サーバー専管列のため DB 提出行 (toUsageRow) には含めない。
+      expect(row.containsKey('is_anomaly'), isFalse);
+      expect(row.containsKey('is_finalized'), isFalse);
 
       // payload 往復で local_points（S8競合解決の比較基準）も保持される。
       final restored = UsageDailyDraft.fromPayload(draft.toPayload());
@@ -152,15 +155,20 @@ void main() {
       expect(restored.localPoints, 35);
     });
 
-    test('異常値（1440分超）フラグが提出行に伝播する（S4）', () {
+    test('異常値（1440分超）は端末ローカルのヒントに留まり DB 行へは送らない（S4 / H4-1）', () {
       final usage = DailyUsage.fromPerApp(
         date: DateTime(2026, 6, 22),
         perAppMinutes: const {'com.x': 2000},
         mode: UsageMode.exactMinutes,
       );
       final draft = UsageDailyDraft.fromDailyUsage(usage);
+      // 端末ローカルの楽観pt計算用ヒントとしては保持する。
       expect(draft.isAnomaly, isTrue);
-      expect(draft.toUsageRow()['is_anomaly'], isTrue);
+      // ただし DB 提出行には含めない (異常判定の権威はサーバー fn_finalize_day)。
+      expect(draft.toUsageRow().containsKey('is_anomaly'), isFalse);
+      // sync_queue ローカル復元 (toPayload/fromPayload) では従来どおり保持される。
+      expect(draft.toPayload()['is_anomaly'], isTrue);
+      expect(UsageDailyDraft.fromPayload(draft.toPayload()).isAnomaly, isTrue);
     });
   });
 

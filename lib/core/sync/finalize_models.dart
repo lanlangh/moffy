@@ -28,7 +28,13 @@ class UsageDailyDraft {
   /// 取得元計算モード（source_mode）。
   final UsageMode mode;
 
-  /// S4 異常値フラグ（1440分超 / is_anomaly）。true の日は確定されない。
+  /// S4 異常値の端末側ヒント（1440分超）。**ローカルの楽観pt計算専用**。
+  ///
+  /// 信頼境界（H4-1/M4-1 / migration 0004 G-4）: usage_daily.is_anomaly は
+  /// サーバー専管列（クライアントは列GRANTで書込不可）になったため、この値は
+  /// DB へは送らない（[toUsageRow] に含めない）。異常判定の権威は
+  /// fn_finalize_day（サーバー / total_minutes > app_config.daily_minutes_max）にある。
+  /// 端末はこの値を [PointCalculator] の楽観表示と sync_queue ローカル復元にのみ使う。
   final bool isAnomaly;
 
   /// 端末で暫定計算した「その日の確定相当pt」。
@@ -67,12 +73,16 @@ class UsageDailyDraft {
   }
 
   /// usage_daily への upsert 行（本人 user_id は呼び出し側で付与）。
+  ///
+  /// 信頼境界（H4-1/M4-1 / migration 0004 G-4）: クライアントが書けるのは
+  /// 生データ列（usage_date / total_minutes / per_app_minutes / source_mode）のみ。
+  /// is_finalized / is_anomaly は列GRANTでサーバー専管（送ると権限エラー）。
+  /// id / created_at / updated_at は DB の default / トリガで自動充填される。
   Map<String, Object?> toUsageRow() => {
         'usage_date': dateKey,
         'total_minutes': totalMinutes,
         'per_app_minutes': perAppMinutes,
         'source_mode': mode.wire,
-        'is_anomaly': isAnomaly,
       };
 
   /// sync_queue（[SyncOperation.payload]）へ積む形へ直列化する。

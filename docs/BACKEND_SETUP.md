@@ -63,6 +63,16 @@ supabase db push
 >   `display_name` / `timezone` のみ (通貨・プール・削除・連携状態は RPC/Webhook 専管)。
 > - **G-3**: `eggs` の列レベル UPDATE 制限。authenticated が直接更新できるのは
 >   `slot_index` / `location` / `is_active` (枠操作) のみ (成長・孵化は RPC 専管)。
+> - **G-4** (Claude-QA 4巡目 / H4-1・M4-1): `usage_daily` の列レベル INSERT/UPDATE 制限。
+>   - **INSERT 許可列**: `user_id` / `usage_date` / `total_minutes` / `per_app_minutes` /
+>     `source_mode` (端末の生データ提出に必要な最小列)。
+>   - **UPDATE 許可列**: `total_minutes` / `per_app_minutes` / `source_mode` (未確定日の上書き提出)。
+>   - **除外列** (authenticated 書込不可・definer 専管): `is_finalized` / `is_anomaly` / `id` /
+>     `created_at` / `updated_at`。`id` は `default gen_random_uuid()`、`created_at`/`updated_at`
+>     は default / `trg_usage_daily_updated_at` で自動充填。
+>   - 修正前は列GRANT 未適用のため、クライアントが `is_finalized=true` / `is_anomaly` を直接
+>     書け、`fn_finalize_day` を経ない「0分・確定済み」行を INSERT して C-2 fail-closed を突破
+>     できた (経済偽造)。0001 RLS (本人かつ未確定行のみ) は維持し、行+列の二重防御にする。
 > - definer 関数 (所有者権限) は列レベル GRANT / RLS の対象外のため、全列書込みを継続。
 
 > `0005_economy_exploit_fix.sql` は Codex 第三者レビューの経済偽装穴の修正:
@@ -106,6 +116,18 @@ supabase db push
 >   - これにより「hatched に入る」のはサーバー孵化のみとなり、`location='hatched'` 計数
 >     (hatch_count) がサーバー権威データとして信頼できる。M-2 ルール (hatched からの離脱拒否 /
 >     SET NULL カスケード許可) はそのまま維持。
+> - **H4-1 / M4-1** (Claude-QA 4巡目 / High): `usage_daily` の確定/異常フラグ偽造の封鎖。
+>   列レベル GRANT は 0004 **G-4** で適用 (上記)。本 0005 では `fn_finalize_day` を更新し、
+>   `is_anomaly` を**サーバー権威で算出**する (`total_minutes > app_config.daily_minutes_max`
+>   = 1440 / SSOT seed を 0005 で追加)。従来は端末申告の `is_anomaly` に依存していたが、G-4 で
+>   クライアント書込不可になったためサーバーに一元化。`is_finalized=true` 化も従来どおり definer
+>   専管 → C-2 fail-closed (is_finalized=true 要求) が物理的に成立する。クライアント配線
+>   (`finalize_models.dart` の `toUsageRow()`) は `is_anomaly` を送らないよう是正済み。
+> - **M4-2 / L4-1** (Claude-QA 4巡目 / **未実装＝後続**): pooled の上限 (PRD §S6 /
+>   `app_config.pooled_points_max_days`=3) ロジックは未実装で、`fn_apply_growth` の pooled は
+>   現状上限なく累積し得る (M4-2)。point 消費 (`fn_spend_currency`) も台帳を残さない直接減算で
+>   残高=Σ台帳 の不変条件がずれ得る (L4-1)。いずれも pooled 上限実装に依存するため後続サイクル
+>   で対応 (今回は H4-1/M4-1 に集中)。
 > - **受容リスク** (Codex 指摘 / 今回スコープ外): `profiles.timezone` は本人が更新可能なため、
 >   クエストの period 窓 (日/週境界) を TZ 変更で多少ずらせる。ただし条件判定そのもの
 >   (利用実績・孵化数・基礎pt 等のサーバー権威データ) は破れず影響は限定的。低リスクとして受容。

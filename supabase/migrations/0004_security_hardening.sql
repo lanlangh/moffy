@@ -97,6 +97,62 @@ revoke update on public.eggs from authenticated;
 grant update (slot_index, location, is_active) on public.eggs to authenticated;
 
 -- ============================================================================
+-- G-4: usage_daily 列レベル INSERT/UPDATE 制限 (= H4-1/M4-1 修正 / Claude-QA 4巡目)
+-- ----------------------------------------------------------------------------
+--   設計責任: 開発部署 (engineer) / 日付: 2026-06-24 / 起因: Claude-QA 4巡目レビュー
+--     - H4-1 (High): usage_daily は RLS (usage_insert_own / usage_update_own_unfinalized)
+--       で本人 INSERT / 未確定 UPDATE を許すが、**列レベル GRANT が未適用** (0004 は
+--       profiles/eggs のみだった)。そのためクライアント (authenticated) が
+--       `is_finalized=true` や `is_anomaly` を **直接書けた**。
+--     - 攻撃 (M4-1 連鎖): 攻撃者は「対象アプリ 0 分・is_finalized=true」の usage_daily 行を
+--       直接 INSERT し、fn_finalize_day (サーバー確定) を経ずに 0005 の quest_condition_met
+--       (app_under / reduce_total の fail-closed = is_finalized=true 要求) を通過させ、
+--       クエスト達成 → ジェム/卵/固定pt (480上限の外) を偽造できた。C-2 の fail-closed が
+--       「クライアントが is_finalized を立てられる」ことで根本から破れていた。
+--
+--   修正方針 (G-2/G-3 と同じ列レベル GRANT の横展開):
+--     * 端末 (Drift) が提出する「生データ列」だけを authenticated が書けるようにし、
+--       確定/異常の権威フラグ (is_finalized / is_anomaly) はサーバー (definer) 専管にする。
+--     * 行レベル (RLS / 本人かつ未確定) と列レベル (どの列を書けるか) の二重防御を維持。
+--
+--   許可列 (クライアントが直接書ける = 端末の生データ提出に必要な最小列):
+--     * INSERT: user_id, usage_date, total_minutes, per_app_minutes, source_mode
+--         - id は INSERT 列から除外 → 0001 の `default gen_random_uuid()` で自動採番される。
+--           列レベル GRANT で列を列挙しない場合、その列はクライアントから指定できず
+--           default が必ず適用される (検証ケース 2)。
+--     * UPDATE: total_minutes, per_app_minutes, source_mode
+--         - 未確定日の上書き提出 (端末の再集計) に必要な生データ列のみ。
+--   除外列 (クライアントは直接書けない / definer 専管):
+--     * is_finalized : サーバー確定フラグ。fn_finalize_day (definer) のみが true 化する。
+--                      クライアントが立てられないため C-2 fail-closed が物理的に成立する。
+--     * is_anomaly   : 異常値フラグ。サーバー (fn_finalize_day / definer) が total_minutes と
+--                      app_config.daily_minutes_max から算出して書く (0005 で fn_finalize_day を
+--                      更新。端末の自己申告を信用しない = 信頼境界)。
+--     * id           : 主キー。default gen_random_uuid() で自動採番 (上記)。
+--     * created_at / updated_at : default now() / set_updated_at トリガ (0001 trg_usage_daily_updated_at)
+--                                 で自動充填される。クライアントは触れない。
+--
+--   ★definer 関数との整合 (G-2/G-3 と同じ理屈):
+--     * fn_finalize_day (security definer / 所有者権限) は列レベル GRANT の対象外。よって
+--       is_finalized=true 化・is_anomaly 書込み・total_minutes 等の更新を全列で継続できる。
+--     * RLS も所有者 (postgres) はバイパス (force row level security 未使用 / 0001)。
+--
+--   ★クライアント配線 (本修正に同梱):
+--     * lib/core/sync/finalize_models.dart の toUsageRow() は is_anomaly を送らないよう是正
+--       (除外列になったため送ると権限エラーになる)。端末の生データ提出 (user_id, usage_date,
+--       total_minutes, per_app_minutes, source_mode) は許可列に収まり従来どおり通る。
+--
+--   既存 RLS (0001) は維持:
+--     usage_select_own / usage_insert_own / usage_update_own_unfinalized
+--       (本人 select / 本人 insert / 本人かつ is_finalized=false の行のみ update)。
+-- ============================================================================
+revoke insert, update on public.usage_daily from authenticated;
+grant insert (user_id, usage_date, total_minutes, per_app_minutes, source_mode)
+  on public.usage_daily to authenticated;
+grant update (total_minutes, per_app_minutes, source_mode)
+  on public.usage_daily to authenticated;
+
+-- ============================================================================
 -- 残存リスク (= 本マイグレーションのスコープ外。明記のみ / 緩和は別パス)
 -- ----------------------------------------------------------------------------
 --   * usage_daily の「自己申告」問題:
@@ -105,11 +161,15 @@ grant update (slot_index, location, is_active) on public.eggs to authenticated;
 --       usage_update_own_unfinalized)。サーバーは OS の実利用時間を独立に検証できない
 --       (= 端末の主張を入力として受け取るしかない / 信頼境界の構造的限界)。
 --       悪意ある端末は「削減した」と過大申告してポイントを不正取得し得る。
---   * 緩和 (既存 / 0001):
+--   * 緩和 (既存 / 0001 + G-4):
 --       - 1日上限 480pt (app_config.daily_point_cap) を fn_finalize_day が
 --         「倍率適用後の最終値」に対して適用 → 1日あたりの不正利得を上限で頭打ち。
 --       - is_anomaly フラグ (物理的にありえない 1440分超等) で異常値を破棄/記録。
---   * 今回は列レベル GRANT で「確定後のサーバー側データ (通貨/成長/基準値)」の改ざんを
---     塞いだが、「確定の入力となる端末申告そのもの」の真正性検証は本質的に困難であり、
---     上限 + anomaly 判定による被害局限が現実解である旨を明記する (今回スコープ外)。
+--         ★G-4 以降は is_anomaly はサーバー (fn_finalize_day / definer) が算出し書き込む
+--         (端末の自己申告ではない / 0005 で fn_finalize_day を更新)。
+--       - ★G-4: is_finalized / is_anomaly はクライアント書込不可になったため、「生データの
+--         過大申告」は残るが、「確定フラグの偽造による確定スキップ (fn_finalize_day を経ない
+--         達成)」は塞がれた (H4-1/M4-1 解消)。total_minutes 等の過大申告は上限 480pt で頭打ち。
+--   * 「確定の入力となる端末申告そのもの (total_minutes)」の真正性検証は本質的に困難であり、
+--     上限 + サーバー anomaly 判定による被害局限が現実解である旨を明記する (今回スコープ外)。
 -- ============================================================================

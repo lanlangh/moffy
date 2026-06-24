@@ -55,7 +55,9 @@
   - **Codex 3巡目(制限解除後)**: C-2/M-2とも**CLOSED確認**✅。但し**新規C-3(High)検出**: `hatch_count`偽装 — 0004で`location`更新をクライアント許可したため、未孵化卵を直接`location='hatched'`に書き換え可(トリガーはhatchedから出る変更のみ拒否)→`quest_condition_met('hatch_count')`が`fn_hatch_egg`非経由の偽hatchを計数。fn_sync_questsは健全(timezone可変は低リスク)。
   - ✅ **C-3修正・CEO直接コード検証でクローズ** — eggsトリガーに `new.location='hatched' and old.location is distinct from 'hatched' and new.hatched_into is null → raise` 追加。fn_hatch_eggはhatched_into同時setで通過、クライアント直接hatched化(hatched_into NULL)は拒否＝`location='hatched'`計数が信頼可能に。
   - ⚠️ **Codex 4巡目はまた制限でハング(停止済)** — Codexは大きいレビュー約1回ごとに制限到達。C-3はCEO直接検証で確認。**注意**: Codexは毎回新規issueを検出してきた実績(2巡目C-1/H-1→3巡目C-3)があるため、制限解除後に**クリーンな最終ラウンド**を1回回す価値あり。
-  - **全KNOWN偽造経路を封鎖**: C-1/C-2/C-3/H-1/G-1/G-2/G-3/M-2。残る構造リスクはH-2(usage自己申告)＋低リスクtimezone窓のみ。CEO評価では**MVP水準で健全**だが、最終独立Codexラウンド(制限解除後)で念押し推奨。
+  - **Claude-QAサブエージェント4巡目(Codex制限のため代替)**: C-3 CLOSED確認✅。但し**新規H4-1(High)検出**: `usage_daily.is_finalized`をクライアントが直接true化可(0004列GRANTがusage_dailyに未適用) → fn_finalize_day非経由で「0分・確定」行をINSERT→`app_under`クエストのジェム/卵/pt偽造(480上限外)。C-2 fail-closed修正の前提が破れていた。関連Medium: is_anomaly改ざん/pooled無限累積。
+  - 🔧 **H4-1修正中** — `usage_daily`に0004同様の列GRANT適用(client INSERT/UPDATEは total_minutes/per_app_minutes/usage_date/source_mode等のみ、**is_finalized/is_anomalyはdefiner専管**)。M4-1も同時解決。判定NO-GO→修正後GO見込み。
+  - 封鎖済: C-1/C-2/C-3/H-1/G-1/G-2/G-3/M-2(+H4-1修正中)。残る構造リスクはH-2(reduction自己申告・480上限/anomalyで緩和)＋低リスクtimezone窓。最終独立Codexラウンドは制限解除後に推奨。
   - **経済信頼境界の現状**: is_completed偽装/クエスト捏造/無データ日報酬/無限再孵化/通貨直書き/プレミアム偽装/hatch_count偽装(修正中)を封鎖。残る構造的リスクは**H-2(usage自己申告・480pt上限+anomaly+is_finalized+クエスト固定数で緩和)**のみ。
 
 ## 確定価格（法務=特商法/サブスク表記用）
