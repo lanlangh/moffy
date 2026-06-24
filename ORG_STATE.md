@@ -53,7 +53,9 @@
   - ✅ **0005でC-2/M-2修正・CEO直接コード検証でクローズ確認** — C-2: `quest_condition_met`のapp_under/reduce_totalを**fail-closed**(usage行が存在し`is_finalized=true`の時のみ達成。行無し/未確定→未達)＋`user_quests`のクライアントINSERT剥奪＋サーバー専管`fn_sync_quests`で冪等生成。M-2: トリガーを`old.location='hatched' and new.location is distinct from old.location`に精緻化(復活のみ拒否・hatched_into=nullカスケード許可)。CI=118テスト緑。
   - ⚠️ **Codex 3巡目はレート制限でハング(停止済)** → C-2/M-2はCEO直接コード検証で確認(対象が小さく要件明確)。**完全に独立な3巡目Codex確認は制限解除後に再実行推奨**＋ライブSQL Editor実行でも裏取り。
   - **Codex 3巡目(制限解除後)**: C-2/M-2とも**CLOSED確認**✅。但し**新規C-3(High)検出**: `hatch_count`偽装 — 0004で`location`更新をクライアント許可したため、未孵化卵を直接`location='hatched'`に書き換え可(トリガーはhatchedから出る変更のみ拒否)→`quest_condition_met('hatch_count')`が`fn_hatch_egg`非経由の偽hatchを計数。fn_sync_questsは健全(timezone可変は低リスク)。
-  - 🔧 **C-3を0005で修正中** — トリガーに「`NEW.location='hatched'`かつ`NEW.hatched_into IS NULL`なら拒否」を追加(hatched_intoはクライアント書込不可＝サーバー孵化のみ許可)。判定NO-GO→修正後Codex4巡目で確認。
+  - ✅ **C-3修正・CEO直接コード検証でクローズ** — eggsトリガーに `new.location='hatched' and old.location is distinct from 'hatched' and new.hatched_into is null → raise` 追加。fn_hatch_eggはhatched_into同時setで通過、クライアント直接hatched化(hatched_into NULL)は拒否＝`location='hatched'`計数が信頼可能に。
+  - ⚠️ **Codex 4巡目はまた制限でハング(停止済)** — Codexは大きいレビュー約1回ごとに制限到達。C-3はCEO直接検証で確認。**注意**: Codexは毎回新規issueを検出してきた実績(2巡目C-1/H-1→3巡目C-3)があるため、制限解除後に**クリーンな最終ラウンド**を1回回す価値あり。
+  - **全KNOWN偽造経路を封鎖**: C-1/C-2/C-3/H-1/G-1/G-2/G-3/M-2。残る構造リスクはH-2(usage自己申告)＋低リスクtimezone窓のみ。CEO評価では**MVP水準で健全**だが、最終独立Codexラウンド(制限解除後)で念押し推奨。
   - **経済信頼境界の現状**: is_completed偽装/クエスト捏造/無データ日報酬/無限再孵化/通貨直書き/プレミアム偽装/hatch_count偽装(修正中)を封鎖。残る構造的リスクは**H-2(usage自己申告・480pt上限+anomaly+is_finalized+クエスト固定数で緩和)**のみ。
 
 ## 確定価格（法務=特商法/サブスク表記用）
