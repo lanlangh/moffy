@@ -155,12 +155,14 @@ flutter build appbundle \
 #    認証は関数内で REVENUECAT_WEBHOOK_AUTH の定数時間比較により行う）
 supabase functions deploy revenuecat-webhook --no-verify-jwt
 
-# 2) 必要な env（Function Secrets）を設定（すべてサーバー専用 / クライアント禁止）
+# 2) Secret を設定（手動設定が必要なのは REVENUECAT_WEBHOOK_AUTH のみ）
 supabase secrets set REVENUECAT_WEBHOOK_AUTH=<長いランダム共有シークレット>
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service_role キー(sk 相当)>
 # REVIEWER_APP_USER_IDS は任意（審査用 / カンマ区切りの user_id）
 supabase secrets set REVIEWER_APP_USER_IDS=<reviewer_user_id_1,reviewer_user_id_2>
-# SUPABASE_URL はデプロイ環境で自動付与されるが、明示設定でも可。
+#
+# ⚠️ SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY は Edge runtime が自動注入するため
+#    手動設定は不要かつ不可（"SUPABASE_" 接頭辞の secrets set は CLI が拒否する）。
+#    関数内の Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") はそのまま自動値を読む。
 ```
 
 **RevenueCat ダッシュボード側の設定**（Project → Integrations → Webhooks）:
@@ -172,10 +174,10 @@ supabase secrets set REVIEWER_APP_USER_IDS=<reviewer_user_id_1,reviewer_user_id_
 
 | env | 用途 | 置き場所 |
 |---|---|---|
-| `REVENUECAT_WEBHOOK_AUTH` | Webhook の Authorization 共有シークレット（定数時間比較） | Supabase Function Secrets |
-| `SUPABASE_SERVICE_ROLE_KEY` | entitlements を RLS バイパスで upsert | Supabase Function Secrets |
-| `SUPABASE_URL` | service_role クライアント生成 | Supabase（自動付与 or 明示） |
-| `REVIEWER_APP_USER_IDS` | 審査用に is_premium=true 扱いにする user_id（任意・カンマ区切り） | Supabase Function Secrets |
+| `REVENUECAT_WEBHOOK_AUTH` | Webhook の Authorization 共有シークレット（定数時間比較） | Supabase Function Secrets（**手動設定**） |
+| `SUPABASE_SERVICE_ROLE_KEY` | entitlements を RLS バイパスで upsert | **Edge runtime 自動注入**（手動設定不可） |
+| `SUPABASE_URL` | service_role クライアント生成 | **Edge runtime 自動注入**（手動設定不可） |
+| `REVIEWER_APP_USER_IDS` | 審査用に is_premium=true 扱いにする user_id（任意・カンマ区切り） | Supabase Function Secrets（手動設定・任意） |
 
 > ⚠️ いずれも**クライアント（`EXPO_PUBLIC_`/`--dart-define`）に入れない**。クライアントは anon key のみ。
 
