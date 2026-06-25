@@ -4,9 +4,9 @@
 > `/app-dev-org:kickoff` が作成し、`/app-dev-org:weekly-brief` と各部署が更新する。
 
 ## ▶ RESUME / 現在地（2026-06-25・/clear後はここから読む）
-- **進捗**: MVPクライアント一式＋経済バックエンド(`supabase/migrations/0001〜0005`)完成。**CI=118テスト緑**(GitHub Actions)。経済セキュリティは**5ラウンドのクロスレビューで収束＝GO**(C-1/C-2/C-3/H-1/H4-1/G-1〜3/M-2/M4-1封鎖済、残H-2は受容)。価格(`pricing.dart`)・法務(`docs/legal/`)・ASO(`docs/ASO.md`)・オーナー手順書(`docs/OWNER_SETUP_GUIDE.md`)あり。
-- **次の一手**: **Supabase DBを確保 → `0001〜0005`適用 → 検証**（`docs/OWNER_SETUP_GUIDE.md` のA章手順）。その後 RevenueCat Webhook実装・観測(Sentry/PostHog)配線・F-01ウォームアップUI駆動配線・iOS実装(v1.1)が残タスク。
-- **保留中のユーザー判断**: Supabase無料枠が2プロジェクト上限。CEO推奨=**Moffy専用の別Supabaseアカウントで継続**(別DB移行は5ラウンド分の成果を捨てる高コストのため非推奨)。ユーザーは他DB(Firebase等)も検討中だった。
+- **進捗**: MVPクライアント一式＋経済バックエンド(`supabase/migrations/0001〜0005`)完成。**CI=123テスト緑**(GitHub Actions)。経済セキュリティは**5ラウンドのクロスレビューで収束＝GO**(C-1/C-2/C-3/H-1/H4-1/G-1〜3/M-2/M4-1封鎖済、残H-2は受容)。価格(`pricing.dart`)・法務(`docs/legal/`)・ASO(`docs/ASO.md`)・オーナー手順書(`docs/OWNER_SETUP_GUIDE.md`)あり。**観測(Sentry/PostHog)配線=完了・CI緑・QA GO**(PR#1マージ済、`docs/OBSERVABILITY_SETUP.md`)。
+- **次の一手**: **【ユーザー作業待ち】Moffy専用の別Supabaseアカウントでプロジェクト作成 → 接続URI(Direct/5432)をGitHub Secret `SUPABASE_DB_URL`に登録**。登録後、CEOが`DB Verify`ワークフロー起動で `0001〜0005`適用＋分布検証＋H4-1実証を自動実行・報告。その後 RevenueCat Webhook実装・F-01以降のイベント発火残配線(day_finalized/quest_claimed)・iOS実装(v1.1)。
+- **DB決定(2026-06-25確定)**: **Moffy専用の別Supabaseアカウントで継続**(ユーザー選択)。無料枠2プロジェクトを別枠で確保し会社プロダクトとして所有分離。別DB(Firebase等)移行は経済SQL=Postgres固有のため非選択。
 - **環境メモ(重要)**: ①ローカル`flutter`は企業**WDACでブロック**→検証は**GitHub Actions CI**(private repo **`lanlangh/moffy`**)。`dart analyze`はローカル可。②**Codex**(別モデルレビュー)は大レビュー約1回ごとに**レート制限**・数時間でリセット→不在時はClaude-QAサブエージェントで代替(限界開示する)。③Flutter SDK=`C:\Users\user\flutter`(PATH=`C:\Users\user\flutter\bin`)。④コード生成(build_runner)未使用。
 - **組織**: 8部署エージェント+14スキル+7コマンドは`.claude/`に導入済み(/clearしても残る)。本ファイルが組織メモリ。`spawn_task`は使わない運用。
 
@@ -76,6 +76,8 @@
 - ⬜ **残り** — fn_finalize_dayのクライアント配線+Drift永続化、課金(RevenueCat→entitlements Webhook)、iOS実装、イラストアセット、APK実機ビルド(Android SDK)
 - ✅ **課金(RevenueCat)実装** — `lib/core/iap/`(抽象+RevenueCat実装+Noopフォールバック)・`lib/features/paywall/`(5状態,価格はStoreProduct値,トライアルはELIGIBLE時のみ,復元/管理リンク)・導線(メニューCTA/保管枠アップセル)・`docs/IAP_SETUP.md`。キーは--dart-define注入。`dart analyze`緑。**サーバー側TODO**: Webhook→Supabase entitlements反映/`Purchases.logIn`/レビュアーバイパス。**ユーザー突合**: RC商品ID/entitlement/公開SDKキーを既存3アプリと混同せずMoffy実値に(SSOT=pricing.dartのRevenueCatIds)。実購入はサンドボックス実機検証必須
 - ✅ **F-01ウォームアップUI配線・色違いシェア(share_plus)・UI磨き** — `warmup_tracker`+`claimWarmupIfNeeded`トリガー+`warmup_celebration`(S1祝福/5状態)、孵化色違いの実シェア(フォールバック付)。CI=**118テスト全パス**・analyze緑
+- ✅ **観測(Sentry/PostHog)配線(開発→QA GO→PR#1マージ)** — `lib/core/observability/`に抽象+Noopフォールバック(`analytics`/`crash_reporter`、iapレール同形)。`Env`に`SENTRY_DSN`/`POSTHOG_API_KEY`/`POSTHOG_HOST`(--dart-define)。`main.dart`=`SentryFlutter.init(appRunner:)`ラップ(DSN無→素のrunApp分岐)/PostHogキー有時のみ初期化。`Log.e`→本番時に関数ポインタフックでSentry転送(循環依存回避)。ファネルイベントSSOT(`analytics_events.dart`)。**PII配慮: sendDefaultPii=false・利用分数/確定pt/金額/氏名/メール送信なし・匿名IDのみ**。pkg=`sentry_flutter ^8.9.0`/`posthog_flutter ^4.0.1`(CIのpub getで解決確認済)。`docs/OBSERVABILITY_SETUP.md`。**CI=123テスト緑・analyze No issues**。QAクロスレビュー(Codexハング→Claude-QA代替・限界開示)=GO(条件①PostHog API型②paywall_viewed単発③Stateful化非破壊→いずれもCI緑で確定)。**ユーザー作業=後でDSN/APIキーを--dart-defineで注入**。
+  - ⬜ **残: イベント発火の追加配線** — `day_finalized`(`sync_service.dart`)/`quest_claimed`(`quests_controller.dart`)は定義済・TODOコメントで未発火(スコープ判断)。ローンチ前の計測完全性が必要なら1行ずつ`analyticsProvider.capture(...)`追加で有効化。
 - 🟦 **ライブ検証ハーネス準備済み** — `.github/workflows/db-verify.yml`(手動実行)がSupabaseへ`0001→0003`適用＋`distribution_check`実行。**待ち=ユーザーがSupabaseプロジェクト作成＋repo Secret `SUPABASE_DB_URL`(接続URI)設定**。設定後CEOが`gh workflow run "DB Verify"`で起動し結果報告。DBパスワードはSecret管理(チャットに出さない)
 - ⬜ **残(要外部リソース)**: iOS実装(DeviceActivity/ThresholdAchievement・要Mac)・イラストアセット統合(要素材)・APK実機ビルド(Android SDK)・課金ライブ(要RC実値/Webhook)
 - ⚠️ 企画要確定: quest_definitionsのseed内容 / 法務URL・mailto宛先 / アカウント連携の出現トリガー
