@@ -31,10 +31,12 @@ abstract final class LegalLinks {
       'https://moffy.example.com/tokushoho';
 
   /// 問い合わせ・フィードバック窓口（mailto / 最低限の導線 / §5-6）。
-  static const String supportEmail = 'support@moffy.example.com';
+  /// 合同会社Lan 公式（info@lan-corp.com / 受信は法人運用 Gmail へ転送・到達確認済み）。
+  static const String supportEmail = 'info@lan-corp.com';
 
   /// アプリ外データ削除リクエスト窓口（S12 / Google要件: 再インストール不要の削除手段）。
-  static const String accountDeletionEmail = 'delete@moffy.example.com';
+  /// 一般窓口と同一メールボックス。件名プリフィルで削除依頼を識別する。
+  static const String accountDeletionEmail = 'info@lan-corp.com';
 
   /// 削除リクエスト用 mailto（件名プリフィル）。
   static String get deletionMailto =>
