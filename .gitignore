@@ -23,6 +23,10 @@ android/.gradle/
 .env.*
 !.env.example
 
+# 秘密メモ置き場（Webhook共有シークレット等・誤コミット防止）
+secrets/
+*.secret
+
 # IDE
 .idea/
 .vscode/
