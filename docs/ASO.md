@@ -135,13 +135,13 @@ Moffyは無料で、卵を育てて孵化させ、図鑑を集めるコア体験
 ■ プライバシーについて
 Moffyは、SNSの利用時間を「ポイント計算」のためだけに使用します。利用目的の詳細はプライバシーポリシーをご確認ください。
 
-利用規約: 【要記入：利用規約URL】
-プライバシーポリシー: 【要記入：プライバシーポリシーURL】
-特定商取引法に基づく表記: 【要記入：特商法表記URL】
+利用規約: https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a809d8467ca9c8f9bf076
+プライバシーポリシー: https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a805f8af3d7c7b8ee5753
+特定商取引法に基づく表記: https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a80a8b569d2102a2eb48a
 ```
 
 > 字数目安: 約1,050字（=4000字枠に余裕。冒頭3行で価値が完結している点が重要）。
-> 【要記入】URL3点は ORG_STATE の「ユーザー記入必須（審査ブロッカー）」と連動。法務（jp-legal-docs）の `docs/legal/` ホスティングURL確定後に差し込み。
+> URL3点=Notion公開ページ（2026-06-25 公開アクセス確認済み・`legal_links.dart`と一致）。ストア提出時のプライバシーポリシーURL欄もこのプライバシーURLと完全一致させること（審査要件）。
 
 ### 3-2. 英語（本文・ドラフト）
 

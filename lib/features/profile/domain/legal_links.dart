@@ -20,15 +20,18 @@ library;
 abstract final class LegalLinks {
   LegalLinks._();
 
-  /// プライバシーポリシー（TODO: 法務確定URLに差し替え）。
-  static const String privacyPolicy = 'https://moffy.example.com/privacy';
+  /// プライバシーポリシー（Notion公開ページ・公開アクセス確認済み 2026-06-25）。
+  /// ※ストア提出時のプライバシーURL欄もこの値と完全一致させること（審査要件）。
+  static const String privacyPolicy =
+      'https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a805f8af3d7c7b8ee5753';
 
-  /// 利用規約（TODO: 法務確定URLに差し替え）。
-  static const String termsOfService = 'https://moffy.example.com/terms';
+  /// 利用規約（Notion公開ページ・公開アクセス確認済み 2026-06-25）。
+  static const String termsOfService =
+      'https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a809d8467ca9c8f9bf076';
 
-  /// 特定商取引法に基づく表記（TODO: 法務確定URLに差し替え）。
+  /// 特定商取引法に基づく表記（Notion公開ページ・公開アクセス確認済み 2026-06-25）。
   static const String commercialTransactions =
-      'https://moffy.example.com/tokushoho';
+      'https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a80a8b569d2102a2eb48a';
 
   /// 問い合わせ・フィードバック窓口（mailto / 最低限の導線 / §5-6）。
   /// 合同会社Lan 公式（info@lan-corp.com / 受信は法人運用 Gmail へ転送・到達確認済み）。
