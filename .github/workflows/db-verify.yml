@@ -38,3 +38,8 @@ jobs:
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/distribution_check.sql
+
+      - name: Run permission check (§3 RPC権限グリッド / 列GRANT / H4-1実証)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/permission_check.sql

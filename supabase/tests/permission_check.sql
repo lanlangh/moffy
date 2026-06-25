@@ -1,0 +1,178 @@
+-- permission_check.sql
+-- 経済セキュリティ・エピックのライブ最終証明（信頼境界の検証）。
+-- BACKEND_SETUP.md §3 の RPC 権限グリッド ＋ 列レベル GRANT（G-2/G-3/H4-1/M4-1/C-1/C-3）を
+-- 実 DB に対して自己検証する。期待と異なれば RAISE EXCEPTION で失敗させる（CI ゲート化）。
+-- migration 0001〜0005 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
+
+\echo '================ permission_check.sql 開始 ================'
+
+-- ============================================================
+-- §3-A: RPC execute 権限グリッド（公開RPC=authenticated true/anon false、内部ヘルパ=false）
+-- ============================================================
+do $$
+declare
+  r record;
+  -- 期待: proname -> (auth_can, anon_can)
+  expected jsonb := jsonb_build_object(
+    'fn_finalize_day',           jsonb_build_array(true,  false),
+    'fn_hatch_egg',              jsonb_build_array(true,  false),
+    'fn_grant_quest_reward',     jsonb_build_array(true,  false),
+    'fn_evaluate_quest',         jsonb_build_array(true,  false),
+    'fn_sync_quests',            jsonb_build_array(true,  false),
+    'fn_spend_currency',         jsonb_build_array(true,  false),
+    'fn_delete_account',         jsonb_build_array(true,  false),
+    'fn_claim_warmup',           jsonb_build_array(true,  false),
+    'fn_purge_deleted_accounts', jsonb_build_array(false, false),
+    'fn_apply_growth',           jsonb_build_array(false, false),
+    'quest_condition_met',       jsonb_build_array(false, false),
+    'cfg',                       jsonb_build_array(false, false),
+    'cfg_int',                   jsonb_build_array(false, false),
+    'cfg_num',                   jsonb_build_array(false, false),
+    'streak_multiplier',         jsonb_build_array(false, false)
+  );
+  exp_auth boolean;
+  exp_anon boolean;
+  seen text[] := array[]::text[];
+  fail_count int := 0;
+begin
+  for r in
+    select p.proname,
+           has_function_privilege('authenticated', p.oid, 'execute') as auth_can,
+           has_function_privilege('anon', p.oid, 'execute')          as anon_can,
+           p.prosecdef as secdef
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = any (array(select jsonb_object_keys(expected)))
+    order by p.proname
+  loop
+    seen := seen || r.proname;
+    exp_auth := (expected -> r.proname ->> 0)::boolean;
+    exp_anon := (expected -> r.proname ->> 1)::boolean;
+    if r.auth_can is distinct from exp_auth or r.anon_can is distinct from exp_anon then
+      raise warning '[§3-A FAIL] % auth=% (期待%) anon=% (期待%)',
+        r.proname, r.auth_can, exp_auth, r.anon_can, exp_anon;
+      fail_count := fail_count + 1;
+    else
+      raise notice '  [ok] % auth=% anon=% secdef=%', r.proname, r.auth_can, r.anon_can, r.secdef;
+    end if;
+    -- 公開・内部問わず definer であるべき（所有者権限で実行）
+    if not r.secdef then
+      raise warning '[§3-A FAIL] % が security definer でない', r.proname;
+      fail_count := fail_count + 1;
+    end if;
+  end loop;
+
+  -- 期待した関数が全て存在したか（取りこぼし＝適用漏れ）
+  if array_length(seen, 1) is distinct from (select count(*)::int from jsonb_object_keys(expected)) then
+    raise warning '[§3-A FAIL] 期待した関数のうち存在しないものがある。存在=% / 期待=%',
+      array_length(seen, 1), (select count(*) from jsonb_object_keys(expected));
+    fail_count := fail_count + 1;
+  end if;
+
+  if fail_count > 0 then
+    raise exception '§3-A RPC権限グリッド検証 失敗（% 件）', fail_count;
+  end if;
+  raise notice '=== §3-A RPC権限グリッド PASS ===';
+end $$;
+
+-- ============================================================
+-- §3-B: 列レベル GRANT ホワイトリスト（authenticated）
+--   正: 許可されているべき列 / 負: 課金通貨・確定フラグ等は不可
+-- ============================================================
+do $$
+declare
+  fail_count int := 0;
+  -- (table, column, priv, expected) の検証セット
+  checks text[][] := array[
+    -- == 負（false であるべき）== 経済セキュリティの核心 ==
+    array['usage_daily','is_finalized','INSERT','false'],  -- H4-1
+    array['usage_daily','is_finalized','UPDATE','false'],  -- H4-1
+    array['usage_daily','is_anomaly','INSERT','false'],    -- M4-1
+    array['usage_daily','is_anomaly','UPDATE','false'],    -- M4-1
+    array['profiles','gem_balance','UPDATE','false'],      -- G-2 課金通貨改ざん防止
+    array['profiles','point_balance','UPDATE','false'],    -- G-2
+    array['profiles','pooled_points','UPDATE','false'],    -- G-2
+    array['profiles','is_linked','UPDATE','false'],        -- G-2
+    array['profiles','deleted_at','UPDATE','false'],       -- G-2 / F-03
+    array['eggs','growth_points','UPDATE','false'],        -- G-3 即孵化チート防止
+    array['eggs','hatched_into','UPDATE','false'],         -- H-1 / C-3 再孵化防止
+    array['eggs','rarity','UPDATE','false'],               -- G-3
+    array['user_quests','is_completed','UPDATE','false'],  -- C-1 報酬偽造防止
+    array['user_quests','reward_granted','UPDATE','false'],-- C-1
+    -- == 正（true であるべき）== 正規の書込み列 ==
+    array['profiles','display_name','UPDATE','true'],
+    array['profiles','timezone','UPDATE','true'],
+    array['eggs','slot_index','UPDATE','true'],
+    array['eggs','location','UPDATE','true'],
+    array['eggs','is_active','UPDATE','true'],
+    array['usage_daily','total_minutes','INSERT','true'],
+    array['usage_daily','source_mode','INSERT','true'],
+    array['usage_daily','total_minutes','UPDATE','true'],
+    array['user_quests','progress','UPDATE','true']
+  ];
+  c text[];
+  actual boolean;
+  expected boolean;
+begin
+  foreach c slice 1 in array checks loop
+    actual := has_column_privilege('authenticated', ('public.'||c[1])::regclass, c[2], c[3]);
+    expected := c[4]::boolean;
+    if actual is distinct from expected then
+      raise warning '[§3-B FAIL] authenticated %.% %=% (期待%)', c[1], c[2], c[3], actual, expected;
+      fail_count := fail_count + 1;
+    end if;
+  end loop;
+
+  -- C-2: user_quests へのクライアント INSERT は剥奪済みであるべき（テーブル権限）
+  if has_table_privilege('authenticated', 'public.user_quests'::regclass, 'INSERT') then
+    raise warning '[§3-B FAIL] authenticated が user_quests に INSERT 可（C-2 クエスト捏造経路）';
+    fail_count := fail_count + 1;
+  end if;
+
+  if fail_count > 0 then
+    raise exception '§3-B 列レベルGRANT検証 失敗（% 件）', fail_count;
+  end if;
+  raise notice '=== §3-B 列レベルGRANT（課金通貨/確定フラグ/報酬の改ざん封鎖）PASS ===';
+end $$;
+
+-- ============================================================
+-- §3-C: ランタイム実証（A-5 / H4-1）
+--   authenticated ロールで is_finalized 付き INSERT を試み、列権限拒否で失敗することを確認。
+--   ※ 真の合否判定は §3-B（has_column_privilege）。本ブロックは実挙動のデモ（best-effort）。
+-- ============================================================
+do $$
+declare
+  ok boolean := false;
+begin
+  begin
+    set local role authenticated;
+  exception when others then
+    raise notice '  [skip] §3-C: set role authenticated 不可（%）。§3-B が権限を保証済み。', sqlerrm;
+    return;
+  end;
+
+  begin
+    insert into public.usage_daily(user_id, usage_date, total_minutes, per_app_minutes, source_mode, is_finalized)
+    values ('00000000-0000-0000-0000-000000000000', current_date, 0, '{}'::jsonb, 'exact-minutes', true);
+    -- ここに到達したら偽造成功＝重大欠陥
+    raise exception '[§3-C FAIL] authenticated が is_finalized=true 付き行を INSERT できた（H4-1 破れ）';
+  exception
+    when insufficient_privilege then
+      if sqlerrm ilike '%is_finalized%' or sqlerrm ilike '%column%' then
+        ok := true;
+        raise notice '  [ok] H4-1 ランタイム実証: is_finalized 付き INSERT は列権限拒否（42501 / %）', sqlerrm;
+      else
+        raise notice '  [info] 42501 だが列メッセージ不一致（RLS等の可能性）: %', sqlerrm;
+        ok := true; -- 少なくとも拒否はされた
+      end if;
+  end;
+
+  reset role;
+  if not ok then
+    raise exception '[§3-C FAIL] H4-1 ランタイム検証が想定外';
+  end if;
+  raise notice '=== §3-C H4-1 ランタイム実証 PASS ===';
+end $$;
+
+select '✅ permission_check.sql 完了（全ブロック PASS）' as result;
