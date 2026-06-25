@@ -79,4 +79,8 @@ abstract final class AnalyticsProps {
   /// 流入経路（どの画面からペイウォールへ来たか）。paywall_viewed。
   /// 値はカテゴリ文字列のみ（例: 'eggs_storage_lock' / 'menu'）。
   static const source = 'source';
+
+  /// 確定ステージ（warmup/provisional/confirmed）。day_finalized。
+  /// カテゴリ値のみ（確定 pt の「数値」や利用分数は載せない / PII 厳守）。
+  static const stage = 'stage';
 }

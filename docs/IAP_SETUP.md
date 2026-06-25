@@ -14,9 +14,10 @@
 | できる（クライアント実装済み） | まだ（サーバー/手動が必要） |
 |---|---|
 | Offering `default` の月額/年額の**取得・表示**（ストア実額 priceString） | **実購入の成功**（サンドボックス実機検証が必要・後述§5） |
-| 購入 / 復元 / サブスク管理リンク（ストアへ） | **RevenueCat Webhook → Supabase entitlements 反映**（§6） |
-| トライアル文言の**条件表示**（資格 ELIGIBLE のときだけ） | **レビュアーバイパス**（サーバーでレビューアカウント=premium / §6） |
-| entitlement `premium` の**クライアント状態購読**（即時UI反映） | **機能解放の最終判定をサーバー値で行う合成**（§6 TODO） |
+| 購入 / 復元 / サブスク管理リンク（ストアへ） | （§6 実装済 → 残: **デプロイ + env 設定 + RevenueCat Webhook 設定**） |
+| トライアル文言の**条件表示**（資格 ELIGIBLE のときだけ） | （§6-4 実装済 → 残: **REVIEWER_APP_USER_IDS の設定 + 実機審査確認**） |
+| entitlement `premium` の**クライアント状態購読**（即時UI反映） | （§6 実装済: **Webhook 反映 / server優先の合成** → 残: 実 Webhook 送信検証） |
+| **Webhook → entitlements 反映 / server権威の合成**（§6・コード実装済） | **サンドボックス + 実 Webhook での E2E 検証**（デプロイ後 / §5・§6） |
 | キー未設定/オフライン時の **no-op フォールバック**（5状態が成立） | 既存3アプリとの**商品ID突合せ**（§3・要ユーザー作業） |
 
 > 重要原則（PRICING §4-2 / ARCHITECTURE §0-2）:
@@ -140,9 +141,43 @@ flutter build appbundle \
 
 ---
 
-## 6. Webhook → Supabase entitlements 反映方針（=サーバー側 TODO）
+## 6. Webhook → Supabase entitlements 反映（=実装済み）
 
 > ここが**信頼境界の肝**。クライアントの「自分は Pro」を信じない。
+> 実装: `supabase/functions/revenuecat-webhook/index.ts`（Deno/TS）+
+> クライアント配線（`iap_providers.dart` / `server_entitlement.dart` / `iap_service.dart`）。
+> ※ Edge Function は Flutter CI の検査対象外（Deno 未導入）。検証は **デプロイ時 + 実 Webhook 送信**で行う。
+
+### 6-0. デプロイ手順（=サーバー反映の有効化）
+
+```bash
+# 1) Edge Function をデプロイ（RevenueCat は Supabase JWT を持たないため --no-verify-jwt。
+#    認証は関数内で REVENUECAT_WEBHOOK_AUTH の定数時間比較により行う）
+supabase functions deploy revenuecat-webhook --no-verify-jwt
+
+# 2) 必要な env（Function Secrets）を設定（すべてサーバー専用 / クライアント禁止）
+supabase secrets set REVENUECAT_WEBHOOK_AUTH=<長いランダム共有シークレット>
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service_role キー(sk 相当)>
+# REVIEWER_APP_USER_IDS は任意（審査用 / カンマ区切りの user_id）
+supabase secrets set REVIEWER_APP_USER_IDS=<reviewer_user_id_1,reviewer_user_id_2>
+# SUPABASE_URL はデプロイ環境で自動付与されるが、明示設定でも可。
+```
+
+**RevenueCat ダッシュボード側の設定**（Project → Integrations → Webhooks）:
+- **Webhook URL**: `https://<project-ref>.functions.supabase.co/revenuecat-webhook`
+- **Authorization ヘッダ**: `supabase secrets set` した `REVENUECAT_WEBHOOK_AUTH` と**完全一致**の値を設定。
+  不一致は 401（関数が定数時間比較で検証）。
+
+### 6-0b. 必要 env 一覧（=すべてサーバー専用）
+
+| env | 用途 | 置き場所 |
+|---|---|---|
+| `REVENUECAT_WEBHOOK_AUTH` | Webhook の Authorization 共有シークレット（定数時間比較） | Supabase Function Secrets |
+| `SUPABASE_SERVICE_ROLE_KEY` | entitlements を RLS バイパスで upsert | Supabase Function Secrets |
+| `SUPABASE_URL` | service_role クライアント生成 | Supabase（自動付与 or 明示） |
+| `REVIEWER_APP_USER_IDS` | 審査用に is_premium=true 扱いにする user_id（任意・カンマ区切り） | Supabase Function Secrets |
+
+> ⚠️ いずれも**クライアント（`EXPO_PUBLIC_`/`--dart-define`）に入れない**。クライアントは anon key のみ。
 
 ### 6-1. データフロー（目標）
 ```
@@ -156,24 +191,33 @@ flutter build appbundle \
   クライアントの RevenueCat 状態（premiumStatusProvider）は即時UI反映の補助のみ
 ```
 
-### 6-2. App User ID 紐づけ（PRICID §4-2）
+### 6-2. App User ID 紐づけ（PRICING §4-2）= 実装済み
 - RevenueCat の **App User ID を Supabase の user_id に揃える**（機種変・再インストール時の復元が
-  連携アカウントで効くように）。`iap_providers.dart` の `iapConfiguredProvider` に
-  `appUserId` を渡す TODO がある（現状は匿名IDのまま）。
-- 配線時: 認証後に `Purchases.logIn(supabaseUserId)` を呼ぶ実装を追加（サービスに `logIn` を拡張）。
+  連携アカウントで効くように）。`iap_providers.dart` の `iapConfiguredProvider` が、Supabase
+  設定済みかつ認証済みなら現在の `user_id` で `configure(appUserId:)` し、さらに `logIn` で
+  確実に揃える。未認証/Supabase 未設定なら従来通り匿名ID。
+- `IapService` に `logIn(String appUserId)` を追加（Noop は何もしない / RevenueCat は `Purchases.logIn`）。
+- これにより Webhook の `event.app_user_id` が Supabase `user_id`（UUID）になり、entitlements の
+  PK へ直接 upsert できる。匿名（logIn 前）の `$RCAnonymousID:...` イベントは関数側で UUID 形式を
+  検査し、非UUIDなら受理だけして握る（クラッシュさせず、logIn 後のイベントで是正される / §7 相当）。
 
-### 6-3. 機能判定の合成（`isPremiumProvider`）
-- 現状（サーバー未配線）は**クライアント値にフォールバック**している（`iap_providers.dart` の TODO 参照）。
-- 配線後の規則:
-  - **即時UI反映**: `server.isPremium || client.isPremium`（購入直後の体験を滑らかに）。
-  - **確定処理（保管枠ガード等）**: `server.isPremium` のみで判定（改ざん耐性）。
+### 6-3. 機能判定の合成（2プロバイダに分離）= 実装済み
+- `isPremiumProvider`（**即時UI表示用**）: `server.isPremium || client.isPremium`。サーバーが
+  不明（未設定/未認証/取得不可）ならクライアント値にフォールバック。用途: メニューのバッジ、
+  ペイウォールの「加入済み」表示、保管枠アップセルの抑制。
+- `isPremiumConfirmedProvider`（**機能ガード=確定処理用**）: `server.isPremium` のみ。サーバーが
+  確定値を返すまで（loading/未設定/未認証/取得失敗）は **false** に倒す（未確認で特典を解放しない）。
+  保管枠200の確定解放など改ざん耐性が要る処理はこちらを使う。
+- サーバー値の供給源: `server_entitlement.dart` の `serverPremiumProvider`（entitlements を
+  RLS select-own で読む FutureProvider / 手動 refresh）。書き込みは一切しない（Webhook 専管）。
 
-### 6-4. レビュアーバイパス（iap-setup 致命傷5 / store審査）
-- 審査用デモアカウントを**サーバー側で premium 扱い**にする口を用意する
-  （例: entitlements 取得時に reviewer メールなら is_premium=true を返す）。
+### 6-4. レビュアーバイパス（iap-setup 致命傷5 / store審査）= 実装済み
+- 審査用アカウントを**サーバー側で premium 扱い**にする。Edge Function の env
+  `REVIEWER_APP_USER_IDS`（カンマ区切りの user_id）に該当する `app_user_id` は、イベント種別に
+  関わらず `is_premium=true` で upsert する。
 - **クライアントで tier 固定してはいけない**（CustomerInfo listener に free で上書きされるため）。
-  サーバー側 + 機能判定の合成レベルで reviewer-aware に防御する。
-- 対象メール候補: 審査用アカウント（ストア提出フォームに記載する固定アカウント）。
+  サーバー側（entitlements 行）+ `isPremiumConfirmedProvider` の合成で reviewer-aware に防御する。
+- 対象: 審査用アカウントの **Supabase user_id**（ストア提出フォームの固定アカウントでログインして取得）。
 
 ---
 

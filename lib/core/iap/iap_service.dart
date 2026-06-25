@@ -83,6 +83,13 @@ abstract interface class IapService {
   /// SDK を初期化する（未設定/失敗でも例外を投げず false を返す）。
   Future<bool> configure({String? appUserId});
 
+  /// RevenueCat の App User ID を Supabase の user_id に揃える（IAP_SETUP §6-2）。
+  ///
+  /// 認証後に呼び、匿名IDから [appUserId]（= Supabase user_id）へ logIn する。
+  /// これで Webhook が `event.app_user_id` を user_id として entitlements に upsert できる。
+  /// 失敗しても例外を投げない（no-op は何もしない）。
+  Future<void> logIn(String appUserId);
+
   /// offering `default` の提示プランを取得する。
   /// 取得失敗時は診断コード付きで空の [IapOfferings] を返す（落とさない）。
   Future<IapOfferings> fetchOfferings();
@@ -116,6 +123,9 @@ class NoopIapService implements IapService {
 
   @override
   Future<bool> configure({String? appUserId}) async => false;
+
+  @override
+  Future<void> logIn(String appUserId) async {}
 
   @override
   Future<IapOfferings> fetchOfferings() async =>
@@ -176,6 +186,24 @@ class RevenueCatIapService implements IapService {
     } catch (e, st) {
       Log.e('RevenueCat configure failed', error: e, stack: st);
       return false;
+    }
+  }
+
+  @override
+  Future<void> logIn(String appUserId) async {
+    if (appUserId.isEmpty) return;
+    if (!_configured) {
+      // 未初期化での logIn は無意味（configure 側で appUserId を渡す経路を優先）。
+      Log.d('RevenueCat logIn skipped: not configured');
+      return;
+    }
+    try {
+      // App User ID を Supabase user_id に揃える（IAP_SETUP §6-2 / Webhook 突合）。
+      // 既に同一IDなら RevenueCat 側で no-op 相当。失敗してもアプリは続行する。
+      await Purchases.logIn(appUserId);
+      Log.d('RevenueCat logIn done');
+    } catch (e, st) {
+      Log.e('RevenueCat logIn failed', error: e, stack: st);
     }
   }
 

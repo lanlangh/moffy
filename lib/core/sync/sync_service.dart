@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../observability/analytics_events.dart';
 import '../observability/log.dart';
+import '../observability/observability_providers.dart';
 import 'conflict_resolver.dart';
 import 'connectivity_provider.dart';
 import 'finalize_models.dart';
@@ -100,9 +102,13 @@ class SyncService {
       return;
     }
 
-    // TODO(観測・未配線): ここで analyticsProvider.capture(AnalyticsEvents.dayFinalized)
-    //   を発火する（PRD §5-5 pt獲得ファネル）。確定ptの「数値」は載せず is_provisional 等の
-    //   区分のみ（PII/生データ非送信）。スコープ上、本パスでは定義のみ。
+    // 観測: 日次確定（pt獲得ファネルの代表点 / PRD §5-5）。確定 pt の「数値」や
+    // 利用分数は載せず、ステージ（warmup/provisional/confirmed）のカテゴリのみ送る
+    // （PII/生データ非送信 / 既存イベントの流儀に合わせる）。
+    _ref.read(analyticsProvider).capture(
+      AnalyticsEvents.dayFinalized,
+      properties: {AnalyticsProps.stage: result.stage},
+    );
 
     // S8: サーバー確定pt（today分）とローカル暫定ptを競合解決。減算は抑止する。
     //   already_finalized（冪等スキップ）時は pointsAwarded=0 のため、

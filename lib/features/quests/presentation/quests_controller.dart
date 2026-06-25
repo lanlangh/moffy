@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/remote_config.dart';
 import '../../../core/error/failure.dart';
+import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../data/quest_repository.dart';
 import '../domain/quest_models.dart';
@@ -37,8 +39,9 @@ class QuestsController extends AsyncNotifier<QuestsState> {
     }
     try {
       await ref.read(questRepositoryProvider).claimReward(questId);
-      // TODO(観測・未配線): ここで analyticsProvider.capture(AnalyticsEvents.questClaimed)
-      //   を発火する（PRD §5-5 リテンション補助）。スコープ上、本パスでは定義のみ。
+      // 観測: クエスト報酬の受取（リテンション補助 / PRD §5-5）。受取成功直後に発火する。
+      // PII/生データ（pt・ジェム数値）は載せない（区分のみで足りるため props なし）。
+      ref.read(analyticsProvider).capture(AnalyticsEvents.questClaimed);
       await refresh();
       return null;
     } on Failure catch (f) {
