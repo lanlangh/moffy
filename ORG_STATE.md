@@ -4,9 +4,9 @@
 > `/app-dev-org:kickoff` が作成し、`/app-dev-org:weekly-brief` と各部署が更新する。
 
 ## ▶ RESUME / 現在地（2026-06-25・/clear後はここから読む）
-- **進捗**: MVPクライアント一式＋経済バックエンド(`supabase/migrations/0001〜0005`)完成。**CI=123テスト緑**(GitHub Actions)。経済セキュリティは**5ラウンドのクロスレビューで収束＝GO**(C-1/C-2/C-3/H-1/H4-1/G-1〜3/M-2/M4-1封鎖済、残H-2は受容)。価格(`pricing.dart`)・法務(`docs/legal/`)・ASO(`docs/ASO.md`)・オーナー手順書(`docs/OWNER_SETUP_GUIDE.md`)あり。**観測(Sentry/PostHog)配線=完了・CI緑・QA GO**(PR#1マージ済、`docs/OBSERVABILITY_SETUP.md`)。
-- **次の一手**: **【ユーザー作業待ち】Moffy専用の別Supabaseアカウントでプロジェクト作成 → 接続URI(Direct/5432)をGitHub Secret `SUPABASE_DB_URL`に登録**。登録後、CEOが`DB Verify`ワークフロー起動で `0001〜0005`適用＋分布検証＋H4-1実証を自動実行・報告。その後 RevenueCat Webhook実装・F-01以降のイベント発火残配線(day_finalized/quest_claimed)・iOS実装(v1.1)。
-- **DB決定(2026-06-25確定)**: **Moffy専用の別Supabaseアカウントで継続**(ユーザー選択)。無料枠2プロジェクトを別枠で確保し会社プロダクトとして所有分離。別DB(Firebase等)移行は経済SQL=Postgres固有のため非選択。
+- **進捗**: MVPクライアント一式＋経済バックエンド(`supabase/migrations/0001〜0005`)完成。**CI=123テスト緑**(GitHub Actions)。経済セキュリティは**5ラウンドのクロスレビューで収束＝GO**(C-1/C-2/C-3/H-1/H4-1/G-1〜3/M-2/M4-1封鎖済、残H-2は受容)。**🟢ライブDB検証完了**: Supabase本番(`moffy-prod`/Tokyo/別アカウント)に`0001〜0005`適用＋抽選分布(§4)全PASS＋§3権限グリッド/列GRANT/H4-1ランタイム実証 全PASS(2026-06-25)。価格(`pricing.dart`)・法務(`docs/legal/`)・ASO(`docs/ASO.md`)・オーナー手順書あり。**観測(Sentry/PostHog)配線=完了・CI緑・QA GO**(PR#1マージ済)。
+- **次の一手**: ①**RevenueCat Webhook→Supabase Edge Function実装**(entitlements反映・Supabaseが揃ったので着手可)②**法務文書のユーザー記入→公開→URL反映**(審査ブロッカー)③RevenueCat商品ID/キー突合④F-01以降のイベント残配線(day_finalized/quest_claimed)⑤アプリ実接続スモーク(SUPABASE_URL/anon keyをdart-define)⑥iOS実装(v1.1)。
+- **DB決定(2026-06-25確定・完了)**: **Moffy専用の別Supabaseアカウントで継続**(ユーザー選択・プロジェクト`moffy-prod`作成済/Tokyo/匿名認証ON)。接続はGitHub Secret `SUPABASE_DB_URL`(**Session pooler/IPv4** — GitHub ActionsはIPv4のためDirect/IPv6不可)。検証ワークフロー: `DB Verify`(クリーンDBブートストラップ=migrations+分布+権限)/`DB Permission Check`(既存ライブDBへ§3だけ再実行可)。
 - **環境メモ(重要)**: ①ローカル`flutter`は企業**WDACでブロック**→検証は**GitHub Actions CI**(private repo **`lanlangh/moffy`**)。`dart analyze`はローカル可。②**Codex**(別モデルレビュー)は大レビュー約1回ごとに**レート制限**・数時間でリセット→不在時はClaude-QAサブエージェントで代替(限界開示する)。③Flutter SDK=`C:\Users\user\flutter`(PATH=`C:\Users\user\flutter\bin`)。④コード生成(build_runner)未使用。
 - **組織**: 8部署エージェント+14スキル+7コマンドは`.claude/`に導入済み(/clearしても残る)。本ファイルが組織メモリ。`spawn_task`は使わない運用。
 
@@ -16,7 +16,7 @@
 - **収益モデル**: 無料 + プレミアムサブスク（=¥480/月想定。限定Mofi・プレミアム卵・詳細分析・広告削除・保管枠増加）
 
 ## 現フェーズ
-- [x] アイデア検証 → [x] 設計 → [ ] コア開発 ←**いまここ（第1パス完了）** → [ ] 課金・認証 → [ ] テスト → [ ] 提出準備 → [ ] 審査中 → [ ] 公開済み（=運用）
+- [x] アイデア検証 → [x] 設計 → [x] コア開発（クライアント＋経済バックエンド**ライブDB検証済**＋観測配線） → [ ] 課金・認証 ←**いまここ**（RevenueCat Webhook＋法務記入＋実接続スモーク） → [ ] テスト → [ ] 提出準備 → [ ] 審査中 → [ ] 公開済み（=運用）
 
 ## 今サイクルのフォーカス（=設計サイクル・完了）
 1. ✅ **【企画】不足仕様の確定とPRD化** → `docs/PRD.md`（S1〜S14決定・抽選確率表・受け入れ条件）
@@ -29,7 +29,7 @@
 - ✅ **第2aパス** — ナビ5タブシェル・オンボーディング(権限付与)・卵(3枠/保管/成長段階)・孵化演出(色違いキラリ+シェアCTA)・図鑑(達成率/フィルタ/シルエット)。`analyze`緑・テスト32
 - ✅ **第2bパス** — クエスト(デイリー/ウィークリー/報酬)・ストリーク(倍率・基礎ptのみ)・プロフィール/メニュー・アカウント連携導線(S10)・通知設定(S9)・退会導線(S12)・同期エンジン(sync_queue/競合解決S8)。`analyze`緑・**テスト68/68**
 - ✅ **サーバーRPC実装** — `supabase/migrations/0002_economy_rpcs.sql`（`fn_finalize_day`/`fn_apply_growth`/`fn_hatch_egg`/`fn_grant_quest_reward`/`fn_spend_currency`/`fn_delete_account`）。全て`security definer`+`search_path=''`+冪等、確率/しきい値は`app_config`/`drop_tables`から読む（直書きなし）。クライアント本配線(Supabase時RPC/未設定時モック)。`docs/BACKEND_SETUP.md`・`supabase/tests/distribution_check.sql`。Flutter **72/72緑**
-- 🔴 **ライブ未検証** — Supabaseプロジェクト不在のためSQL未実行。要: SupabaseプロジェクトでDB push→権限確認→分布検証
+- ✅ **ライブ検証完了(2026-06-25)** — Supabase本番`moffy-prod`に`0001〜0005`適用成功。`distribution_check`(§4抽選分布・色違い率0.0197・SR個体均等・drop_tables合計=1.0)全PASS。`permission_check`(§3 RPC権限グリッド15関数/列GRANTホワイトリスト/H4-1ランタイム=is_finalized偽造INSERT 42501拒否)全PASS。`.github/workflows/{db-verify,db-permission-check}.yml`＋`supabase/tests/permission_check.sql`
 - 🟧 **QA独立レビュー(docs/REVIEW_0002_economy.md) = NO-GO(条件付き)** — Critical0/High3+Medium1。確定OK: 信頼境界・権限revoke/grant・型整合(quest_id)・FK cascade(退会孤児なし)・抽選ロジックとtestの整合。差し戻し必須:
   - F-01(High) ウォームアップ自動付与(Day1=200/Day2=300pt+初回ボーナス卵)が0002に未実装 → S1初日体験が不成立
   - F-02(High) ストリーク倍率off-by-one(継続加算前のstreakで倍率→3日目×1.0になる)
@@ -42,7 +42,7 @@
   - **検証手段**: `dart analyze`=非フォークのため可。`flutter test`はWDACで不可 → **CIで解決済み**。
   - F-01配線UI(claimWarmup呼出箇所)も後続
 - ✅ **CI構築・検証ギャップ解消** — git初期化→**private GitHub repo `lanlangh/moffy`** へpush。`.github/workflows/ci.yml`(ubuntu, Flutter 3.44.2)で `pub get`/`analyze`/`test` を自動実行。**CI実行=analyze No issues + テスト全パス(最新112件)**。以後ローカルWDACに依存せずクラウドで緑を担保。コード生成は未使用のためbuild_runner不要。`purchases_flutter`もCIで解決・通過。
-- 🟦 **残るライブ検証** — SQL経済(0001〜0003)の実行・`distribution_check`(§4分布)・統合テスト(孵化/受取/退会/同時操作)は**要Supabaseプロジェクト**。QAのGOはここまで通って確定。
+- ✅ **ライブ検証(SQL経済適用+分布+権限)完了** — 上記2026-06-25で実施。残るのは統合シナリオ(孵化/受取/退会/同時操作)の実RPC叩き=アプリ実接続スモーク段で実施。
 - ✅ **価格・IAP設計(財務)** — `docs/PRICING.md`・`lib/core/constants/pricing.dart`(SSOT)。**月額¥480 / 年額¥4,800(約17%OFF,おすすめ) / 7日無料トライアル**。無料↔プレミアム境界=保管枠20↔200・広告無料のみ・限定Mofi/プレミアム卵はプレミアム・育成3枠はプラン非依存・詳細分析v1.1(課金画面で宣伝しない)。RevenueCat: offering`default`→monthly/annual→entitlement`premium`(サーバー検証が正)。Apple小規模事業者プログラム(30→15%)はlaunch前申請。`dart analyze`緑
 
 - ✅ **法務3文書＋ストア審査対応(法務)** — `docs/legal/{privacy_policy,terms_of_service,tokushoho}.md` + `docs/legal/STORE_DATA_SAFETY.md`(Playデータ安全性/App Store栄養ラベル/景表法チェック)。確定価格・3rdパーティ実名(Supabase/RevenueCat/Sentry/PostHog,広告なし)・S12退会を反映。**最重要=`PACKAGE_USAGE_STATS`の利用目的をプラポリ/データ安全性/Console権限宣言の3点で一致**。会社固有情報は`【要記入】`プレースホルダ。`dart analyze`緑(legal_links.dartはコメントのみ)
@@ -78,7 +78,7 @@
 - ✅ **F-01ウォームアップUI配線・色違いシェア(share_plus)・UI磨き** — `warmup_tracker`+`claimWarmupIfNeeded`トリガー+`warmup_celebration`(S1祝福/5状態)、孵化色違いの実シェア(フォールバック付)。CI=**118テスト全パス**・analyze緑
 - ✅ **観測(Sentry/PostHog)配線(開発→QA GO→PR#1マージ)** — `lib/core/observability/`に抽象+Noopフォールバック(`analytics`/`crash_reporter`、iapレール同形)。`Env`に`SENTRY_DSN`/`POSTHOG_API_KEY`/`POSTHOG_HOST`(--dart-define)。`main.dart`=`SentryFlutter.init(appRunner:)`ラップ(DSN無→素のrunApp分岐)/PostHogキー有時のみ初期化。`Log.e`→本番時に関数ポインタフックでSentry転送(循環依存回避)。ファネルイベントSSOT(`analytics_events.dart`)。**PII配慮: sendDefaultPii=false・利用分数/確定pt/金額/氏名/メール送信なし・匿名IDのみ**。pkg=`sentry_flutter ^8.9.0`/`posthog_flutter ^4.0.1`(CIのpub getで解決確認済)。`docs/OBSERVABILITY_SETUP.md`。**CI=123テスト緑・analyze No issues**。QAクロスレビュー(Codexハング→Claude-QA代替・限界開示)=GO(条件①PostHog API型②paywall_viewed単発③Stateful化非破壊→いずれもCI緑で確定)。**ユーザー作業=後でDSN/APIキーを--dart-defineで注入**。
   - ⬜ **残: イベント発火の追加配線** — `day_finalized`(`sync_service.dart`)/`quest_claimed`(`quests_controller.dart`)は定義済・TODOコメントで未発火(スコープ判断)。ローンチ前の計測完全性が必要なら1行ずつ`analyticsProvider.capture(...)`追加で有効化。
-- 🟦 **ライブ検証ハーネス準備済み** — `.github/workflows/db-verify.yml`(手動実行)がSupabaseへ`0001→0003`適用＋`distribution_check`実行。**待ち=ユーザーがSupabaseプロジェクト作成＋repo Secret `SUPABASE_DB_URL`(接続URI)設定**。設定後CEOが`gh workflow run "DB Verify"`で起動し結果報告。DBパスワードはSecret管理(チャットに出さない)
+- ✅ **ライブ検証ハーネス=実行済み** — `db-verify.yml`(0001→0005適用+分布+権限)/`db-permission-check.yml`(既存DBへ§3再実行)。Secret `SUPABASE_DB_URL`=Session pooler URI設定済。2026-06-25に両方緑。以後は`gh workflow run "DB Permission Check"`でいつでも権限再監査可
 - ⬜ **残(要外部リソース)**: iOS実装(DeviceActivity/ThresholdAchievement・要Mac)・イラストアセット統合(要素材)・APK実機ビルド(Android SDK)・課金ライブ(要RC実値/Webhook)
 - ⚠️ 企画要確定: quest_definitionsのseed内容 / 法務URL・mailto宛先 / アカウント連携の出現トリガー
 
@@ -90,6 +90,8 @@
 ## 意思決定ログ（=新しいものを上に。日付 / 決定 / 理由）
 | 日付 | 決定 | 理由 |
 |---|---|---|
+| 2026-06-25 | 【CEO】DB=Moffy専用の別Supabaseアカウント。CI接続は**Session pooler(IPv4)**を使う(Direct=IPv6はGitHub Actionsから不可) | 会社プロダクトとして所有分離＋無料枠を別枠確保。pooler選択はCIのIPv4制約への対応 |
+| 2026-06-25 | 【CEO/QA】観測配線をmainマージ前にCI緑＋QAクロスレビュー(Codexハング→Claude-QA代替・限界開示)で**条件付きGO→CIで条件確定**してから出荷 | 書いた本人(engineer)以外がレビューする鉄則。パッケージ解決/API整合はCIでしか確定できないため一旦ブランチ→PR→CIで実証 |
 | 2026-06-19 | 【CEO】プレミアム詳細分析(曜日/時間帯/SNS別/月次/予測)は**v1.1送り**。MVPプレミアムは**広告削除＋保管枠増加＋限定Mofi＋プレミアム卵**で構成。無料の今日/今週分析はMVPに含む | MVPはコア(収集ループ)に集中。詳細分析は実データが貯まるiOS追従期に価値。課金動機は体験系特典で先行確保 |
 | 2026-06-19 | 【企画】S14 ストリーク倍率は**基礎ポイントのみ**に適用（クエスト報酬・ジェム・卵には掛けない） | 報酬全般に倍率が乗ると経済破綻＆プレミアム動機消失。コア行動「毎日削減」だけを増幅 |
 | 2026-06-19 | 【企画】S12 退会・データ削除を**アプリ内導線＋アプリ外窓口**で実装、サブスク解約はストア側と明示、30日以内に物理削除 | Apple5.1.1(v)/Google要件で必須。無いと確実リジェクト。法務プラポリと整合 |
