@@ -100,6 +100,10 @@ class SyncService {
       return;
     }
 
+    // TODO(観測・未配線): ここで analyticsProvider.capture(AnalyticsEvents.dayFinalized)
+    //   を発火する（PRD §5-5 pt獲得ファネル）。確定ptの「数値」は載せず is_provisional 等の
+    //   区分のみ（PII/生データ非送信）。スコープ上、本パスでは定義のみ。
+
     // S8: サーバー確定pt（today分）とローカル暫定ptを競合解決。減算は抑止する。
     //   already_finalized（冪等スキップ）時は pointsAwarded=0 のため、
     //   ローカル暫定を維持する側に倒れる（既加算分を画面から消さない）。

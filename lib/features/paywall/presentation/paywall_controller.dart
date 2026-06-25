@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/iap/iap_models.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/iap/iap_service.dart';
+import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/observability_providers.dart';
 
 /// ペイウォールのアクション状態管理（購入/復元の進行と結果）。
 ///
@@ -23,6 +25,12 @@ class PaywallController extends Notifier<PaywallActionState> {
     // 成功時はクライアント状態 Stream が更新を流す（即時UI反映）。
     if (result.outcome == IapPurchaseOutcome.success) {
       ref.invalidate(premiumStatusProvider);
+      // ファネル: 購入完了（PRD §5-5）。最終確定はサーバー（RC Webhook）が正だが、
+      // ここは即時の行動計測。金額は載せずプラン期間のカテゴリ値のみ（PII/生データ非送信）。
+      ref.read(analyticsProvider).capture(
+        AnalyticsEvents.purchaseCompleted,
+        properties: {AnalyticsProps.planPeriod: plan.period.name},
+      );
     }
     return result;
   }

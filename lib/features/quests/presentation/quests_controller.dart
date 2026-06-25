@@ -37,6 +37,8 @@ class QuestsController extends AsyncNotifier<QuestsState> {
     }
     try {
       await ref.read(questRepositoryProvider).claimReward(questId);
+      // TODO(観測・未配線): ここで analyticsProvider.capture(AnalyticsEvents.questClaimed)
+      //   を発火する（PRD §5-5 リテンション補助）。スコープ上、本パスでは定義のみ。
       await refresh();
       return null;
     } on Failure catch (f) {

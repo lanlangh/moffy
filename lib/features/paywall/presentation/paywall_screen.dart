@@ -5,6 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/iap/iap_models.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/iap/iap_service.dart';
+import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
@@ -25,14 +27,27 @@ import 'paywall_controller.dart';
 ///   * 価格は **StoreProduct.priceString（ストア実額）** を表示（ハードコード禁止）。
 ///   * トライアル文言は **資格 eligible のときだけ**（PlanOffer.showTrialBadge / iap-setup）。
 ///   * 特典は **実装済みのものだけ**（PremiumBenefits.active / 詳細分析は宣伝しない）。
-class PaywallScreen extends ConsumerWidget {
+class PaywallScreen extends ConsumerStatefulWidget {
   const PaywallScreen({super.key});
 
   static const String routeName = 'paywall';
   static const String routePath = '/paywall';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PaywallScreen> createState() => _PaywallScreenState();
+}
+
+class _PaywallScreenState extends ConsumerState<PaywallScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // ファネル: ペイウォール表示（課金ファネルの入口 / PRD §5-5）。
+    // 入口に依らず1度だけ発火（呼び出し側で重複発火させない）。
+    ref.read(analyticsProvider).capture(AnalyticsEvents.paywallViewed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final offeringsAsync = ref.watch(offeringsProvider);
     final isOnline = ref.watch(isOnlineProvider);
     // 既にプレミアムなら「加入済み」を反映（購入直後の即時UI / 補助情報）。

@@ -119,7 +119,7 @@ flutter run \
 
 ## E.（任意）ローカルビルド / 観測
 - ローカル `flutter` は企業WDACでブロック中（CIで代替・緑維持）。ローカル実行が必要なら IT に配置先の WDAC許可を依頼＋Android SDK。
-- 観測（Sentry/PostHog）は**未配線**（pubspecコメントアウト・main.dart TODO）。配線（開発）は私が対応→その後あなたが DSN/APIキーを dart-define で渡す。
+- 観測（Sentry/PostHog）は**配線済み**（未設定時は Noop で安全にフォールバック）。あなたの作業は DSN/APIキーの取得と dart-define での注入のみ。**手順・キー取得・「送らないデータ」原則・イベント一覧は [OBSERVABILITY_SETUP.md](OBSERVABILITY_SETUP.md) を参照**。
 
 ---
 

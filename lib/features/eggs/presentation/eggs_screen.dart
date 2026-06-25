@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/pricing.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/navigation/app_tab.dart';
+import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/observability_providers.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/nest_panel.dart';
@@ -185,6 +187,29 @@ class _EggsBody extends ConsumerWidget {
 
     if (!context.mounted) return;
     final hatched = result;
+
+    // ファネル: 孵化（コアループの山場 / PRD §5-5）。生データ（pt等）は載せず、
+    // レアリティ・色違いのカテゴリ値のみ（PII/生データ非送信 / OBSERVABILITY_SETUP.md）。
+    final analytics = ref.read(analyticsProvider);
+    analytics.capture(
+      AnalyticsEvents.eggHatched,
+      properties: {
+        AnalyticsProps.mofiRarity: hatched.species.rarity.wire,
+        AnalyticsProps.isShiny: hatched.isShiny,
+      },
+    );
+    if (hatched.isShiny) {
+      // 色違いは専用集計（グロースの種 / S13）。
+      analytics.capture(AnalyticsEvents.shinyHatched);
+    }
+    if (hatched.isNewDexEntry) {
+      // ファネル: 図鑑への新規登録（コレクション進捗 / PRD §5-5）。
+      analytics.capture(
+        AnalyticsEvents.dexRegistered,
+        properties: {AnalyticsProps.mofiRarity: hatched.species.rarity.wire},
+      );
+    }
+
     // 孵化演出オーバーレイ（操作ロック / スキップ可）。
     await navigator.push<void>(
       PageRouteBuilder(
