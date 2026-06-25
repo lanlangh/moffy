@@ -47,6 +47,36 @@ abstract final class Env {
   static String revenueCatKey({required bool isApplePlatform}) =>
       isApplePlatform ? revenueCatIosKey : revenueCatAndroidKey;
 
+  // --- 監視/分析（Sentry = クラッシュ監視 / PostHog = 行動分析） ---
+  //
+  // 信頼境界（env.dart 冒頭の原則と同じ）:
+  //   * Sentry DSN・PostHog の Project API Key は端末に焼き込んで安全な「公開鍵」。
+  //     これは入れてよい。一方で PostHog の Personal API Key（phx_xxx）等の管理用
+  //     秘密鍵は **絶対にクライアントへ入れない**（サーバー/CI 専用）。
+  //   * キーはソースに直書きせず `--dart-define` で注入する（Supabase / RevenueCat と同方式）。
+  //     例: flutter run \
+  //           --dart-define=SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx \
+  //           --dart-define=POSTHOG_API_KEY=phc_xxx
+  //   * 未設定時は Noop 実装にフォールバックし、PoC・UI確認・テストでクラッシュさせない
+  //     （hasSentry / hasPostHog で判定）。
+  //   * 送信データの原則（PII/生データを送らない）は docs/OBSERVABILITY_SETUP.md に集約。
+  static const sentryDsn =
+      String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+  static const postHogApiKey =
+      String.fromEnvironment('POSTHOG_API_KEY', defaultValue: '');
+
+  /// PostHog の取り込みホスト（既定は US クラウド）。EU 等は dart-define で上書き。
+  static const postHogHost = String.fromEnvironment(
+    'POSTHOG_HOST',
+    defaultValue: 'https://us.i.posthog.com',
+  );
+
+  /// Sentry DSN が設定されているか。未設定なら NoopCrashReporter（送信しない）。
+  static bool get hasSentry => sentryDsn.isNotEmpty;
+
+  /// PostHog の Project API Key が設定されているか。未設定なら NoopAnalytics。
+  static bool get hasPostHog => postHogApiKey.isNotEmpty;
+
   /// 本番ログ抑止（組織ルール: console.log は __DEV__ ガード）。
   static bool get isDev => kDebugMode;
 }

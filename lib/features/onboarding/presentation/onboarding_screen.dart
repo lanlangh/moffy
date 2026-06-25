@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/economy.dart';
 import '../../../core/navigation/app_tab.dart';
+import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/usage/usage_models.dart';
@@ -74,6 +76,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final status = await usage.requestPermission();
       if (!mounted) return;
       setState(() => _permission = status);
+      // ファネル: 利用時間権限の許可（PRD §5-5）。許可された時のみ発火。
+      if (status.isGranted) {
+        ref
+            .read(analyticsProvider)
+            .capture(AnalyticsEvents.usagePermissionGranted);
+      }
     } finally {
       if (mounted) setState(() => _requesting = false);
     }
@@ -83,6 +91,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _finish() async {
     await ref.read(onboardingRepositoryProvider).markCompleted();
     ref.invalidate(onboardingCompletedProvider);
+    // ファネル: オンボーディング完了（コアループ到達 / PRD §5-5）。
+    ref.read(analyticsProvider).capture(AnalyticsEvents.onboardingCompleted);
     if (!mounted) return;
     context.go(AppTab.home.path);
   }

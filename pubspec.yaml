@@ -49,9 +49,12 @@ dependencies:
   # --- 外部リンク起動 (サブスク管理＝ストアの定期購読画面 / 法務リンク) ---
   url_launcher: ^6.3.0
 
-  # --- 監視/分析（レール。第1パスでは初期化のみ・実送信は後続） ---
-  # sentry_flutter: ^8.2.0
-  # posthog_flutter: ^4.0.0
+  # --- 監視/分析（クラッシュ監視 = Sentry / 行動分析 = PostHog） ---
+  # 公開DSN / APIキーは --dart-define で注入（env.dart）。未設定時は Noop 実装に
+  # フォールバックし、PoC・テストでクラッシュさせない。PII/生データは送らない（OBSERVABILITY_SETUP.md）。
+  # 8.x 系: Dart >=3.3 / Flutter >=3.19（本プロジェクトの SDK 制約・CI Flutter 3.44.2 と一致）。
+  sentry_flutter: ^8.9.0
+  posthog_flutter: ^4.0.1
 
   cupertino_icons: ^1.0.8
 
