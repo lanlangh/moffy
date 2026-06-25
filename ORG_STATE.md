@@ -47,7 +47,8 @@
 
 - ✅ **法務3文書＋ストア審査対応(法務)** — `docs/legal/{privacy_policy,terms_of_service,tokushoho}.md` + `docs/legal/STORE_DATA_SAFETY.md`(Playデータ安全性/App Store栄養ラベル/景表法チェック)。確定価格・3rdパーティ実名(Supabase/RevenueCat/Sentry/PostHog,広告なし)・S12退会を反映。**最重要=`PACKAGE_USAGE_STATS`の利用目的をプラポリ/データ安全性/Console権限宣言の3点で一致**。会社固有情報は`【要記入】`プレースホルダ。`dart analyze`緑(legal_links.dartはコメントのみ)
 - ✅ **法務文書の事業者情報=記入完了(2026-06-25)** — 公開事業者=**合同会社Lan(代表/運営統括/個人情報保護責任者=大澤 学・所在地=東京都新宿区西新宿3-3-13 西新宿水間ビル2F・窓口=info@lan-corp.com)**(ユーザー確認済)。プラポリ/利用規約/特商法/`legal_links.dart`(support/deletion=info@lan-corp.com)に反映・push済。特商法の電話=**開示請求方式(番号非掲載)**、管轄=本店所在地を管轄する地裁、対応OS=Android。運用アカウント/電話番号は非掲載(方針)。情報源=隣の`tsuzuru`フォルダ(別アプリ・読取のみ)。
-  - ⬜ **残(Moffy固有・確定待ち)**: 公開日(4文書の最終更新日)/法務文書ホスティングURL(`legal_links.dart`の`moffy.example.com`→公開先確定後に差替＋ストアのプラポリURL欄と一致)/法人番号(任意)。
+  - ✅ **公開用クリーン化完了** — 公開3文書(privacy/terms/tokushoho)から内部注記/AI免責を除去、最終更新日=2026年6月25日。`docs/legal/README.md`に内部リマインダ保全。`STORE_DATA_SAFETY.md`は内部用。**Notion公開ページ方式(TSUZURUと同一)でそのまま貼れる状態**。
+  - ⬜ **残(ユーザー→開発)**: ①ユーザーがNotionで3ページ公開→URL取得 ②開発が`legal_links.dart`の`moffy.example.com`を実URLに差替＋`docs/ASO.md`＋ストアのプラポリURL欄(完全一致) ③法人番号(任意)。
 
 - 🔒 **セキュリティ監査(CEO)＋修正0004** — Supabase RLS監査で3件の穴を発見・修正(`0004_security_hardening.sql`)。**G-1**:`baselines`のRLS未有効→有効化+select-own(漏洩穴)。**G-2**:`profiles`全列更新可→列GRANTで`display_name/timezone`のみ許可(gem/point/pooled/deleted_at/is_linked除外＝**課金通貨の直接改ざん防止**)。**G-3**:`eggs`全列更新可→`slot_index/location/is_active`のみ許可(growth_points/hatched_into除外＝即孵化チート防止)。definer関数は所有者権限で全列書込継続。**残存リスク**:usage_daily自己申告(OS時間はサーバー検証不能・480pt上限+anomalyで緩和)。db-verify.ymlも0004適用に更新。**QA再点検＋第三者レビュー要**(Codexはヘッドレスでハングし不可→Claude-QA代替を都度開示)
 
