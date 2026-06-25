@@ -141,4 +141,5 @@
 
 ## アカウント / 前提
 - App Store Connect / Google Play Console: **法人名義で取得済み**（=Playbook Phase 1の契約・アカウントは前倒し完了）
-- ASC操作はASC MCP（`asc-mcp/`）を使用 → 初期設定 `node asc-mcp/merge-settings.cjs` 後にClaude Code再起動で有効化
+- ASC操作はASC MCP（`asc-mcp/`）を使用 → 初期設定 `node asc-mcp/merge-settings.cjs` 後にClaude Code再起動で有効化（iOS/v1.1段で。⚠️asc-mcpはSA鍵直書きの注意あり）
+- **Google Play操作=`gpc-mcp/`(新規構築・2026-06-25)** — ドロップイン型MCP(Android Publisher API v3)。サブスク/オファー/商品/レビュー操作。**鍵は直書きせずサービスアカウントJSONのパス渡し(secure)**。有効化: `node gpc-mcp/merge-settings.cjs`→`.claude/settings.local.json`の`GOOGLE_PLAY_SA_JSON_PATH`を実パスに→Claude Code再起動。⚠️**実Play API形状は未検証**(コード内`推測`明示)→初回はテストproductIdで疎通確認してから本番productIdへ。QA=GO(セキュリティ健全)。
