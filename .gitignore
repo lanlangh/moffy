@@ -27,6 +27,9 @@ android/.gradle/
 secrets/
 *.secret
 
+# Supabase CLI のローカル一時ファイル（project-ref 等・リポジトリに含めない）
+supabase/.temp/
+
 # IDE
 .idea/
 .vscode/

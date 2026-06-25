@@ -46,7 +46,8 @@
 - ✅ **価格・IAP設計(財務)** — `docs/PRICING.md`・`lib/core/constants/pricing.dart`(SSOT)。**月額¥480 / 年額¥4,800(約17%OFF,おすすめ) / 7日無料トライアル**。無料↔プレミアム境界=保管枠20↔200・広告無料のみ・限定Mofi/プレミアム卵はプレミアム・育成3枠はプラン非依存・詳細分析v1.1(課金画面で宣伝しない)。RevenueCat: offering`default`→monthly/annual→entitlement`premium`(サーバー検証が正)。Apple小規模事業者プログラム(30→15%)はlaunch前申請。`dart analyze`緑
 
 - ✅ **法務3文書＋ストア審査対応(法務)** — `docs/legal/{privacy_policy,terms_of_service,tokushoho}.md` + `docs/legal/STORE_DATA_SAFETY.md`(Playデータ安全性/App Store栄養ラベル/景表法チェック)。確定価格・3rdパーティ実名(Supabase/RevenueCat/Sentry/PostHog,広告なし)・S12退会を反映。**最重要=`PACKAGE_USAGE_STATS`の利用目的をプラポリ/データ安全性/Console権限宣言の3点で一致**。会社固有情報は`【要記入】`プレースホルダ。`dart analyze`緑(legal_links.dartはコメントのみ)
-- ⚠️ **ユーザー記入必須(審査ブロッカー)** — 事業者名/代表者/所在地/電話/問合せ&削除用メール/個人情報保護責任者/管轄裁判所/対応OS/公開日/法務文書ホスティングURL。記入後にlegal_links.dartとストアのプラポリURLへ反映
+- ✅ **法務文書の事業者情報=記入完了(2026-06-25)** — 公開事業者=**合同会社Lan(代表/運営統括/個人情報保護責任者=大澤 学・所在地=東京都新宿区西新宿3-3-13 西新宿水間ビル2F・窓口=info@lan-corp.com)**(ユーザー確認済)。プラポリ/利用規約/特商法/`legal_links.dart`(support/deletion=info@lan-corp.com)に反映・push済。特商法の電話=**開示請求方式(番号非掲載)**、管轄=本店所在地を管轄する地裁、対応OS=Android。運用アカウント/電話番号は非掲載(方針)。情報源=隣の`tsuzuru`フォルダ(別アプリ・読取のみ)。
+  - ⬜ **残(Moffy固有・確定待ち)**: 公開日(4文書の最終更新日)/法務文書ホスティングURL(`legal_links.dart`の`moffy.example.com`→公開先確定後に差替＋ストアのプラポリURL欄と一致)/法人番号(任意)。
 
 - 🔒 **セキュリティ監査(CEO)＋修正0004** — Supabase RLS監査で3件の穴を発見・修正(`0004_security_hardening.sql`)。**G-1**:`baselines`のRLS未有効→有効化+select-own(漏洩穴)。**G-2**:`profiles`全列更新可→列GRANTで`display_name/timezone`のみ許可(gem/point/pooled/deleted_at/is_linked除外＝**課金通貨の直接改ざん防止**)。**G-3**:`eggs`全列更新可→`slot_index/location/is_active`のみ許可(growth_points/hatched_into除外＝即孵化チート防止)。definer関数は所有者権限で全列書込継続。**残存リスク**:usage_daily自己申告(OS時間はサーバー検証不能・480pt上限+anomalyで緩和)。db-verify.ymlも0004適用に更新。**QA再点検＋第三者レビュー要**(Codexはヘッドレスでハングし不可→Claude-QA代替を都度開示)
 
