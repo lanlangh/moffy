@@ -1,0 +1,30 @@
+name: DB Permission Check
+
+# 既に 0001〜0005 を適用済みのライブ DB に対して、権限グリッド（§3）/ 列レベル GRANT /
+# H4-1 ランタイム実証だけを再実行する（マイグレーションは再適用しない＝再実行可能）。
+# クリーン DB の初回ブートストラップは "DB Verify" を使う。
+# 接続情報は GitHub Secret `SUPABASE_DB_URL`。手動実行のみ。
+on:
+  workflow_dispatch:
+
+jobs:
+  permission-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          echo "psql version:"; psql --version
+
+      - name: Run permission check (§3 RPC権限グリッド / 列GRANT / H4-1実証)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/permission_check.sql
