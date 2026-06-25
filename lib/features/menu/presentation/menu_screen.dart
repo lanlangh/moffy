@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/theme/tokens.dart';
@@ -100,30 +101,29 @@ class _MenuBody extends StatelessWidget {
               ),
               const SizedBox(height: AppSpace.xl),
 
-              // 法務文書（SCREEN_FLOWS §6 / §5-6）。URLはプレースホルダ定数（SSOT）。
+              // 法務文書（SCREEN_FLOWS §6 / §5-6）。URLは LegalLinks（SSOT）= Notion公開ページ。
               Text('情報', style: AppType.title),
               const SizedBox(height: AppSpace.md),
-              const _MenuTile(
+              _MenuTile(
                 icon: Icons.privacy_tip_outlined,
                 title: 'プライバシーポリシー',
-                // TODO(法務): LegalLinks.privacyPolicy を url_launcher で開く。
-                onTap: null,
+                onTap: () => _launchUrl(context, LegalLinks.privacyPolicy),
               ),
-              const _MenuTile(
+              _MenuTile(
                 icon: Icons.description_outlined,
                 title: '利用規約',
-                onTap: null, // TODO: LegalLinks.termsOfService を開く。
+                onTap: () => _launchUrl(context, LegalLinks.termsOfService),
               ),
-              const _MenuTile(
+              _MenuTile(
                 icon: Icons.receipt_long_outlined,
                 title: '特定商取引法に基づく表記',
-                onTap: null, // TODO: LegalLinks.commercialTransactions を開く。
+                onTap: () => _launchUrl(context, LegalLinks.commercialTransactions),
               ),
-              const _MenuTile(
+              _MenuTile(
                 icon: Icons.mail_outline_rounded,
                 title: 'お問い合わせ',
                 subtitle: LegalLinks.supportEmail,
-                onTap: null, // TODO: LegalLinks.supportMailto を開く。
+                onTap: () => _launchUrl(context, LegalLinks.supportMailto),
               ),
               const SizedBox(height: AppSpace.xxl),
 
@@ -142,6 +142,28 @@ class _MenuBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 法務リンク/問い合わせを外部アプリで開く（url_launcher）。
+/// http(s) は外部ブラウザ、mailto は既定のメールアプリ。失敗時は握ってSnackBar通知（クラッシュさせない）。
+Future<void> _launchUrl(BuildContext context, String url) async {
+  final uri = Uri.parse(url);
+  final mode = uri.scheme == 'mailto'
+      ? LaunchMode.platformDefault
+      : LaunchMode.externalApplication;
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final ok = await launchUrl(uri, mode: mode);
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('リンクを開けませんでした。')),
+      );
+    }
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('リンクを開けませんでした。')),
     );
   }
 }
