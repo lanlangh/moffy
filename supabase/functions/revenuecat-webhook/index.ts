@@ -219,9 +219,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     isPremium = touchesPremium && notExpired;
   }
 
-  const expiresAtIso = expirationMs === null
+  // レビュアーバイパス (§6-4 / H-1): reviewer は失効時刻も無効化し「無期限 premium」に揃える。
+  // これをしないと expiration_at_ms が過去のイベント (EXPIRATION 等) で
+  // is_premium=true だが expires_at=<過去> になり、クライアントの notExpired 再判定
+  // (server_entitlement.dart) が false に上書きしてバイパスが静かに破れる (審査リジェクト誘発)。
+  const expiresAtIso = isReviewer
     ? null
-    : new Date(expirationMs).toISOString();
+    : expirationMs === null
+        ? null
+        : new Date(expirationMs).toISOString();
 
   // イベント発生時刻 (冪等の後勝ち防止に使う)。無い場合は受信時刻で代替。
   const eventTsMs = typeof event.event_timestamp_ms === "number"

@@ -54,7 +54,14 @@ final iapConfiguredProvider = FutureProvider<bool>((ref) async {
   String? appUserId;
   if (Env.hasSupabase) {
     // supabaseClientProvider は main() で override 済み（hasSupabase 時のみ参照する）。
-    appUserId = ref.read(supabaseClientProvider).auth.currentUser?.id;
+    // ただし Supabase.initialize が例外で失敗すると override されず未設定のまま
+    // （main.dart は init 失敗でもアプリを起動する）。その場合の StateError を握り、
+    // 匿名（appUserId=null）にフォールバックする（ペイウォールを error に落とさない / M-1）。
+    try {
+      appUserId = ref.read(supabaseClientProvider).auth.currentUser?.id;
+    } catch (e) {
+      Log.d('Supabase client 未初期化のため appUserId は匿名でフォールバック: $e');
+    }
   }
 
   final ok = await service.configure(appUserId: appUserId);
@@ -130,6 +137,10 @@ final isPremiumProvider = Provider<bool>((ref) {
 ///     に倒す（保守的: 未確認で特典を解放しない）。
 ///   * 注意: Supabase 未設定のローカル/PoC 環境では常に false になる。確定ガードを
 ///     クライアントに置く場合はこのプロバイダを使うこと（表示は [isPremiumProvider]）。
+/// 現状: 呼び出し元なし（意図的 / M-2）。MVP の特典解放（保管枠200・限定Mofi抽選・
+/// プレミアム卵）は**サーバー RPC / RLS が担保**しており、クライアント側に改ざん耐性を
+/// 要する確定ガードは存在しないため。将来クライアントに確定処理を足す際の受け皿として用意。
+/// （表示判断は [isPremiumProvider] を使うこと。混同するとサーバー権威が崩れる。）
 final isPremiumConfirmedProvider = Provider<bool>((ref) {
   return _serverPremiumOrNull(ref) ?? false;
 });
