@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
@@ -69,17 +70,28 @@ class _MenuBody extends StatelessWidget {
               _StatsSection(stats: state.stats),
               const SizedBox(height: AppSpace.xl),
 
-              // アカウント連携（S10）。匿名のままでも使える旨を明示。
+              // アカウント（S10）。v1.0 は連携未対応（kAccountLinkingEnabled=false）。
+              // 行き止まりを作らず、匿名運用（機種変でデータ復元不可）を明示する。
               Text('アカウント', style: AppType.title),
               const SizedBox(height: AppSpace.md),
-              _MenuTile(
-                icon: Icons.link_rounded,
-                title: state.account.isLinked ? 'アカウント連携済み' : 'アカウントを引き継ぐ（任意）',
-                subtitle: state.account.isLinked
-                    ? null
-                    : '機種変更や再インストールに備えて連携できます',
-                onTap: () => context.push(AccountLinkScreen.routePath),
-              ),
+              if (kAccountLinkingEnabled)
+                _MenuTile(
+                  icon: Icons.link_rounded,
+                  title:
+                      state.account.isLinked ? 'アカウント連携済み' : 'アカウントを引き継ぐ（任意）',
+                  subtitle: state.account.isLinked
+                      ? null
+                      : '機種変更や再インストールに備えて連携できます',
+                  onTap: () => context.push(AccountLinkScreen.routePath),
+                )
+              else
+                const _MenuInfoTile(
+                  icon: Icons.person_outline_rounded,
+                  title: '匿名アカウントで利用中',
+                  body: 'データはこの端末で管理しています。機種変更やアプリの削除をすると、'
+                      'Mofiや図鑑は復元できません。アカウント連携（引き継ぎ）は今後の'
+                      'アップデートで対応予定です。',
+                ),
               const SizedBox(height: AppSpace.xl),
 
               // 設定（S9 通知 / 法務 / フィードバック）。
@@ -142,6 +154,46 @@ class _MenuBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 情報提示用の非操作タイル（タップ不可・グレーアウトに見せない）。
+/// 「準備中（disabled）」とは区別し、意図した案内として通常色で表示する。
+class _MenuInfoTile extends StatelessWidget {
+  const _MenuInfoTile({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+      child: AppCard(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: AppColors.primary),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: AppType.bodyStrong),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(body, style: AppType.caption),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
