@@ -43,16 +43,30 @@ jobs:
           echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload-keystore.p12"
           echo "keystore decoded: $(wc -c < "$RUNNER_TEMP/upload-keystore.p12") bytes"
 
-      - name: Build signed release AAB
+      - name: Build signed release AAB (Play 用)
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.p12
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: flutter build appbundle --release
 
+      - name: Build signed release APK (appetize/プレビュー用)
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: flutter build apk --release
+
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: moffy-release-aab
           path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: moffy-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
