@@ -3,9 +3,11 @@
 > プロジェクトルートの単一の状態置き場。AI 8 部署がセッションを跨いで「いま何をしているか」を思い出すための場所。
 > `/app-dev-org:kickoff` が作成し、`/app-dev-org:weekly-brief` と各部署が更新する。
 
-## ▶ RESUME / 現在地（2026-06-25・/clear後はここから読む）
+## ▶ RESUME / 現在地（2026-06-26・/clear後はここから読む）
 - **進捗**: MVPクライアント一式＋経済バックエンド(`supabase/migrations/0001〜0005`)完成。**CI=123テスト緑**(GitHub Actions)。経済セキュリティは**5ラウンドのクロスレビューで収束＝GO**(C-1/C-2/C-3/H-1/H4-1/G-1〜3/M-2/M4-1封鎖済、残H-2は受容)。**🟢ライブDB検証完了**: Supabase本番(`moffy-prod`/Tokyo/別アカウント)に`0001〜0005`適用＋抽選分布(§4)全PASS＋§3権限グリッド/列GRANT/H4-1ランタイム実証 全PASS(2026-06-25)。価格(`pricing.dart`)・法務(`docs/legal/`)・ASO(`docs/ASO.md`)・オーナー手順書あり。**観測(Sentry/PostHog)配線=完了**(PR#1)。**RevenueCat Webhook→entitlements配線=完了**(PR#2・Edge Function＋クライアント合成server権威・Codex(別モデル)+Claude-QAクロスレビューGO)。**CI=123テスト緑・analyze No issues**。
-- **次の一手**: ✅RevenueCat Webhook実装完了(PR#2マージ・CI緑・Codex+QAクロスレビューGO)。残り→①**【ユーザー】Edge Functionデプロイ＋RevenueCatダッシュボードWebhook設定＋商品ID/キー突合**(`docs/IAP_SETUP.md §6`手順)②**【ユーザー】法務文書記入→公開→URL反映**(審査ブロッカー)③アプリ実接続スモーク(SUPABASE_URL/anon keyをdart-define・要実機/エミュ)④Apple小規模事業者プログラム申請/有料App契約Active確認⑤iOS実装(v1.1)。
+- **次の一手(2026-06-26・課金/認証フェーズ)**: **🔴いま=署名付きAABビルド→Play内部テストにアップロード→サブスク商品作成解禁**。経緯: サブスク作成にはアプリのビルド(AAB)を1回トラックにアップロードする必要があると判明(Google仕様・公式確認)。→ クラウドビルド構築中(`build-aab.yml`)。署名鍵=openssl生成のPKCS12(`C:\Users\user\secrets\moffy-upload-keystore.p12`・リポジトリ外)＋GitHub Secret(`ANDROID_KEYSTORE_BASE64`/`_PASSWORD`/`ANDROID_KEY_ALIAS`)。**初回ビルドのエラーを順次修正中**(AGP8.5→8.6・shrinkResources off 修正済)。AAB完成後: ①AABを内部テストにアップロード②サブスク`moffy_premium_monthly`(¥480)/`moffy_premium_yearly`(¥4800)＋7日トライアル作成(手動 or 反映後gpc-mcp)③RevenueCatで商品紐付け(App追加・SA鍵接続は済)④実キーで`--dart-define`ビルド＋サンドボックス購入⑤スクショ・データ安全性・審査提出。残: 法務URL欄設定・Apple小規模事業者(iOS/v1.1)。
+- **⚠️ユーザーは「アプリ開発初心者」**: 専門用語は都度かみ砕いて説明する。SA=サービスアカウント(ロボット用アカウント)等。画面スクショで1ステップずつ案内する運用。
+- **RevenueCat進捗(2026-06-26)**: Project「Moffy」(ID`proj7f8f291e`)作成・Platform=Flutter・Google Play App追加(`com.moffy.app`)・SA JSON接続済(`moffy-play-sa.json`=TSUZURU既存SA再利用)。「Credentials need attention」(SA権限反映待ち)・Pub/Sub API有効化済(Editorロール/Connect to Googleは任意・後回し)。Webhook/SDKキー/商品紐付けは後続。
 - **DB決定(2026-06-25確定・完了)**: **Moffy専用の別Supabaseアカウントで継続**(ユーザー選択・プロジェクト`moffy-prod`作成済/Tokyo/匿名認証ON)。接続はGitHub Secret `SUPABASE_DB_URL`(**Session pooler/IPv4** — GitHub ActionsはIPv4のためDirect/IPv6不可)。検証ワークフロー: `DB Verify`(クリーンDBブートストラップ=migrations+分布+権限)/`DB Permission Check`(既存ライブDBへ§3だけ再実行可)。
 - **環境メモ(重要)**: ①ローカル`flutter`は企業**WDACでブロック**→検証は**GitHub Actions CI**(private repo **`lanlangh/moffy`**)。`dart analyze`はローカル可。②**Codex**(別モデルレビュー)は大レビュー約1回ごとに**レート制限**・数時間でリセット→不在時はClaude-QAサブエージェントで代替(限界開示する)。③Flutter SDK=`C:\Users\user\flutter`(PATH=`C:\Users\user\flutter\bin`)。④コード生成(build_runner)未使用。
 - **組織**: 8部署エージェント+14スキル+7コマンドは`.claude/`に導入済み(/clearしても残る)。本ファイルが組織メモリ。`spawn_task`は使わない運用。
