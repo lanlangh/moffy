@@ -142,4 +142,8 @@
 ## アカウント / 前提
 - App Store Connect / Google Play Console: **法人名義で取得済み**（=Playbook Phase 1の契約・アカウントは前倒し完了）
 - ASC操作はASC MCP（`asc-mcp/`）を使用 → 初期設定 `node asc-mcp/merge-settings.cjs` 後にClaude Code再起動で有効化（iOS/v1.1段で。⚠️asc-mcpはSA鍵直書きの注意あり）
-- **Google Play操作=`gpc-mcp/`(新規構築・2026-06-25)** — ドロップイン型MCP(Android Publisher API v3)。サブスク/オファー/商品/レビュー操作。**鍵は直書きせずサービスアカウントJSONのパス渡し(secure)**。有効化: `node gpc-mcp/merge-settings.cjs`→`.claude/settings.local.json`の`GOOGLE_PLAY_SA_JSON_PATH`を実パスに→Claude Code再起動。⚠️**実Play API形状は未検証**(コード内`推測`明示)→初回はテストproductIdで疎通確認してから本番productIdへ。QA=GO(セキュリティ健全)。
+- **Google Play操作=`gpc-mcp/`(ドロップイン型MCP/Android Publisher API v3)＝2026-06-26有効化済み**。サブスク/オファー/商品/レビュー操作。鍵はパス渡し(secure)。QA=GO(セキュリティ健全)。
+  - **有効化完了**: `merge-settings.cjs`実行で`.claude/gpc/`配置＋npm install済、`.claude/settings.local.json`の`mcpServers['google-play']`登録済(env: `GOOGLE_PLAY_SA_JSON_PATH=C:\Users\user\secrets\moffy-play-sa.json` / `GOOGLE_PLAY_PACKAGE_NAME=com.moffy.app`)。
+  - 鍵=**TSUZURU既存SA `tsuzuru-play-publisher@tsuzuru-497609`を再利用**(Desktop`TSUZURUキー系\tsuzuru-play-service-account.json`を`C:\Users\user\secrets\moffy-play-sa.json`へコピー=リポジトリ外)。**事前検証OK**: 認証成功＋Moffyサブスク一覧GET=HTTP204(権限エラー無し・商品ゼロ=クリーン)。
+  - ⚠️ 書き込み(商品作成)権限は未確認→作成が403なら Play Console「ユーザーと権限」でSAに**管理権限**付与要。⚠️実Play API形状は`推測`箇所あり→**初回はテストproductIdで疎通確認してから本番(`moffy_premium_monthly`¥480/P1M・`moffy_premium_yearly`¥4800/P1Y・7日トライアルP7D)**。
+  - **▶ 再起動後の最初の一手**: Claude Code再起動でgpc-mcpツール(`gpc_*`)ロード → `gpc_list_subscriptions`(疎通) → `gpc_create_subscription`でテストID→本番ID作成 → `gpc_activate_base_plan`/`gpc_create_offer`/`gpc_activate_offer`。CLAUDE.md(`gpc-mcp/CLAUDE.md`)に作成JSON例あり。

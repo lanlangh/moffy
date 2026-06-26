@@ -44,3 +44,5 @@ Thumbs.db
 app-dev-org/
 asc-mcp/
 flutter_sdk.zip
+.claude/settings.local.json
+.claude/gpc/
