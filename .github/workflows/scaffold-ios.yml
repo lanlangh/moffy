@@ -1,0 +1,36 @@
+name: Scaffold iOS
+
+# ios/ フォルダが未作成のため、Flutter テンプレートから iOS プロジェクトを生成する。
+# 生成だけなら macOS 不要（Linux で実行可・安価）。成果物を artifact で受け取り、
+# ローカルでレビューして bundle id 等を調整してからコミットする。
+on:
+  workflow_dispatch:
+
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.44.2
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+
+      - name: Generate ios/ (no pub, ios only)
+        run: |
+          flutter create --platforms=ios --org com.moffy --project-name moffy --no-pub .
+          echo "=== git status (ios/ 以外に変更が無いことを確認) ==="
+          git status --short
+
+      - name: Package ios/ as artifact
+        run: tar -czf ios-scaffold.tar.gz ios
+
+      - name: Upload ios scaffold
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-scaffold
+          path: ios-scaffold.tar.gz
+          retention-days: 3
