@@ -1,0 +1,12 @@
+# gradlew / シェルスクリプトは LF 固定（CRLF だと CI(Linux) の ./gradlew が起動失敗する）
+android/gradlew text eol=lf
+*.sh text eol=lf
+
+# バイナリ（CRLF 変換や差分化を防ぐ）
+*.jar binary
+*.png binary
+*.jks binary
+*.p12 binary
+*.keystore binary
+*.ttf binary
+*.otf binary

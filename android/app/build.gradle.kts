@@ -31,11 +31,32 @@ android {
         versionName = flutter.versionName
     }
 
+    // リリース署名（upload key / PKCS12）。CI が GitHub Secret から環境変数経由で渡す。
+    // ローカルや Secret 未設定の環境では storeFile=null のままで、buildTypes 側が
+    // デバッグ署名にフォールバックする（誰でもビルドは通る / 信頼境界: 鍵はコミットしない）。
+    signingConfigs {
+        create("release") {
+            val ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (ksPath != null && file(ksPath).exists()) {
+                storeFile = file(ksPath)
+                storeType = "PKCS12"
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                // PKCS12 は keyPassword = storePassword（生成時に同一にしている）。
+                keyPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         getByName("release") {
-            // TODO(署名): リリース署名は SETUP.md の手順で keystore を設定。
-            // 現状はデバッグ署名でビルド可能な状態に留める（PoC検証用）。
-            signingConfig = signingConfigs.getByName("debug")
+            // 署名鍵が渡されていれば release 署名、無ければデバッグ署名（PoC/ローカル用）。
+            val hasUploadKey = System.getenv("ANDROID_KEYSTORE_PATH") != null
+            signingConfig = if (hasUploadKey) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = false
         }
     }
