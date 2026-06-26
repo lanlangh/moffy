@@ -10,3 +10,14 @@ android/gradlew text eol=lf
 *.keystore binary
 *.ttf binary
 *.otf binary
+
+# iOS/ソース系は LF 固定（macOS ビルドで CRLF が問題になり得るため）
+*.swift text eol=lf
+*.pbxproj text eol=lf
+*.plist text eol=lf
+*.xcconfig text eol=lf
+*.storyboard text eol=lf
+*.entitlements text eol=lf
+*.h text eol=lf
+*.m text eol=lf
+*.xcscheme text eol=lf
