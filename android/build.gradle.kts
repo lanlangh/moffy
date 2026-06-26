@@ -24,12 +24,12 @@ subprojects {
 // コンパイルエラーになる。全サブプロジェクトの Kotlin コンパイルの language/api version を
 // 2.0 に底上げして衝突を解消する（Flutter 既知の互換 workaround）。
 subprojects {
-    afterEvaluate {
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-            compilerOptions {
-                languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
-                apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
-            }
+    // configureEach は遅延評価のため afterEvaluate 不要（afterEvaluate は
+    // 評価済みサブプロジェクトで例外になる）。Kotlin コンパイルタスクが追加され次第適用される。
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions {
+            languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+            apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
         }
     }
 }
