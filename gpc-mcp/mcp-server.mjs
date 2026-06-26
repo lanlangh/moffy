@@ -266,6 +266,12 @@ const tools = {
           '基本プラン（BasePlan）の配列。作成時に同梱可。' +
             '例: [{ basePlanId, autoRenewingBasePlanType:{ billingPeriodDuration:"P1M", ... } }]'
         ),
+      // regionsVersion はクエリパラメータ（body フィールドではない）。create に必須
+      // （未指定だと 400 "Regions Version must be specified" / 実API検証 2026-06-26）。
+      regionsVersion: z
+        .string()
+        .optional()
+        .describe('利用可能地域のバージョン（クエリ regionsVersion.version）。既定 "2022/01"'),
       // 上記以外の Subscription フィールド（taxAndComplianceSettings 等）を透過的に渡す逃げ道。
       extra: z
         .record(z.any())
@@ -283,7 +289,11 @@ const tools = {
         ...(args.extra || {}),
       };
       const data = await gpcRequest('POST', `/applications/${pkg}/subscriptions`, {
-        query: { productId: args.productId },
+        // regionsVersion.version はクエリ必須（body だと "Unknown name" / 実API検証済み）。
+        query: {
+          productId: args.productId,
+          'regionsVersion.version': args.regionsVersion || '2022/01',
+        },
         body,
       });
       return ok(data);
