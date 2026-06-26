@@ -57,7 +57,10 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // 初回/MVPは圧縮なし（R8/proguard 起因の不具合を避ける）。
+            // コード圧縮offなのでリソース圧縮も明示off（両者の不整合エラー回避）。
             isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
