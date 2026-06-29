@@ -147,14 +147,16 @@ MethodChannel 名 = `com.moffy/usage_stats`（`AppConstants.usageChannel`／Andr
   Flutter 3.44 AppDelegate）＝ high-confidence。
 - ✅ Xcode プロジェクト配線（拡張ターゲット作成・PlugIns 署名埋め込み・entitlements・参照解決）
   ＝ `Configure iOS`（Linux・無料）で実証。`ios-build.yml` の configure ステップも macOS で通過。
-- 🟥 **iOS 実コンパイル（macOS CI）= 既存の依存衝突でブロック（Screen Time とは無関係）**。
-  Screen Time の Swift にはまだ到達できていない（Pods/依存のビルド段で停止）:
+- ✅ **iOS 実コンパイル（macOS CI / `iOS Build`）= 成功（2026-06-29）**。Screen Time の Swift
+  （ScreenTimeHandler / ScreenTimeShared / AppDelegate / MoffyMonitor 拡張）が iOS18 SDK でコンパイル通過
+  ＝ **Swift の本検証クリア**。到達までに解消した既存の依存/ツールチェーン衝突（Screen Time とは無関係）:
   - **device_info_plus 12.4.0**（推移的・lib 未使用）が `isiOSAppOnVision`（新しい iOS SDK の API）を
-    使うため、Xcode 16.x（iOS18 SDK）では `No visible @interface` で失敗 → 新 SDK（Xcode 26）が必要。
-  - **sentry_flutter 8.9.0 → sentry-cocoa** は Xcode 26.3 で
-    `SentryBinaryImageCache has no member 'image'` で失敗。
-  - = 同一 Xcode で両立しない。**修正（別タスク）**: ①`sentry_flutter` を Xcode26 対応版へ更新
-    （observability コードへの影響を CI で確認）、または ②`device_info_plus` を
-    `dependency_overrides` で旧版に固定し Xcode 16。①が本筋。これは既存依存スタックの整合作業で
-    Screen Time 機能の実装とは独立。
-- ⬜ 上記の依存整合後に macOS 実コンパイル（Swift の唯一の本検証）→ 実機でのしきい値到達/ポイント反映。
+    使い Xcode 16 で失敗 → `dependency_overrides: device_info_plus: 12.3.0`（導入直前版）に固定。
+  - **sentry_flutter 8.x** は SPM 非対応で sentry-cocoa 不整合（`SentryBinaryImageCache.image`）→
+    Flutter SPM を無効化し **CocoaPods** に統一（podspec が互換 sentry-cocoa を固定）。
+  - Xcode は **16.x**（iOS18 SDK）に固定（latest=26.3 は上記 2024 年代プラグインを壊す）。
+  - ビルドフェーズ `Embed App Extensions` を `Thin Binary` より前へ移動し `Cycle inside Runner` 回避。
+  - 自分の Swift 側の実エラーも修正: `applicationRegistrar.messenger()` は非 Optional / 
+    `AuthorizationStatus` に `.approvedWithDataAccess` は無い（この SDK）。
+- ⬜ **残（署名が要る段階）**: Apple ポータル準備（§4）→ `iOS Build` を署名付き archive 化 / TestFlight。
+  → 実機でのしきい値到達 → App Group 記録 → ポイント反映の End-to-End 確認（要・実機）。
