@@ -36,6 +36,19 @@ jobs:
       - name: Install xcodeproj
         run: gem install xcodeproj -v "~> 1.27"
 
+      # 最新の安定 Xcode を明示選択。ランナー既定が古い Xcode を指すと iOS SDK が
+      # iOS17 未満になり device_info_plus(isiOSAppOnVision = iOS17+ SDK API)等が
+      # "No visible @interface" でコンパイル不能になるため（初回 macOS ビルドで発生）。
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Xcode / iOS SDK versions (diagnostic)
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
       - name: Set up Flutter 3.44.2
         uses: subosito/flutter-action@v2
         with:
