@@ -1,0 +1,60 @@
+name: iOS Build (macOS)
+
+# ⚠️ コスト注意: これは macOS ランナー(Linux の約10倍課金)。手動実行のみ。
+# 目的: iOS ネイティブ(Screen Time)実装が実際にコンパイルできるかの最初の本検証。
+# 既定 mode=compile は --no-codesign（署名アセット不要・最安の実コンパイル確認）。
+#
+# 署名/IPA/TestFlight は別ステップ(要 Apple Developer ポータル準備):
+#   1) App ID 登録: com.moffy.app と com.moffy.app.MoffyMonitor の両方
+#   2) App Group `group.com.moffy.app` を登録し両 App ID に付与
+#   3) Family Controls(配布) を **拡張の App ID にも**申請・承認(アプリ側は承認済)
+#   4) 両 App ID のプロビジョニングプロファイル発行
+# これらが揃うまで mode=compile で Swift の健全性だけを担保する。
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "compile (--no-codesign / 最安) のみ対応(署名は未配線)"
+        required: false
+        default: "compile"
+        type: choice
+        options:
+          - compile
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install xcodeproj
+        run: gem install xcodeproj -v "~> 1.27"
+
+      - name: Set up Flutter 3.44.2
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Wire DeviceActivityMonitor extension into the Xcode project
+        run: ruby ios/tools/configure_screentime.rb
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Build iOS (compile check, no signing)
+        run: flutter build ios --release --no-codesign
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "iOS compile check finished. Signing/IPA/TestFlight は別途ポータル準備が必要(ワークフロー冒頭コメント参照)。"

@@ -1,0 +1,45 @@
+name: Configure iOS (Screen Time)
+
+# DeviceActivityMonitor 拡張ターゲット(MoffyMonitor)を ios/Runner.xcodeproj に配線する
+# Ruby スクリプト(configure_screentime.rb)を Linux 上で実行・検証する。Mac 不要・安価。
+# xcodeproj gem は純 Ruby なので Linux で pbxproj を編集できる。
+# 目的: (1) スクリプトがエラーなく通り pbxproj が壊れないことの無料検証、
+#       (2) 生成された pbxproj 差分の確認、(3) 設定済み pbxproj を artifact 出力。
+# 実ビルド(コンパイル)は ios-build.yml(macOS)で行う。
+on:
+  workflow_dispatch:
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install xcodeproj (pure Ruby)
+        run: gem install xcodeproj -v "~> 1.27"
+
+      - name: Run configure_screentime.rb
+        run: ruby ios/tools/configure_screentime.rb
+
+      - name: Run again (idempotency check)
+        run: ruby ios/tools/configure_screentime.rb
+
+      - name: Show pbxproj diff
+        run: |
+          echo "=== git diff (ios/Runner.xcodeproj/project.pbxproj) ==="
+          git --no-pager diff -- ios/Runner.xcodeproj/project.pbxproj || true
+          echo "=== verify MoffyMonitor target + extension files present ==="
+          grep -c "MoffyMonitor" ios/Runner.xcodeproj/project.pbxproj || true
+
+      - name: Upload configured pbxproj
+        uses: actions/upload-artifact@v4
+        with:
+          name: configured-pbxproj
+          path: ios/Runner.xcodeproj/project.pbxproj
+          retention-days: 7

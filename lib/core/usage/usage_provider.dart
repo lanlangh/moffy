@@ -34,6 +34,36 @@ abstract interface class UsageProvider {
   });
 }
 
+/// iOS スクリーンタイム固有の操作（Android には無い / ORG_STATE 2026-06-26 iOSフル実装）。
+///
+/// 重要な仕様差（Android の移植ではない）: iOS は対象アプリを Moffy 側から自動指定
+/// できない（不透明トークン・プライバシー設計）。ユーザーが OS の `FamilyActivityPicker`
+/// で自分で対象 SNS を選ぶ必要がある。オンボーディングは
+/// `usageProvider is ScreenTimeAppSelection` でこの分岐を出し分ける（型安全な capability 判定）。
+abstract interface class ScreenTimeAppSelection {
+  /// 対象アプリ選択（`FamilyActivityPicker`）を提示し、選択を端末に永続化したうえで
+  /// `DeviceActivity` 監視を（再）開始する。戻り値は選択完了後の状態。
+  Future<ScreenTimeSelectionResult> presentAppPicker();
+
+  /// 対象アプリ選択が保存済みか（オンボーディングの「選択済み」表示判定に使う）。
+  Future<bool> hasAppSelection();
+}
+
+/// [ScreenTimeAppSelection.presentAppPicker] の結果。
+class ScreenTimeSelectionResult {
+  /// 1つ以上のアプリ/カテゴリ/Webドメインが選択されているか。
+  final bool selected;
+
+  /// 選択要素数（アプリ＋カテゴリ＋Webドメインの合計の目安・表示用）。
+  final int count;
+
+  const ScreenTimeSelectionResult({required this.selected, required this.count});
+
+  /// 何も選択されていない（= 監視対象なし）。
+  static const ScreenTimeSelectionResult none =
+      ScreenTimeSelectionResult(selected: false, count: 0);
+}
+
 /// 機能を提供しないプラットフォーム（テスト/未対応OS）向けの no-op 実装。
 /// クラッシュさせず常に notApplicable を返す（ARCHITECTURE §4-5 フォールバック）。
 class UnsupportedUsageProvider implements UsageProvider {

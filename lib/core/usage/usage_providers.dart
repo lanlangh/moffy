@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'android_usage_provider.dart';
+import 'ios_usage_provider.dart';
 import 'point_calculator.dart';
 import 'usage_models.dart';
 import 'usage_provider.dart';
@@ -12,9 +13,13 @@ import 'usage_provider.dart';
 /// プラットフォームで実装を切り替える。テストでは override 可能。
 final usageProviderProvider = Provider<UsageProvider>((ref) {
   if (!kIsWeb && Platform.isAndroid) {
-    return AndroidUsageProvider();
+    return AndroidUsageProvider(); // exact-minutes（UsageStatsManager）
   }
-  // iOS実装(v1.1) / Web / その他は未対応（クラッシュさせない）。
+  if (!kIsWeb && Platform.isIOS) {
+    // threshold-achievement（DeviceActivity）。Android の移植ではない（usage_provider.dart 参照）。
+    return IOSUsageProvider();
+  }
+  // Web / その他は未対応（クラッシュさせない）。
   return const UnsupportedUsageProvider();
 });
 

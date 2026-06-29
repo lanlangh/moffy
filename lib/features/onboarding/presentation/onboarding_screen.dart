@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +12,7 @@ import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/usage/usage_models.dart';
+import '../../../core/usage/usage_provider.dart';
 import '../../../core/usage/usage_providers.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/nest_panel.dart';
@@ -46,11 +50,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// 直近の権限状態（OB2で表示し、未許可時はフォールバック文言を出す）。
   UsagePermissionStatus? _permission;
 
-  /// 対象SNS選択（MVPは4固定。トグルで「育てる対象」を選ぶ体験 / S3）。
+  /// 対象SNS選択（Android: MVPは4固定。トグルで「育てる対象」を選ぶ体験 / S3）。
   /// 真のSSOTは tracked_apps（後続で永続化）。ここでは選択状態のみ保持。
   late final Map<String, bool> _selectedApps = {
     for (final t in AppConstants.defaultAndroidTargets) t.packageName: true,
   };
+
+  /// iOS: 対象アプリは OS の FamilyActivityPicker でユーザー自身が選ぶ（不透明トークンの
+  /// ため Moffy から4SNSを自動指定できない / ORG_STATE 2026-06-26）。Android のトグルとは別物。
+  bool get _isIOS => !kIsWeb && Platform.isIOS;
+  int _iosSelectedCount = 0;
+  bool _iosPicked = false;
 
   static const int _pageCount = 4; // OB1 / OB2 / 権限 / 対象選択
 
@@ -88,6 +98,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _next(); // 許可/拒否どちらでも次へ（拒否はボーナス卵で吸収 / SCREEN_FLOWS §1）。
   }
 
+  /// iOS: OS の FamilyActivityPicker を開いて対象アプリを選ばせ、選択数を反映する。
+  /// 選択は端末に永続化＋DeviceActivity 監視開始までネイティブが行う（IOSUsageProvider）。
+  Future<void> _pickIOSApps() async {
+    final provider = ref.read(usageProviderProvider);
+    if (provider is! ScreenTimeAppSelection) return;
+    // ScreenTimeAppSelection は UsageProvider のサブタイプではない（独立 capability）ため
+    // 型 promotion が効かない。is! ガード済みなので明示キャストは安全。
+    final screenTime = provider as ScreenTimeAppSelection;
+    setState(() => _requesting = true);
+    try {
+      final result = await screenTime.presentAppPicker();
+      if (!mounted) return;
+      setState(() {
+        _iosSelectedCount = result.count;
+        _iosPicked = result.selected;
+      });
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
+  }
+
   Future<void> _finish() async {
     await ref.read(onboardingRepositoryProvider).markCompleted();
     ref.invalidate(onboardingCompletedProvider);
@@ -115,20 +146,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               onPageChanged: (i) => setState(() => _page = i),
               children: [
                 _ValuePage(onNext: _next),
-                _PermissionInfoPage(onNext: _next),
+                _PermissionInfoPage(onNext: _next, isIOS: _isIOS),
                 _PermissionGrantPage(
                   requesting: _requesting,
                   permission: _permission,
+                  isIOS: _isIOS,
                   onGrant: _requesting ? null : _requestPermission,
                   onSkip: _next,
                 ),
-                _TargetSelectPage(
-                  selected: _selectedApps,
-                  onToggle: (pkg) => setState(
-                    () => _selectedApps[pkg] = !(_selectedApps[pkg] ?? false),
+                if (_isIOS)
+                  _IOSAppPickerPage(
+                    requesting: _requesting,
+                    selectedCount: _iosSelectedCount,
+                    picked: _iosPicked,
+                    onPick: _requesting ? null : _pickIOSApps,
+                    onFinish: isOnline ? _finish : null,
+                  )
+                else
+                  _TargetSelectPage(
+                    selected: _selectedApps,
+                    onToggle: (pkg) => setState(
+                      () => _selectedApps[pkg] = !(_selectedApps[pkg] ?? false),
+                    ),
+                    onFinish: isOnline ? _finish : null,
                   ),
-                  onFinish: isOnline ? _finish : null,
-                ),
               ],
             ),
           ),
@@ -159,17 +200,22 @@ class _ValuePage extends StatelessWidget {
 
 /// OB2 権限の理由（安心情報を先出し / SCREEN_FLOWS §1）。
 class _PermissionInfoPage extends StatelessWidget {
-  const _PermissionInfoPage({required this.onNext});
+  const _PermissionInfoPage({required this.onNext, required this.isIOS});
   final VoidCallback onNext;
+  final bool isIOS;
 
   @override
   Widget build(BuildContext context) {
     return _OnboardingPane(
       subject: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
-      title: '利用時間の見かた',
-      body: '利用時間は端末の中だけで読み取ります。'
-          'SNS4アプリ（TikTok / Instagram / YouTube / X）の時間だけを見て、'
-          '中身は一切見ません。',
+      title: isIOS ? 'スクリーンタイムの使い方' : '利用時間の見かた',
+      body: isIOS
+          ? '利用時間は端末の中だけで見ます。次の画面で「スクリーンタイム」を許可し、'
+              '見守りたいSNSアプリをあなた自身で選びます。'
+              'アプリの中身や閲覧内容は一切見ません。'
+          : '利用時間は端末の中だけで読み取ります。'
+              'SNS4アプリ（TikTok / Instagram / YouTube / X）の時間だけを見て、'
+              '中身は一切見ません。',
       cta: PrimaryButton(label: '次へ', onPressed: onNext),
     );
   }
@@ -180,12 +226,14 @@ class _PermissionGrantPage extends StatelessWidget {
   const _PermissionGrantPage({
     required this.requesting,
     required this.permission,
+    required this.isIOS,
     required this.onGrant,
     required this.onSkip,
   });
 
   final bool requesting;
   final UsagePermissionStatus? permission;
+  final bool isIOS;
   final VoidCallback? onGrant;
   final VoidCallback onSkip;
 
@@ -199,12 +247,18 @@ class _PermissionGrantPage extends StatelessWidget {
         Icons.bar_chart_rounded,
         color: AppColors.primary,
       ),
-      title: '「使用状況へのアクセス」を許可',
+      title: isIOS ? 'スクリーンタイムを許可' : '「使用状況へのアクセス」を許可',
       body: denied
-          ? '今は許可されていません。あとで設定から許可できます。'
-              '許可がなくても、最初のボーナス卵でMofiを育て始められます。'
-          : '設定画面が開いたら Moffy をオンにしてください。'
-              '正確な削減ポイントの計算に使います。',
+          ? (isIOS
+              ? '今は許可されていません。設定 > スクリーンタイム からあとで許可できます。'
+                  '許可がなくても、最初のボーナス卵でMofiを育て始められます。'
+              : '今は許可されていません。あとで設定から許可できます。'
+                  '許可がなくても、最初のボーナス卵でMofiを育て始められます。')
+          : (isIOS
+              ? '「許可する」を押すとAppleの確認が表示されます。'
+                  '削減ポイントの計算に使います。'
+              : '設定画面が開いたら Moffy をオンにしてください。'
+                  '正確な削減ポイントの計算に使います。'),
       cta: Column(
         children: [
           if (requesting)
@@ -267,6 +321,89 @@ class _TargetSelectPage extends StatelessWidget {
                     onTap: () => onToggle(t.packageName),
                   ),
               ],
+            ),
+          ),
+          if (onFinish == null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpace.sm),
+              child: Text(
+                '接続すると始められます。',
+                style: AppType.caption.copyWith(color: AppColors.offline),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          PrimaryButton(label: 'Moffyをはじめる', onPressed: onFinish),
+        ],
+      ),
+    );
+  }
+}
+
+/// iOS 対象アプリ選択（OSの FamilyActivityPicker を開く / S3 の iOS 版）。
+///
+/// Android のトグル一覧と違い、iOS は Moffy から4SNSを自動指定できない（不透明トークン・
+/// プライバシー設計）。ユーザーが Apple のピッカーで自分で選ぶ。選択の永続化と
+/// DeviceActivity 監視開始はネイティブ（[ScreenTimeAppSelection.presentAppPicker]）が行う。
+class _IOSAppPickerPage extends StatelessWidget {
+  const _IOSAppPickerPage({
+    required this.requesting,
+    required this.selectedCount,
+    required this.picked,
+    required this.onPick,
+    required this.onFinish,
+  });
+
+  final bool requesting;
+  final int selectedCount;
+  final bool picked;
+  final VoidCallback? onPick;
+
+  /// オフライン時は null（匿名認証オンライン必須 / グレーアウト）。
+  final VoidCallback? onFinish;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpace.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppSpace.xl),
+          Text('見守るアプリを選ぼう', style: AppType.title),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            'Appleの画面で、減らしたいSNSアプリを選びます。'
+            '選んだアプリの利用時間だけが削減ポイントの対象になります。あとで変更できます。',
+            style: AppType.caption,
+          ),
+          const SizedBox(height: AppSpace.xl),
+          Expanded(
+            child: Center(
+              child: requesting
+                  ? const NestSkeleton(diameter: 80, label: '開いています')
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        NestRing(
+                          diameter: 140,
+                          child: Icon(
+                            picked ? Icons.check_rounded : Icons.apps_rounded,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpace.lg),
+                        Text(
+                          picked ? '$selectedCount件を選択中' : 'まだ選んでいません',
+                          style: AppType.bodyStrong,
+                        ),
+                        const SizedBox(height: AppSpace.sm),
+                        OutlinedButton.icon(
+                          onPressed: onPick,
+                          icon: const Icon(Icons.tune_rounded),
+                          label: Text(picked ? 'アプリを選び直す' : 'アプリを選ぶ'),
+                        ),
+                      ],
+                    ),
             ),
           ),
           if (onFinish == null)
