@@ -57,6 +57,13 @@ jobs:
           flutter-version: "3.44.2"
           channel: stable
 
+      # sentry_flutter 8.x は Swift Package Manager 非対応で、SPM だと sentry-cocoa の
+      # バージョン不整合（SentryBinaryImageCache.image）でコンパイル不能（getsentry/sentry-dart #2674）。
+      # CocoaPods は sentry_flutter の podspec が互換 sentry-cocoa を固定するため通る。
+      # posthog_flutter も元々 SPM 非対応で Pods 併用済み → SPM を無効化して全プラグインを Pods に統一。
+      - name: Use CocoaPods (disable Flutter SPM)
+        run: flutter config --no-enable-swift-package-manager
+
       - name: Flutter pub get
         run: flutter pub get
 
