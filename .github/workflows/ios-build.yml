@@ -36,18 +36,15 @@ jobs:
       - name: Install xcodeproj
         run: gem install xcodeproj -v "~> 1.27"
 
-      # ⚠️ 既知の依存衝突（Screen Time とは無関係・要・依存整合）:
-      #  - device_info_plus 12.4.0(推移的) は新しい iOS SDK が必要
-      #    (isiOSAppOnVision)。Xcode 16.x(iOS18 SDK)では "No visible @interface" で失敗。
-      #  - sentry_flutter 8.9.0 → sentry-cocoa は Xcode 26.3 で
-      #    "SentryBinaryImageCache has no member 'image'" で失敗。
-      #  → 同一 Xcode で両立しない。**真の修正は sentry_flutter を Xcode26 対応版へ更新**
-      #    (または device_info_plus を dependency_overrides で旧版に固定し Xcode 16)。
-      #  暫定: device_info_plus が要求する新 SDK 側(latest-stable=Xcode26)に合わせておく。
-      - name: Select Xcode (latest stable)
+      # Xcode 16.x（iOS18 SDK）を選択。依存衝突の解消方針（docs/IOS_SCREENTIME.md §7）:
+      #  pubspec.yaml の dependency_overrides で device_info_plus を 12.3.0
+      #  （isiOSAppOnVision 導入前）に固定したので Xcode 16 で全プラグインが通る。
+      #  ・latest-stable(Xcode26.3) は sentry_flutter 8.9.0 を壊す(SentryBinaryImageCache.image)。
+      #  ・device_info_plus 12.4.0+ は Xcode16 を壊す(isiOSAppOnVision) → 12.3.0 固定で回避。
+      - name: Select Xcode 16.x
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: "16"
 
       - name: Xcode / iOS SDK versions (diagnostic)
         run: |
