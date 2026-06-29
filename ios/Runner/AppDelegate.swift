@@ -20,7 +20,8 @@ import UIKit
 
     // 利用統計（iOS=スクリーンタイム）チャネルを実装エンジンの messenger に配線する。
     // チャネル名は Dart 側 AppConstants.usageChannel と厳密一致させること。
-    guard let messenger = engineBridge.applicationRegistrar.messenger() else { return }
+    // messenger() は非 Optional（any FlutterBinaryMessenger）を返す。
+    let messenger = engineBridge.applicationRegistrar.messenger()
     let channel = FlutterMethodChannel(
       name: "com.moffy/usage_stats",
       binaryMessenger: messenger

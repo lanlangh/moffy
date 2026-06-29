@@ -55,7 +55,7 @@ final class ScreenTimeHandler: NSObject {
   /// 起動時に「認証済み＋選択済み」なら監視を再開する（拡張のスケジュール維持・冪等）。
   func restartMonitoringIfPossible() {
     let status = AuthorizationCenter.shared.authorizationStatus
-    guard status == .approved || status == .approvedWithDataAccess else { return }
+    guard status == .approved else { return }
     guard hasSelection() else { return }
     startMonitoring(with: loadSelection())
   }
@@ -65,8 +65,10 @@ final class ScreenTimeHandler: NSObject {
   /// AuthorizationStatus → Dart 契約文字列。
   /// `.denied` は OS 設定での解除が必要なため permanently_denied に倒す。
   private func statusString(_ s: AuthorizationStatus) -> String {
+    // AuthorizationStatus はこの SDK では notDetermined / denied / approved の3ケース。
+    // 将来ケース（例: approvedWithDataAccess）は @unknown default が安全側(denied)で吸収。
     switch s {
-    case .approved, .approvedWithDataAccess:
+    case .approved:
       return "granted"
     case .denied:
       return "permanently_denied" // 一度拒否すると再要求シートは出ない → OS設定誘導
@@ -119,7 +121,7 @@ final class ScreenTimeHandler: NSObject {
     // 未認証だとピッカーが空になる。Dart オンボは requestPermission を先に呼ぶ契約だが、
     // 念のため未認証は selected:false で即返す。
     let status = AuthorizationCenter.shared.authorizationStatus
-    guard status == .approved || status == .approvedWithDataAccess else {
+    guard status == .approved else {
       result(["selected": false, "count": 0])
       return
     }
