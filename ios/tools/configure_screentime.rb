@@ -123,6 +123,25 @@ else
   puts "configure_screentime: created #{EXT_NAME} (#{EXT_BUNDLE}) and embedded into Runner."
 end
 
+# --- "Embed App Extensions" を Flutter "Thin Binary" より前へ移動（冪等） -------------------
+# new_copy_files_build_phase は末尾に追加されるため、Flutter の embed_and_thin スクリプト
+# (Thin Binary) より後ろになり "Cycle inside Runner" を起こす。前へ移す。
+embed_now = runner.copy_files_build_phases.find do |p|
+  p.symbol_dst_subfolder_spec == :plug_ins || p.dst_subfolder_spec == '13'
+end
+thin = runner.build_phases.find do |p|
+  p.respond_to?(:display_name) && p.display_name == 'Thin Binary'
+end
+if embed_now && thin
+  bps = runner.build_phases
+  ei = bps.index(embed_now)
+  ti = bps.index(thin)
+  if ei && ti && ei > ti
+    bps.delete(embed_now)
+    bps.insert(ti, embed_now)
+  end
+end
+
 # --- 保存前の自己検証（Mac なしでの誤配線検知） -------------------------------------------
 # 1) 追加した全ファイル参照の解決先が実在するか。
 new_refs.uniq.each do |ref|
@@ -140,6 +159,18 @@ abort 'configure_screentime: Embed App Extensions phase missing the .appex' unle
 codesign = embed_phase.files.find { |bf| bf.file_ref == ext.product_reference }
 attrs = codesign&.settings&.dig('ATTRIBUTES') || []
 abort 'configure_screentime: appex is not marked CodeSignOnCopy' unless attrs.include?('CodeSignOnCopy')
+
+# embed phase は Thin Binary より前にあること（後ろだと "Cycle inside Runner"）。
+thin_v = runner.build_phases.find do |p|
+  p.respond_to?(:display_name) && p.display_name == 'Thin Binary'
+end
+if thin_v
+  ei_v = runner.build_phases.index(embed_phase)
+  ti_v = runner.build_phases.index(thin_v)
+  if ei_v && ti_v && ei_v > ti_v
+    abort 'configure_screentime: Embed App Extensions is after Thin Binary (would cause build cycle)'
+  end
+end
 
 # 3) Runner / 拡張のソースに必要な swift が入っているか。
 unless runner.source_build_phase.files_references.include?(handler_ref)
