@@ -22,6 +22,7 @@
   - ✅ **実機インストール成功(2026-06-30)**: ビルドVALID→内部テストグループ`Internal`(自動配信ON)→TestFlightアプリでMoffy起動。
   - 🟥 **初回UXが「全く使い方が分からない」(オーナーFB)→product-designer監査実施**。**最有力原因=テストビルドがバックエンド未接続**: `ios-build.yml`が`--dart-define`未指定→`Env.hasSupabase=false`→**Mock/オフライン=warmup卵が生成されず祝福も出ず"空の巣"ホーム**。加えて設計書`SCREEN_FLOWS §1`の「最初の卵プレゼント」歓迎画面が**未実装**(オンボ完了→無言でホーム直行)、専門用語(pt/基準値/計測)未説明、iOSピッカーが唐突。
   - ✅ **A. バックエンド接続=完了**: `--dart-define=SUPABASE_URL`/`SUPABASE_ANON_KEY`をios-build.ymlに注入(Secret登録済・URL=`https://iktpuxgxsaejwtocqnzk.supabase.co`/anon=`sb_publishable_...`。app_config読取をcurl 200で検証済)。ビルド番号は`github.run_number`で自動採番(重複回避)。**接続版TestFlightアップロード成功**(Apple処理後インストールで本物の初回体験=warmup卵+祝福が出る)。
+  - 🟥→✅ **重大バグ修正: 匿名サインイン未実装(2026-06-30)**: アプリが`signInAnonymously()`を一度も呼んでおらず(コメントだけ)、Supabaseセッション無し→`auth.uid()`=null→**warmup卵作成もクエスト(`fn_sync_quests`)も`unauthorized(28000)`で失敗**=「空の巣」「クエスト画面エラー」の真因。`main.dart`の`Supabase.initialize`後に`currentSession==null`なら`signInAnonymously()`を追加(端末ごと匿名1人・永続)。**接続版が初めて機能する**。要・次リビルドで反映。
   - 🟧 **B. UX/ビジュアル改善(進行中)**: ✅オンボ文言平易化(OB2/権限/iOSピッカー＋未選択時ボタン)。✅**卵を暫定ベクター描画に刷新**(`lib/core/widgets/egg_art.dart`=陰影/斑点/つや/成長ヒビ/SSRきらめき。`active_egg_panel`の`Icons.egg_rounded`を置換)。✅**本番アセット仕様書`docs/ART_ASSETS.md`**(卵12=レア4×段階3/Mofi30/UI・透過PNG1024。置き場`assets/images/`)→**ユーザーがまず`egg_common_0/1/2.png`生成→Image.asset差替**。⬜残: 歓迎画面(旧OB3)新設・ホーム初回文言・空巣状態。**コンセプト**=直下`ChatGPT Image 2026-06-19 *.png`5枚(やわらか3D風kawaii・巣の卵・Mofi3系統)。
   - 📌 **ビジュアル/UX変更は次回のXcode26署名リビルドでまとめて反映→再テスト**(毎変更ごとの有料ビルドを避けバッチ)。
   - 🔴 **その後**: 実機E2E(しきい値到達→ポイント反映)→ストア提出準備。
