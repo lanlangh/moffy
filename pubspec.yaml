@@ -52,8 +52,9 @@ dependencies:
   # --- 監視/分析（クラッシュ監視 = Sentry / 行動分析 = PostHog） ---
   # 公開DSN / APIキーは --dart-define で注入（env.dart）。未設定時は Noop 実装に
   # フォールバックし、PoC・テストでクラッシュさせない。PII/生データは送らない（OBSERVABILITY_SETUP.md）。
-  # 8.x 系: Dart >=3.3 / Flutter >=3.19（本プロジェクトの SDK 制約・CI Flutter 3.44.2 と一致）。
-  sentry_flutter: ^8.9.0
+  # 9.x 系: Xcode 26 / iOS 26 SDK 対応（sentry-cocoa 8.56.2+ を同梱。8.x は Xcode 26 で
+  # ビルド不可＝Apple のアップロード要件を満たせない）。Dart >=3.5 / Flutter >=3.24。
+  sentry_flutter: ^9.7.0
   posthog_flutter: ^4.0.1
 
   cupertino_icons: ^1.0.8
@@ -69,15 +70,6 @@ dev_dependencies:
   custom_lint: ^0.6.4
   riverpod_lint: ^2.3.10
   drift_dev: ^2.18.0
-
-# --- 依存の上書き（iOS ツールチェーン衝突の回避 / docs/IOS_SCREENTIME.md §7） ---
-# device_info_plus 12.4.0（推移的・lib では未使用）は iOS で isiOSAppOnVision（新しい iOS SDK の
-# API）を使うため Xcode 16（iOS18 SDK）で "No visible @interface" となりビルド不能。一方
-# sentry_flutter 8.9.0 は最新 Xcode 26 で壊れる（SentryBinaryImageCache.image）。同一 Xcode で
-# 両立しないので、isiOSAppOnVision 導入直前の 12.3.0 に固定し Xcode 16 で全プラグインを通す。
-# shipped 済みの observability/課金コードは無改変。Dart API は 12.3.0↔12.4.0 で実質同一。
-dependency_overrides:
-  device_info_plus: 12.3.0
 
 flutter:
   uses-material-design: true
