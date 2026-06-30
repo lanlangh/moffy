@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/tokens.dart';
 import '../../../../core/widgets/common_widgets.dart';
+import '../../../../core/widgets/egg_art.dart';
 import '../../../../core/widgets/nest_panel.dart';
 import '../../domain/home_state.dart';
 
@@ -56,7 +57,7 @@ class ActiveEggPanel extends StatelessWidget {
         egg.remaining > 0 ? '孵化まであと ${egg.remaining}pt' : 'まもなく孵化',
         style: AppType.title,
       ),
-      subject: Icon(Icons.egg_rounded, color: rarity.main),
+      subject: EggArt(rarity: rarity, progress: egg.progress),
       footer: Column(
         children: [
           GrowthProgressBar(value: egg.progress),
