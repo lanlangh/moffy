@@ -90,9 +90,18 @@ jobs:
 
       # Podfile 生成 + pod install + flutter assemble をまとめて実行（このプロジェクトは
       # SPM 雛形で Podfile 未コミットのため、flutter build が Podfile を生成して pod install する）。
+      # --dart-define はここで Generated.xcconfig(DART_DEFINES) に書かれ、後続の
+      # xcodebuild archive(Run Script→flutter assemble)に引き継がれてアプリに焼き込まれる。
+      # Supabase 接続キーを注入しないと Env.hasSupabase=false でモック(空のホーム)になる。
       - name: Prepare iOS (generate Podfile, pods, assemble)
         if: inputs.mode != 'compile'
-        run: flutter build ios --release --no-codesign
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
       - name: Write ExportOptions.plist
         if: inputs.mode != 'compile'
