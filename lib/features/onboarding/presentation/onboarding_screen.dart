@@ -210,9 +210,8 @@ class _PermissionInfoPage extends StatelessWidget {
       subject: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
       title: isIOS ? 'スクリーンタイムの使い方' : '利用時間の見かた',
       body: isIOS
-          ? '利用時間は端末の中だけで見ます。次の画面で「スクリーンタイム」を許可し、'
-              '見守りたいSNSアプリをあなた自身で選びます。'
-              'アプリの中身や閲覧内容は一切見ません。'
+          ? '見るのは「時間」だけ。アプリの中身は一切見ません。'
+              '次の画面で、減らしたいSNSをあなた自身で選びます。'
           : '利用時間は端末の中だけで読み取ります。'
               'SNS4アプリ（TikTok / Instagram / YouTube / X）の時間だけを見て、'
               '中身は一切見ません。',
@@ -255,8 +254,8 @@ class _PermissionGrantPage extends StatelessWidget {
               : '今は許可されていません。あとで設定から許可できます。'
                   '許可がなくても、最初のボーナス卵でMofiを育て始められます。')
           : (isIOS
-              ? '「許可する」を押すとAppleの確認が表示されます。'
-                  '削減ポイントの計算に使います。'
+              ? '次にAppleの確認が出ます。「許可」を押すと、'
+                  '減らした時間がポイントになります。'
               : '設定画面が開いたら Moffy をオンにしてください。'
                   '正確な削減ポイントの計算に使います。'),
       cta: Column(
@@ -372,8 +371,9 @@ class _IOSAppPickerPage extends StatelessWidget {
           Text('見守るアプリを選ぼう', style: AppType.title),
           const SizedBox(height: AppSpace.sm),
           Text(
-            'Appleの画面で、減らしたいSNSアプリを選びます。'
-            '選んだアプリの利用時間だけが削減ポイントの対象になります。あとで変更できます。',
+            'ボタンを押すとAppleの画面が開きます。Instagram・TikTok・YouTube など、'
+            '減らしたいアプリにチェックしてください。'
+            '選んだアプリの利用時間だけが対象です（あとで変更できます）。',
             style: AppType.caption,
           ),
           const SizedBox(height: AppSpace.xl),
@@ -415,7 +415,12 @@ class _IOSAppPickerPage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-          PrimaryButton(label: 'Moffyをはじめる', onPressed: onFinish),
+          PrimaryButton(
+            label: picked
+                ? 'Moffyをはじめる（$selectedCount件を見守る）'
+                : 'あとで選んで始める',
+            onPressed: onFinish,
+          ),
         ],
       ),
     );
