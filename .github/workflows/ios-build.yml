@@ -130,7 +130,6 @@ jobs:
             -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
             DEVELOPMENT_TEAM=JKPUV48L3V \
             CODE_SIGN_STYLE=Automatic \
-            "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution" \
             archive
 
       - name: Export signed IPA
