@@ -1,25 +1,28 @@
 name: iOS Build (macOS)
 
-# ⚠️ コスト注意: これは macOS ランナー(Linux の約10倍課金)。手動実行のみ。
-# 目的: iOS ネイティブ(Screen Time)実装が実際にコンパイルできるかの最初の本検証。
-# 既定 mode=compile は --no-codesign（署名アセット不要・最安の実コンパイル確認）。
+# ⚠️ コスト注意: macOS ランナー(Linux の約10倍課金)。手動実行のみ。
+# mode:
+#   compile   = Swift コンパイル検証(--no-codesign / 最安・署名不要)
+#   release   = 署名付き IPA を生成(自動プロビジョニング)→ artifact 出力（マイルストーン1）
+#   testflight= 署名付き IPA を生成 → TestFlight へアップロード（要・ASCアプリレコード）
 #
-# 署名/IPA/TestFlight は別ステップ(要 Apple Developer ポータル準備):
-#   1) App ID 登録: com.moffy.app と com.moffy.app.MoffyMonitor の両方
-#   2) App Group `group.com.moffy.app` を登録し両 App ID に付与
-#   3) Family Controls(配布) を **拡張の App ID にも**申請・承認(アプリ側は承認済)
-#   4) 両 App ID のプロビジョニングプロファイル発行
-# これらが揃うまで mode=compile で Swift の健全性だけを担保する。
+# 署名前提(docs/IOS_SCREENTIME.md §4 / 完了済):
+#   App ID com.moffy.app + com.moffy.app.MoffyMonitor / App Group group.com.moffy.app /
+#   Family Controls(Distribution)=両App IDで承認(Assigned) / Team ID=JKPUV48L3V。
+#   ASC APIキー(Secret: ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_P8_BASE64)=自動プロビジョニングに
+#   **Admin ロール**必須(証明書/プロファイル作成のため)。TestFlight は ASC にアプリレコードが必要(手動作成)。
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "compile (--no-codesign / 最安) のみ対応(署名は未配線)"
+        description: "compile / release(署名IPA) / testflight(署名IPA+アップロード)"
         required: false
         default: "compile"
         type: choice
         options:
           - compile
+          - release
+          - testflight
 
 jobs:
   build:
@@ -36,11 +39,8 @@ jobs:
       - name: Install xcodeproj
         run: gem install xcodeproj -v "~> 1.27"
 
-      # Xcode 16.x（iOS18 SDK）を選択。依存衝突の解消方針（docs/IOS_SCREENTIME.md §7）:
-      #  pubspec.yaml の dependency_overrides で device_info_plus を 12.3.0
-      #  （isiOSAppOnVision 導入前）に固定したので Xcode 16 で全プラグインが通る。
-      #  ・latest-stable(Xcode26.3) は sentry_flutter 8.9.0 を壊す(SentryBinaryImageCache.image)。
-      #  ・device_info_plus 12.4.0+ は Xcode16 を壊す(isiOSAppOnVision) → 12.3.0 固定で回避。
+      # Xcode 16.x（iOS18 SDK）。dependency_overrides(device_info_plus 12.3.0)＋CocoaPods で
+      # 2024 年代プラグイン群がこのツールチェーンで通る（docs/IOS_SCREENTIME.md §7）。
       - name: Select Xcode 16.x
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -57,10 +57,7 @@ jobs:
           flutter-version: "3.44.2"
           channel: stable
 
-      # sentry_flutter 8.x は Swift Package Manager 非対応で、SPM だと sentry-cocoa の
-      # バージョン不整合（SentryBinaryImageCache.image）でコンパイル不能（getsentry/sentry-dart #2674）。
-      # CocoaPods は sentry_flutter の podspec が互換 sentry-cocoa を固定するため通る。
-      # posthog_flutter も元々 SPM 非対応で Pods 併用済み → SPM を無効化して全プラグインを Pods に統一。
+      # sentry_flutter 8.x は SPM 非対応 → CocoaPods に統一（docs/IOS_SCREENTIME.md §7）。
       - name: Use CocoaPods (disable Flutter SPM)
         run: flutter config --no-enable-swift-package-manager
 
@@ -73,10 +70,105 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
+      # ---- compile モード: 署名なしコンパイル検証 ----
       - name: Build iOS (compile check, no signing)
+        if: inputs.mode == 'compile'
         run: flutter build ios --release --no-codesign
+
+      # ---- release / testflight モード: 署名付き IPA ----
+      - name: Decode ASC API key (.p8)
+        if: inputs.mode != 'compile'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          if [ -z "$ASC_KEY_P8_BASE64" ]; then echo "::error::ASC_KEY_P8_BASE64 未設定"; exit 1; fi
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          echo "decoded key bytes: $(wc -c < ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8)"
+
+      # Podfile 生成 + pod install + flutter assemble をまとめて実行（このプロジェクトは
+      # SPM 雛形で Podfile 未コミットのため、flutter build が Podfile を生成して pod install する）。
+      - name: Prepare iOS (generate Podfile, pods, assemble)
+        if: inputs.mode != 'compile'
+        run: flutter build ios --release --no-codesign
+
+      - name: Write ExportOptions.plist
+        if: inputs.mode != 'compile'
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>JKPUV48L3V</string>
+            <key>destination</key><string>export</string>
+            <key>uploadSymbols</key><true/>
+            <key>stripSwiftSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+
+      # 自動プロビジョニング: 配布証明書 + Runner/MoffyMonitor 両方のプロファイルを生成。
+      - name: Archive (signed, automatic provisioning)
+        if: inputs.mode != 'compile'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            DEVELOPMENT_TEAM=JKPUV48L3V \
+            CODE_SIGN_STYLE=Automatic \
+            "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution" \
+            archive
+
+      - name: Export signed IPA
+        if: inputs.mode != 'compile'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          ls -la "$RUNNER_TEMP/export"
+
+      - name: Upload signed IPA artifact
+        if: inputs.mode != 'compile'
+        uses: actions/upload-artifact@v4
+        with:
+          name: moffy-ios-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 7
+
+      # ---- testflight モードのみ: アップロード（要・ASC アプリレコード） ----
+      - name: Upload to TestFlight
+        if: inputs.mode == 'testflight'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcrun altool --validate-app -f "$RUNNER_TEMP/export/"*.ipa --type ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          xcrun altool --upload-app -f "$RUNNER_TEMP/export/"*.ipa --type ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
       - name: Summary
         if: always()
-        run: |
-          echo "iOS compile check finished. Signing/IPA/TestFlight は別途ポータル準備が必要(ワークフロー冒頭コメント参照)。"
+        run: echo "mode=${{ inputs.mode }} 完了。release/testflightはartifact 'moffy-ios-ipa' を参照。"
