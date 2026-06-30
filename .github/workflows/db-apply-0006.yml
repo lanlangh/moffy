@@ -1,0 +1,37 @@
+name: DB Apply 0006 (profiles trigger + quest seed)
+
+# 0006(profiles 自動作成トリガー + 既存バックフィル + quest_definitions seed)を
+# ライブ DB(moffy-prod)に適用する。冪等なので再実行可。接続は Secret SUPABASE_DB_URL。
+# 手動実行のみ。
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          psql --version
+
+      - name: Apply 0006
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0006_profile_autocreate_and_quest_seed.sql
+
+      - name: Verify (quest_defs > 0, profiles == users, trigger exists)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select count(*) as quest_defs from public.quest_definitions;"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select (select count(*) from public.profiles) as profiles, (select count(*) from auth.users) as users;"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select tgname from pg_trigger where tgname = 'on_auth_user_created';"
