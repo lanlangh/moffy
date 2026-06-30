@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/tokens.dart';
+import '../../../../core/widgets/egg_art.dart';
 import '../../../../core/widgets/nest_panel.dart';
 import '../../domain/home_state.dart';
 
@@ -36,10 +37,7 @@ class WarmupCelebration extends StatelessWidget {
             const NestRing(
               diameter: 120,
               glow: AppColors.primary,
-              child: Icon(
-                Icons.egg_rounded,
-                color: AppColors.primary,
-              ),
+              child: EggArt(rarity: RarityToken.common),
             ),
             const SizedBox(height: AppSpace.sm),
             Text(

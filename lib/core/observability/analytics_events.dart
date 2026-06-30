@@ -26,6 +26,9 @@ abstract final class AnalyticsEvents {
   /// オンボーディング完了（コアループへの到達）。
   static const onboardingCompleted = 'onboarding_completed';
 
+  /// 歓迎画面（最初の卵プレゼント）を完了しホームへ進んだ（初回体験の到達点）。
+  static const welcomeCompleted = 'welcome_completed';
+
   /// 「使用状況へのアクセス」権限が許可された（利用時間取得の前提 / S2）。
   static const usagePermissionGranted = 'usage_permission_granted';
 

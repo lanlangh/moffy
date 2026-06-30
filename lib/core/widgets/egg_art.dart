@@ -4,15 +4,26 @@ import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
 
-/// 卵のイラスト（**暫定: ベクター描画**）。
+/// レアリティ色帯 → 卵の本番イラストアセット（背景透過 PNG・docs/ART_ASSETS.md）。
 ///
-/// Material アイコンのプレースホルダーを置き換える、陰影・斑点・つや・成長ヒビ付きの卵。
-/// レアリティ色（[RarityToken]）で塗り分け、[progress]（0..1 の孵化進捗）で
-/// ヒビ段階を出す（crack1=0.2 / crack2=0.5・§4-5 のしきい値比）。
+/// アセットはコンセプト参照シートから卵だけを切り出した透過 PNG（巣は含めない＝
+/// 巣リングはアプリ側 [NestRing] が描く）。読み込めない場合は [EggArt] が
+/// 暫定ベクター（[_EggPainter]）にフォールバックする。
+String eggAssetFor(RarityToken rarity) => switch (rarity) {
+      RarityToken.common => 'assets/images/egg/egg_common.png',
+      RarityToken.rare => 'assets/images/egg/egg_rare.png',
+      RarityToken.sr => 'assets/images/egg/egg_sr.png',
+      RarityToken.ssr => 'assets/images/egg/egg_ssr.png',
+    };
+
+/// 卵のイラスト（**本番アセット + ベクターフォールバック**）。
 ///
-/// 本番はコンセプトアートの **背景透過イラストアセット** に差し替える予定
-/// （仕様: docs/ART_ASSETS.md）。差し替え時は本ウィジェットの利用箇所を
-/// `Image.asset(...)` に置換するだけで済むよう、卵=1ウィジェットに閉じている。
+/// レアリティ（[RarityToken]）ごとの背景透過イラスト（[eggAssetFor]）を表示する。
+/// アセットが見つからない場合は陰影・斑点・つや・成長ヒビ付きの暫定ベクター
+/// （[_EggPainter]・[progress] でヒビ段階を出す）にフォールバックする。
+///
+/// 卵=1ウィジェットに閉じているので、差し替え点はここだけ（active_egg_panel /
+/// eggs 画面の [EggSubject] 経由を含む全画面がこのウィジェットを通る）。
 class EggArt extends StatelessWidget {
   const EggArt({
     super.key,
@@ -23,7 +34,7 @@ class EggArt extends StatelessWidget {
 
   final RarityToken rarity;
 
-  /// 0..1 の孵化進捗。ヒビ段階の決定に使う。
+  /// 0..1 の孵化進捗。フォールバック時のヒビ段階の決定に使う。
   final double progress;
 
   /// 描画サイズ（NestRing 内では FittedBox で拡縮される）。
@@ -34,8 +45,14 @@ class EggArt extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _EggPainter(rarity: rarity, progress: progress.clamp(0, 1)),
+      child: Image.asset(
+        eggAssetFor(rarity),
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        // アセット欠落・読み込み失敗時は暫定ベクターで必ず卵を表示する。
+        errorBuilder: (context, error, stack) => CustomPaint(
+          painter: _EggPainter(rarity: rarity, progress: progress.clamp(0, 1)),
+        ),
       ),
     );
   }

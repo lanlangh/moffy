@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/tokens.dart';
+import '../../../core/widgets/egg_art.dart';
 import '../../collection/domain/mofi_models.dart';
 import '../domain/egg_models.dart';
 
@@ -25,8 +26,9 @@ abstract final class RarityVisuals {
       };
 }
 
-/// 卵の被写体アイコン（成長段階でヒビ表現を変える / SCREEN_FLOWS §3）。
-/// NestRing の中央に置く。色はレアリティ色帯。
+/// 卵の被写体（本番イラスト / SCREEN_FLOWS §3）。
+/// NestRing の中央に置く。レアリティ色帯ごとの透過イラストを [EggArt] で表示し、
+/// 成長段階（[stage]）は孵化進捗に写してフォールバック時のヒビ段階に反映する。
 class EggSubject extends StatelessWidget {
   const EggSubject({
     super.key,
@@ -39,15 +41,14 @@ class EggSubject extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = RarityVisuals.ofEgg(rarity).main;
-    // ヒビ段階に応じてアイコンを変える（孵化可能は割れかけ表現）。
-    final icon = switch (stage) {
-      EggGrowthStage.intact => Icons.egg_rounded,
-      EggGrowthStage.crack1 => Icons.egg_rounded,
-      EggGrowthStage.crack2 => Icons.egg_alt_rounded,
-      EggGrowthStage.ready => Icons.egg_alt_outlined,
+    // 段階 → 進捗（フォールバックのベクター描画のヒビ段階に使う・§4-5 のしきい値比）。
+    final progress = switch (stage) {
+      EggGrowthStage.intact => 0.0,
+      EggGrowthStage.crack1 => 0.3,
+      EggGrowthStage.crack2 => 0.6,
+      EggGrowthStage.ready => 0.95,
     };
-    return Icon(icon, color: color);
+    return EggArt(rarity: RarityVisuals.ofEgg(rarity), progress: progress);
   }
 }
 

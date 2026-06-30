@@ -8,6 +8,7 @@ import '../../features/home/presentation/home_screen.dart';
 import '../../features/menu/presentation/menu_screen.dart';
 import '../../features/onboarding/data/onboarding_repository.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/onboarding/presentation/welcome_screen.dart';
 import '../../features/paywall/presentation/paywall_screen.dart';
 import '../../features/profile/presentation/account_link_screen.dart';
 import '../../features/profile/presentation/delete_account_screen.dart';
@@ -33,9 +34,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         orElse: () => true, // 取得不能時はオンボを強制しない（既存ユーザー保護）
       );
       final goingToOnboarding = state.matchedLocation == OnboardingScreen.routePath;
-      if (!completed && !goingToOnboarding) {
+      // /welcome（最初の卵プレゼント）はオンボ完了直後の通過点。完了フラグの
+      // 再取得が間に合わない一瞬でも /onboarding へ弾き返さないよう、初回フローの
+      // 一部として扱う（オンボ→/welcome→ホーム）。
+      final inFirstRunFlow =
+          goingToOnboarding || state.matchedLocation == WelcomeScreen.routePath;
+      if (!completed && !inFirstRunFlow) {
         return OnboardingScreen.routePath;
       }
+      // 完了済みでオンボに来たらホームへ（/welcome は完了後の通過点なので弾かない）。
       if (completed && goingToOnboarding) {
         return AppTab.home.path;
       }
@@ -46,6 +53,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: OnboardingScreen.routePath,
         name: OnboardingScreen.routeName,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+      // 歓迎画面（最初の卵プレゼント）。オンボ完了→ホームの間に一度だけ通る（SCREEN_FLOWS §1）。
+      GoRoute(
+        path: WelcomeScreen.routePath,
+        name: WelcomeScreen.routeName,
+        builder: (context, state) => const WelcomeScreen(),
       ),
       // 5タブのシェル（各タブが独立した Navigator を持ち状態を保持）。
       StatefulShellRoute.indexedStack(

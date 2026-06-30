@@ -75,5 +75,7 @@ flutter:
   uses-material-design: true
   # google_fonts を使うため、フォントの assets バンドルは不要（実行時取得）。
   # ただし審査・オフライン安定のため、本番では fonts/ への同梱に切り替える想定（SETUP.md参照）。
-  # assets:
-  #   - assets/images/
+  assets:
+    # 卵の本番イラスト（背景透過 PNG・docs/ART_ASSETS.md / core/widgets/egg_art.dart）。
+    # mofi/ ・ ui/ はアセット未配置のため宣言しない（空ディレクトリ宣言は pub get 失敗）。
+    - assets/images/egg/

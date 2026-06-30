@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/economy.dart';
-import '../../../core/navigation/app_tab.dart';
 import '../../../core/observability/analytics_events.dart';
 import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
@@ -15,9 +14,11 @@ import '../../../core/usage/usage_models.dart';
 import '../../../core/usage/usage_provider.dart';
 import '../../../core/usage/usage_providers.dart';
 import '../../../core/widgets/common_widgets.dart';
+import '../../../core/widgets/egg_art.dart';
 import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
 import '../data/onboarding_repository.dart';
+import 'welcome_screen.dart';
 
 /// オンボーディング画面（SCREEN_FLOWS §1）。
 ///
@@ -125,7 +126,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // ファネル: オンボーディング完了（コアループ到達 / PRD §5-5）。
     ref.read(analyticsProvider).capture(AnalyticsEvents.onboardingCompleted);
     if (!mounted) return;
-    context.go(AppTab.home.path);
+    // 歓迎画面（最初の卵プレゼント）を経由してホームへ（warmup はホームで付与）。
+    context.go(WelcomeScreen.routePath);
   }
 
   @override
@@ -189,7 +191,7 @@ class _ValuePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _OnboardingPane(
-      subject: const Icon(Icons.egg_rounded, color: AppColors.primary),
+      subject: const EggArt(rarity: RarityToken.common),
       title: 'SNSを見ない時間が、\nMofiを育てる',
       body: '減らせた時間がポイントになり、卵が育って孵化します。'
           '集めたMofiで図鑑を埋めていく、ぬくもりのある収集ゲームです。',

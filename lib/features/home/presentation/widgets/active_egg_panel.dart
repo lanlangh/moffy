@@ -31,13 +31,14 @@ class ActiveEggPanel extends StatelessWidget {
           Icons.egg_outlined,
           color: AppColors.textDisabled,
         ),
-        caption: Text('巣が空っぽ', style: AppType.title),
+        caption: Text('巣が空いています', style: AppType.title),
         footer: Column(
           children: [
             Text(
               state.pooledPoints > 0
-                  ? '${state.pooledPoints}pt ためてあるよ。卵をセットすると使えます。'
-                  : '次に育てる卵を選ぼう。',
+                  ? '${state.pooledPoints}pt ためてあります。'
+                      '卵をセットすると、このポイントで育ち始めます。'
+                  : 'つぎに育てる卵を選んで、巣にセットしましょう。',
               style: AppType.caption,
               textAlign: TextAlign.center,
             ),
