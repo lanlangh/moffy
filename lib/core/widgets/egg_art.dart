@@ -79,18 +79,22 @@ class _CrackOverlayPainter extends CustomPainter {
 
   final double progress;
 
+  // 卵は横に割れる（横向きのジグザグ）。上=ヒビ① / 下=ヒビ②。PIL で実アセットに
+  // 重ねて位置と向きを検証済み。
   static const List<Offset> _crack1 = [
-    Offset(0.53, 0.20),
-    Offset(0.47, 0.30),
-    Offset(0.55, 0.37),
-    Offset(0.48, 0.46),
+    Offset(0.34, 0.28),
+    Offset(0.43, 0.24),
+    Offset(0.52, 0.29),
+    Offset(0.60, 0.24),
+    Offset(0.67, 0.29),
   ];
   static const List<Offset> _crack2 = [
-    Offset(0.30, 0.46),
-    Offset(0.42, 0.40),
-    Offset(0.50, 0.47),
-    Offset(0.60, 0.40),
-    Offset(0.70, 0.47),
+    Offset(0.27, 0.44),
+    Offset(0.37, 0.47),
+    Offset(0.47, 0.42),
+    Offset(0.57, 0.47),
+    Offset(0.67, 0.42),
+    Offset(0.73, 0.46),
   ];
 
   void _drawCrack(Canvas canvas, Size size, List<Offset> pts) {
@@ -160,31 +164,8 @@ class _EggGhostPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
-    final h = size.height;
-    // 巣リングの円いっぱいに卵型を出す（小さく見えないように枠のほぼ全体を使う）。
-    final eggW = w * 0.80;
-    final eggH = h * 0.96;
-    final cx = w / 2;
-    final top = h * 0.02;
-    final bottom = top + eggH;
-    final left = cx - eggW / 2;
-    final right = cx + eggW / 2;
-
-    final egg = Path()
-      ..moveTo(cx, top)
-      ..cubicTo(
-        right + eggW * 0.06, top + eggH * 0.10,
-        right, bottom - eggH * 0.16,
-        cx, bottom,
-      )
-      ..cubicTo(
-        left, bottom - eggH * 0.16,
-        left - eggW * 0.06, top + eggH * 0.10,
-        cx, top,
-      )
-      ..close();
-
-    // ごく淡い塗り＋点線でなく細い輪郭。「不在＝これから入る」を静かに示す。
+    final egg = eggOutlinePath(w, size.height);
+    // ごく淡い塗り＋細い輪郭。「不在＝これから入る」を静かに示す（本物の卵型）。
     canvas.drawPath(
       egg,
       Paint()..color = AppColors.textDisabled.withValues(alpha: 0.12),
@@ -200,6 +181,29 @@ class _EggGhostPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EggGhostPainter old) => false;
+}
+
+/// 本物の卵型シルエット（底が丸く上が細い）を `w`×`h` の枠にほぼ収める。
+/// 旧実装は上下とも尖った葉型で「卵に見えない」問題があったため、PIL で実描画検証した
+/// 制御点に差し替えた。プレースホルダ等で共用する。
+Path eggOutlinePath(double w, double h) {
+  final scale = h * 0.96; // 高さいっぱい
+  final cx = w / 2;
+  final top = h * 0.02;
+  // 単位ボックス（cx=0.5 / y:0上→1下）を uniform scale でピクセルへ。
+  double px(double ux) => cx + (ux - 0.5) * scale;
+  double py(double uy) => top + uy * scale;
+  final path = Path()..moveTo(px(0.50), py(0.00));
+  void c(double a, double b, double cc, double dd, double e, double f) {
+    path.cubicTo(px(a), py(b), px(cc), py(dd), px(e), py(f));
+  }
+
+  c(0.80, 0.05, 0.84, 0.42, 0.84, 0.60); // 上 → 右の最大幅
+  c(0.84, 0.86, 0.70, 1.00, 0.50, 1.00); // → 丸い底
+  c(0.30, 1.00, 0.16, 0.86, 0.16, 0.60); // 底 → 左
+  c(0.16, 0.42, 0.20, 0.05, 0.50, 0.00); // → 上へ
+  path.close();
+  return path;
 }
 
 class _EggPainter extends CustomPainter {

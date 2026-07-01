@@ -24,8 +24,11 @@ class _NestSkeletonState extends State<NestSkeleton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1200),
-  )..repeat();
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  late final Animation<double> _pulse = Tween<double>(begin: 0.4, end: 1.0)
+      .animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut));
 
   @override
   void dispose() {
@@ -38,8 +41,9 @@ class _NestSkeletonState extends State<NestSkeleton>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        RotationTransition(
-          turns: _c,
+        // 巣ごと回すと違和感があるので回さず、卵型プレースホルダをやさしく明滅させる。
+        FadeTransition(
+          opacity: _pulse,
           child: NestRing(
             diameter: widget.diameter,
             child: const NestPlaceholder(),
