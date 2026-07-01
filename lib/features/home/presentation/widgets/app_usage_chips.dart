@@ -59,14 +59,16 @@ class _Chip extends StatelessWidget {
           ),
           const SizedBox(width: AppSpace.xs),
           Text('$label ', style: AppType.caption),
-          Text(_format(minutes), style: AppType.numLabel),
+          // 削減カード（○時間○分）と表記を統一。日本語混じりなので本文太字で描く
+          // （数字用フォント Baloo は日本語グリフを持たず字化けするため）。
+          Text(_format(minutes), style: AppType.bodyStrong),
         ],
       ),
     );
   }
 
   String _format(int m) {
-    if (m >= 60) return '${m ~/ 60}h${m % 60}m';
-    return '${m}m';
+    if (m >= 60) return '${m ~/ 60}時間${m % 60}分';
+    return '$m分';
   }
 }

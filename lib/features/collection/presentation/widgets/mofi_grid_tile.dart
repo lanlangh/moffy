@@ -20,6 +20,7 @@ class MofiGridTile extends StatelessWidget {
     final ring = NestRing(
       diameter: 72,
       child: MofiSubject(
+        family: entry.species.family,
         rarity: entry.species.rarity,
         silhouette: !discovered,
       ),

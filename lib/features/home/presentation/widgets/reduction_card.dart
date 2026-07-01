@@ -40,7 +40,8 @@ class ReductionCard extends StatelessWidget {
           children: [
             Text('今日のSNS削減', style: AppType.bodyStrong),
             const SizedBox(height: AppSpace.sm),
-            Text('明日から計測スタート', style: AppType.numLabel),
+            // 日本語文なので数字用フォント(Baloo)ではなく見出し体(Zen Maru)を使う。
+            Text('明日から計測スタート', style: AppType.title),
             const SizedBox(height: AppSpace.xs),
             Text(
               '最初の数日は初回ボーナス卵でMofiを育てよう。'

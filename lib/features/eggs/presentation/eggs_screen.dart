@@ -10,6 +10,7 @@ import '../../../core/observability/analytics_events.dart';
 import '../../../core/observability/observability_providers.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
+import '../../../core/widgets/egg_art.dart';
 import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../paywall/presentation/paywall_screen.dart';
@@ -374,7 +375,7 @@ class _NoActiveEggPanel extends StatelessWidget {
     return NestPanel(
       diameter: 160,
       dimmed: true,
-      subject: const Icon(Icons.egg_outlined, color: AppColors.textDisabled),
+      subject: const NestPlaceholder(),
       caption: Text('育てる卵を選ぼう', style: AppType.title),
       footer: Text(
         pooledPoints > 0

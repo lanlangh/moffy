@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 
 import '../../../../core/theme/tokens.dart';
 import '../../../../core/widgets/common_widgets.dart';
+import '../../../../core/widgets/egg_art.dart';
 import '../../../../core/widgets/nest_panel.dart';
 import '../../domain/egg_models.dart';
 import '../egg_visuals.dart';
@@ -146,7 +147,7 @@ class _HatchOverlayState extends State<HatchOverlay>
                       onShare: _handleShare,
                       onClose: widget.onClose,
                     )
-                  : _ShakingEgg(animation: _shake, glow: rarity.glow),
+                  : _ShakingEgg(animation: _shake, rarity: rarity),
             ),
             // 色違いキラリ演出: 割れる瞬間のホワイトフラッシュ + 虹粒子。
             if (_revealed && isShiny)
@@ -180,11 +181,11 @@ class _HatchOverlayState extends State<HatchOverlay>
   }
 }
 
-/// 割れる前の揺れる卵（待ち演出）。
+/// 割れる前の揺れる卵（待ち演出）。孵化間近＝本番の卵イラスト（[EggArt]）を揺らす。
 class _ShakingEgg extends StatelessWidget {
-  const _ShakingEgg({required this.animation, required this.glow});
+  const _ShakingEgg({required this.animation, required this.rarity});
   final Animation<double> animation;
-  final Color glow;
+  final RarityToken rarity;
 
   @override
   Widget build(BuildContext context) {
@@ -199,8 +200,9 @@ class _ShakingEgg extends StatelessWidget {
           },
           child: NestRing(
             diameter: 200,
-            glow: glow,
-            child: const Icon(Icons.egg_rounded, color: AppColors.onPrimary),
+            glow: rarity.glow,
+            // 孵化直前なので進捗を高くしてヒビ表現（フォールバック時）を出す。
+            child: EggArt(rarity: rarity, progress: 0.9),
           ),
         ),
         const SizedBox(height: AppSpace.xl),
@@ -321,6 +323,7 @@ class _HatchShareCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // 色違いラベル（明色カード上 / 絵文字でなくアイコン）。
+          // 色は祝いのブランド色（warn=警告色の流用をやめる。ごほうびに警告色は意味が衝突）。
           if (isShiny)
             Container(
               padding: const EdgeInsets.symmetric(
@@ -328,7 +331,7 @@ class _HatchShareCard extends StatelessWidget {
                 vertical: AppSpace.sm,
               ),
               decoration: BoxDecoration(
-                color: AppColors.warn.withValues(alpha: 0.16),
+                color: AppColors.primary.withValues(alpha: 0.16),
                 borderRadius: AppRadius.pillR,
               ),
               child: Row(
@@ -337,18 +340,19 @@ class _HatchShareCard extends StatelessWidget {
                   const Icon(
                     Icons.auto_awesome_rounded,
                     size: 18,
-                    color: AppColors.warn,
+                    color: AppColors.primaryDeep,
                   ),
                   const SizedBox(width: AppSpace.xs),
                   Text(
                     '色違い！',
-                    style: AppType.bodyStrong.copyWith(color: AppColors.warn),
+                    style: AppType.bodyStrong
+                        .copyWith(color: AppColors.primaryDeep),
                   ),
                   const SizedBox(width: AppSpace.xs),
                   const Icon(
                     Icons.auto_awesome_rounded,
                     size: 18,
-                    color: AppColors.warn,
+                    color: AppColors.primaryDeep,
                   ),
                 ],
               ),
@@ -358,7 +362,10 @@ class _HatchShareCard extends StatelessWidget {
           NestRing(
             diameter: 200,
             glow: isShiny ? rarity.glow.withValues(alpha: 0.9) : rarity.main,
-            child: MofiSubject(rarity: result.species.rarity),
+            child: MofiSubject(
+              family: result.species.family,
+              rarity: result.species.rarity,
+            ),
           ),
           const SizedBox(height: AppSpace.xl),
           Text(result.species.name, style: AppType.display),

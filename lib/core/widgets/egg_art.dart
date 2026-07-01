@@ -58,6 +58,72 @@ class EggArt extends StatelessWidget {
   }
 }
 
+/// 空／ローディング状態の「卵型プレースホルダ（淡いゴースト）」。
+///
+/// 実物の卵（[EggArt]）ではなく「ここに卵が入る／読み込み中」を示す。Material の
+/// 既製アイコン（`Icons.egg_*`）の代わりに使い、巣リング（[NestRing]）の中央に置く。
+/// 卵アセット方針（DESIGN_SYSTEM §6・2026-06-30）: 空状態は卵の実画像を出さず、
+/// 巣リング＝空の巣 の上にこの淡い卵型ゴーストだけを乗せる。
+class NestPlaceholder extends StatelessWidget {
+  const NestPlaceholder({super.key, this.size = 120});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _EggGhostPainter()),
+    );
+  }
+}
+
+class _EggGhostPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final eggW = w * 0.56;
+    final eggH = h * 0.74;
+    final cx = w / 2;
+    final top = h * 0.12;
+    final bottom = top + eggH;
+    final left = cx - eggW / 2;
+    final right = cx + eggW / 2;
+
+    final egg = Path()
+      ..moveTo(cx, top)
+      ..cubicTo(
+        right + eggW * 0.06, top + eggH * 0.10,
+        right, bottom - eggH * 0.16,
+        cx, bottom,
+      )
+      ..cubicTo(
+        left, bottom - eggH * 0.16,
+        left - eggW * 0.06, top + eggH * 0.10,
+        cx, top,
+      )
+      ..close();
+
+    // ごく淡い塗り＋点線でなく細い輪郭。「不在＝これから入る」を静かに示す。
+    canvas.drawPath(
+      egg,
+      Paint()..color = AppColors.textDisabled.withValues(alpha: 0.12),
+    );
+    canvas.drawPath(
+      egg,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.5, w * 0.012)
+        ..color = AppColors.textDisabled.withValues(alpha: 0.5),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _EggGhostPainter old) => false;
+}
+
 class _EggPainter extends CustomPainter {
   _EggPainter({required this.rarity, required this.progress});
 

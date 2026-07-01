@@ -57,10 +57,12 @@ class EggSubject extends StatelessWidget {
 class MofiSubject extends StatelessWidget {
   const MofiSubject({
     super.key,
+    required this.family,
     required this.rarity,
     this.silhouette = false,
   });
 
+  final MofiFamily family;
   final MofiRarity rarity;
   final bool silhouette;
 
@@ -69,7 +71,13 @@ class MofiSubject extends StatelessWidget {
     final color = silhouette
         ? AppColors.textDisabled
         : RarityVisuals.ofMofi(rarity).main;
-    // MVPは個体イラスト未配置のため、丸い被写体アイコンで代替（後続でアセット差替）。
-    return Icon(Icons.pets_rounded, color: color);
+    // MVPは個体イラスト未配置。せめて種族(family)ごとにアイコンを変え、図鑑が
+    // 全マス同一アイコンに見えるのを避ける（本番は個体イラストへ差し替え）。
+    final icon = switch (family) {
+      MofiFamily.slime => Icons.water_drop_rounded,
+      MofiFamily.critter => Icons.pets_rounded,
+      MofiFamily.dragon => Icons.local_fire_department_rounded,
+    };
+    return Icon(icon, color: color);
   }
 }

@@ -274,8 +274,14 @@ class _StatItem extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 数字は Baloo（numLabel）。
-          Text(value, style: AppType.numLabel),
+          // 純粋な数字・記号(5 / 23/30)は Baloo でブランドを立て、日本語の単位を含む値
+          // (23時間45分 / 7日 / 0分)は本文太字にする（Baloo は日本語グリフが無く字化けするため）。
+          Text(
+            value,
+            style: RegExp(r'[^\x00-\x7F]').hasMatch(value)
+                ? AppType.bodyStrong
+                : AppType.numLabel,
+          ),
           const SizedBox(height: AppSpace.xs),
           Text(label, style: AppType.caption),
         ],

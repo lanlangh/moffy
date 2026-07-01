@@ -33,6 +33,7 @@ class MofiDetailSheet extends StatelessWidget {
               diameter: 160,
               glow: discovered ? rarity.main : null,
               child: MofiSubject(
+                family: entry.species.family,
                 rarity: entry.species.rarity,
                 silhouette: !discovered,
               ),

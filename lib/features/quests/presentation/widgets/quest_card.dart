@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/tokens.dart';
 import '../../../../core/widgets/common_widgets.dart';
+import '../../../../core/widgets/egg_art.dart';
 import '../../domain/quest_models.dart';
 
 /// クエスト1件のカード（SCREEN_FLOWS §5）。進捗バー + 報酬 + 受取CTA。
@@ -26,6 +27,22 @@ class QuestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 「app_under（○分まで）」型は意味が逆（使うほど悪い）なので、バーは
+    // 「残り allowance（使うほど減る）」を表す。達成は満タン、上限超過は赤。
+    final isUnderType = quest.condition.type == QuestConditionType.appUnder;
+    final overLimit = isUnderType && quest.progress > quest.condition.target;
+    final barValue = quest.isCompleted
+        ? 1.0
+        : isUnderType
+            ? (1 - quest.progressRatio).clamp(0.0, 1.0)
+            : quest.progressRatio;
+    final barColor = quest.isCompleted
+        ? AppColors.success
+        : overLimit
+            ? AppColors.error
+            : (isUnderType && quest.progressRatio > 0.8)
+                ? AppColors.warn
+                : AppColors.primary;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,12 +67,8 @@ class QuestCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpace.md),
-          // 進捗バー（達成は緑、進行中は orange）。
-          GrowthProgressBar(
-            value: quest.progressRatio,
-            fillColor:
-                quest.isCompleted ? AppColors.success : AppColors.primary,
-          ),
+          // 進捗バー（達成=緑満タン / 上限超過=赤 / 「〜まで」型=残り allowance）。
+          GrowthProgressBar(value: barValue, fillColor: barColor),
           const SizedBox(height: AppSpace.sm),
           Row(
             children: [
@@ -89,6 +102,15 @@ class QuestCard extends StatelessWidget {
     };
     if (q.condition.type == QuestConditionType.streakKeep) {
       return q.isCompleted ? '達成' : '今日まだ';
+    }
+    // 「○分まで」型は「残り／上限」で表す（使った量の分子表示だと意味が逆に読める）。
+    if (q.condition.type == QuestConditionType.appUnder) {
+      final target = q.condition.target;
+      final remaining = target - q.progress;
+      if (q.isCompleted) return '上限内で達成';
+      return remaining >= 0
+          ? 'あと$remaining分（上限$target分）'
+          : '上限を${-remaining}分オーバー';
     }
     return '${q.progress} / ${q.condition.target}$unit';
   }
@@ -140,15 +162,15 @@ class _ClaimButton extends StatelessWidget {
       );
     }
     // 達成・未受取: 受取ボタン。onClaim=null（オフライン）でグレーアウト。
+    // コアループ最重要操作なので、指で押しやすいよう 48dp 相当のタップ領域を確保する
+    // （shrinkWrap+Size.zero でのタップ潰しをやめる）。
     return ElevatedButton(
       onPressed: onClaim,
       style: ElevatedButton.styleFrom(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpace.lg,
-          vertical: AppSpace.sm,
+          vertical: AppSpace.md,
         ),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       child: const Text('受け取る'),
     );
@@ -193,10 +215,11 @@ class _RewardBadges extends StatelessWidget {
             color: AppColors.surfaceNest,
             borderRadius: AppRadius.pillR,
           ),
-          child: const Icon(
-            Icons.egg_rounded,
-            size: 16,
-            color: AppColors.nestBark,
+          // 卵は本番イラスト（[EggArt]）で、レアリティ色も反映する（アイコン化・レア色破棄をやめる）。
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: EggArt(rarity: _eggRarityToken(reward.eggRarity!)),
           ),
         ),
       );
@@ -210,3 +233,12 @@ class _RewardBadges extends StatelessWidget {
     );
   }
 }
+
+/// 報酬の卵レアリティ文字列（'normal'/'rare'/'epic'/'legend' 等）→ 色帯トークン。
+/// active_egg_panel の対応と揃える（epic≈SR / legend≈SSR の表示近似）。
+RarityToken _eggRarityToken(String label) => switch (label) {
+      'rare' => RarityToken.rare,
+      'epic' || 'sr' => RarityToken.sr,
+      'legend' || 'ssr' => RarityToken.ssr,
+      _ => RarityToken.common,
+    };
