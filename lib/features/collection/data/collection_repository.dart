@@ -145,7 +145,7 @@ class _DexHit {
 /// 図鑑リポジトリの DI（ARCHITECTURE §1-3）。テストで override 可能。
 /// Supabase 設定済みなら本実装、未設定/PoC時はモックにフォールバック。
 final collectionRepositoryProvider = Provider<CollectionRepository>((ref) {
-  if (Env.hasSupabase) {
+  if (Env.useSupabase) {
     return SupabaseCollectionRepository(ref, ref.read(supabaseClientProvider));
   }
   return MockCollectionRepository(ref);

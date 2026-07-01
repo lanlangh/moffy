@@ -79,22 +79,21 @@ class _CrackOverlayPainter extends CustomPainter {
 
   final double progress;
 
-  // 卵は横に割れる（横向きのジグザグ）。上=ヒビ① / 下=ヒビ②。PIL で実アセットに
-  // 重ねて位置と向きを検証済み。
+  // 卵は横に割れる（横向きのジグザグ）。卵の胴中央・左右対称に配置（PILで実アセット検証済）。
+  // ①=中央やや上 / ②=中央やや下。
   static const List<Offset> _crack1 = [
-    Offset(0.34, 0.28),
-    Offset(0.43, 0.24),
-    Offset(0.52, 0.29),
-    Offset(0.60, 0.24),
-    Offset(0.67, 0.29),
+    Offset(0.30, 0.35),
+    Offset(0.40, 0.32),
+    Offset(0.50, 0.36),
+    Offset(0.60, 0.32),
+    Offset(0.70, 0.35),
   ];
   static const List<Offset> _crack2 = [
-    Offset(0.27, 0.44),
-    Offset(0.37, 0.47),
-    Offset(0.47, 0.42),
-    Offset(0.57, 0.47),
-    Offset(0.67, 0.42),
-    Offset(0.73, 0.46),
+    Offset(0.29, 0.47),
+    Offset(0.40, 0.50),
+    Offset(0.50, 0.45),
+    Offset(0.60, 0.50),
+    Offset(0.71, 0.46),
   ];
 
   void _drawCrack(Canvas canvas, Size size, List<Offset> pts) {
