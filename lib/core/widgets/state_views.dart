@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
+import 'egg_art.dart';
 import 'nest_panel.dart';
 
 /// 5状態（ローディング / エラー / 空 / オフライン）の共通表現。
@@ -41,10 +42,7 @@ class _NestSkeletonState extends State<NestSkeleton>
           turns: _c,
           child: NestRing(
             diameter: widget.diameter,
-            child: const Icon(
-              Icons.egg_outlined,
-              color: AppColors.textDisabled,
-            ),
+            child: const NestPlaceholder(),
           ),
         ),
         if (widget.label != null) ...[
@@ -126,14 +124,17 @@ class EmptyState extends StatelessWidget {
     this.subMessage,
     this.ctaLabel,
     this.onCta,
-    this.icon = Icons.hourglass_empty_rounded,
+    this.icon,
   });
 
   final String message;
   final String? subMessage;
   final String? ctaLabel;
   final VoidCallback? onCta;
-  final IconData icon;
+
+  /// 中央被写体のアイコン。null（既定）なら「空の巣＝卵型プレースホルダ」を出す
+  /// （卵アセット方針 / DESIGN_SYSTEM §6）。個別に上書きしたい画面のみ指定する。
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -143,10 +144,12 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 「空の巣」表現（署名要素を空状態でも反復）
+            // 「空の巣」表現（署名要素を空状態でも反復）。既定は卵型プレースホルダ。
             NestRing(
               diameter: 120,
-              child: Icon(icon, color: AppColors.textDisabled),
+              child: icon == null
+                  ? const NestPlaceholder()
+                  : Icon(icon, color: AppColors.textDisabled),
             ),
             const SizedBox(height: AppSpace.xl),
             Text(message, style: AppType.title, textAlign: TextAlign.center),

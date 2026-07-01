@@ -525,6 +525,8 @@ class _PlanCard extends StatelessWidget {
     final amount = s.perMonthAmount;
     // 整数なら小数点を出さない。
     final num shown = amount == amount.roundToDouble() ? amount.round() : amount;
+    // 日本円は「円」で表示（英略号 JPY の露出を避ける）。他通貨はコードにフォールバック。
+    if (currency == 'JPY') return '$shown円';
     return '$shown $currency';
   }
 }
