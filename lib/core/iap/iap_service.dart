@@ -16,8 +16,9 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -471,4 +472,6 @@ class RevenueCatIapService implements IapService {
 }
 
 /// 現在プラットフォームが Apple（iOS/macOS）か。Env のキー選択に使う。
-bool get isApplePlatform => Platform.isIOS || Platform.isMacOS;
+bool get isApplePlatform =>
+    defaultTargetPlatform == TargetPlatform.iOS ||
+    defaultTargetPlatform == TargetPlatform.macOS;

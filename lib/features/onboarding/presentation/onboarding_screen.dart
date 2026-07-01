@@ -1,6 +1,5 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -59,7 +58,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   /// iOS: 対象アプリは OS の FamilyActivityPicker でユーザー自身が選ぶ（不透明トークンの
   /// ため Moffy から4SNSを自動指定できない / ORG_STATE 2026-06-26）。Android のトグルとは別物。
-  bool get _isIOS => !kIsWeb && Platform.isIOS;
+  bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
   int _iosSelectedCount = 0;
   bool _iosPicked = false;
 

@@ -1,6 +1,5 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -128,7 +127,8 @@ class _AccountLinkScreenState extends ConsumerState<AccountLinkScreen> {
   }
 
   /// Apple ボタンを出すか（iOS のみ / S10）。Web は対象外。
-  bool get _showApple => !kIsWeb && Platform.isIOS;
+  bool get _showApple =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   Future<void> _link(AuthProvider provider) async {
     setState(() => _linking = provider);

@@ -1,0 +1,63 @@
+name: Web Preview
+
+# Flutter Web でビルドし、GitHub Pages に無料でホスティングする（appetize 代替の無料プレビュー）。
+# ※ GitHub Pages は「public リポジトリ」または有料プランで有効。private+無料では Pages を使えないため、
+#   その場合はリポジトリを public にするか、build/web アーティファクトを別の無料ホスト(Netlify等)へ。
+# プレビューは FORCE_MOCK=true でテストデータ入り（育成/保管/図鑑）＝バックエンド不要でブラウザ表示。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web-preview
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.44.2
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+
+      # web/ 雛形（index.html 等）を追加（lib は変更しない）。
+      - name: Add web platform
+        run: flutter create . --platforms=web
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # base-href はプロジェクトPages（<user>.github.io/moffy/）想定。ユーザー名Pagesなら "/" に。
+      - name: Build web (テストデータ入り)
+        run: flutter build web --release --base-href "/moffy/" --dart-define=FORCE_MOCK=true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  # Pages へデプロイ（main のみ / Pages 有効時）。private+無料で Pages 未対応なら失敗するが
+  # build ジョブでビルド可否は検証できる。
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
