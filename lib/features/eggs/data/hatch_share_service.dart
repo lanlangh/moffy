@@ -1,12 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/observability/log.dart';
 import '../domain/egg_models.dart';
+// dart:io（一時ファイル）を使う実装は条件付き import で分離。Web ではメモリ XFile を使う。
+import 'share_file_io.dart' if (dart.library.html) 'share_file_web.dart';
 
 /// 孵化結果のシェア（S13「グロースの種」/ ARCHITECTURE §1-2 data・副作用の隔離）。
 ///
@@ -22,14 +21,9 @@ class HatchShareService {
   /// share_plus はモバイル（iOS/Android）/ デスクトップ / Web を対象とする。
   /// それ以外（テスト/未対応プラットフォーム）では共有を試みず、呼び出し側の
   /// フォールバック（クリップボードコピー等）に委ねる（プラットフォーム未対応時の分岐）。
-  bool get isSupported {
-    if (kIsWeb) return true;
-    return Platform.isAndroid ||
-        Platform.isIOS ||
-        Platform.isMacOS ||
-        Platform.isWindows ||
-        Platform.isLinux;
-  }
+  /// share_plus は Web/モバイル/デスクトップ全対応。失敗は shareHatch の try/catch で
+  /// 吸収し呼び出し側のフォールバック（コピー）へ委ねるため、常に試行してよい。
+  bool get isSupported => true;
 
   /// 孵化結果を共有する。[imageBytes] があれば画像付き、無ければテキストのみ。
   ///
@@ -47,17 +41,12 @@ class HatchShareService {
 
     try {
       if (imageBytes != null && imageBytes.isNotEmpty) {
-        // 一時ディレクトリにPNGを書き出して画像付きシェア。
-        final dir = await getTemporaryDirectory();
-        final file = File(
-          '${dir.path}/moffy_hatch_${DateTime.now().millisecondsSinceEpoch}.png',
+        // 画像付きシェア。一時ファイル(io)/メモリXFile(web)は条件付き import で切替。
+        final xfile = await buildShareImageFile(
+          imageBytes,
+          stamp: DateTime.now().millisecondsSinceEpoch,
         );
-        await file.writeAsBytes(imageBytes, flush: true);
-        await Share.shareXFiles(
-          [XFile(file.path, mimeType: 'image/png')],
-          text: text,
-          subject: subject,
-        );
+        await Share.shareXFiles([xfile], text: text, subject: subject);
       } else {
         // 画像生成に失敗した場合のフォールバック（テキストのみでも拡散は成立）。
         await Share.share(text, subject: subject);
