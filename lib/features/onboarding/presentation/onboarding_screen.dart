@@ -388,6 +388,7 @@ class _IOSAppPickerPage extends StatelessWidget {
                       children: [
                         NestRing(
                           diameter: 140,
+                          inset: 0.04,
                           child: Icon(
                             picked ? Icons.check_rounded : Icons.apps_rounded,
                             color: AppColors.primary,
@@ -499,7 +500,8 @@ class _OnboardingPane extends StatelessWidget {
       child: Column(
         children: [
           const Spacer(),
-          NestRing(diameter: 180, child: subject),
+          // inset を詰めて、円に対してアイコン/卵が小さく見えないようにする。
+          NestRing(diameter: 180, inset: 0.04, child: subject),
           const SizedBox(height: AppSpace.xxl),
           Text(title, style: AppType.display, textAlign: TextAlign.center),
           const SizedBox(height: AppSpace.md),

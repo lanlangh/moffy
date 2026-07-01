@@ -111,13 +111,8 @@ class _HomeBody extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpace.lg),
                 ],
-
-                // 主CTA: 卵を育てる（→ たまご画面）。
-                PrimaryButton(
-                  label: '卵を育てる',
-                  icon: Icons.egg_rounded,
-                  onPressed: () => context.go(AppTab.eggs.path),
-                ),
+                // 「卵を育てる」CTAは撤去（下タブ「たまご」＋空状態の「卵をセットする」と
+                // 重複していたため / ユーザーFB）。育成はたまごタブに集約。
               ],
             ),
           ),

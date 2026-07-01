@@ -43,19 +43,31 @@ jobs:
           echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/upload-keystore.p12"
           echo "keystore decoded: $(wc -c < "$RUNNER_TEMP/upload-keystore.p12") bytes"
 
+      # --dart-define で Supabase を注入（未注入だと Env.hasSupabase=false でモック動作に
+      # なり、実データ（匿名認証+warmup卵+枠操作の永続）を検証できない / ios-build.yml と揃える）。
       - name: Build signed release AAB (Play 用)
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.p12
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: flutter build appbundle --release
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          flutter build appbundle --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
       - name: Build signed release APK (appetize/プレビュー用)
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.p12
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: flutter build apk --release
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4

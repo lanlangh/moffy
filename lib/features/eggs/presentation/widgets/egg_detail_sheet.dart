@@ -36,10 +36,7 @@ class EggDetailSheet extends StatelessWidget {
     final canHatch = egg.canHatch(params);
 
     // 空いている育成枠（保管→育成の入替先）。
-    final emptySlots = <int>[
-      for (var i = 0; i < state.incubatorSlots.length; i++)
-        if (state.incubatorSlots[i] == null) i + 1,
-    ];
+    final emptySlot = state.firstEmptySlotIndex;
 
     return Container(
       decoration: const BoxDecoration(
@@ -110,10 +107,10 @@ class EggDetailSheet extends StatelessWidget {
                 label: '保管庫に戻す',
                 onTap: onMoveToStorage,
               )
-            else if (emptySlots.isNotEmpty)
+            else if (emptySlot != null)
               _SecondaryAction(
-                label: '育成枠にセット（枠${emptySlots.first}）',
-                onTap: () => onMoveToIncubator(emptySlots.first),
+                label: '育成枠にセット（枠$emptySlot）',
+                onTap: () => onMoveToIncubator(emptySlot),
               )
             else
               Text(
