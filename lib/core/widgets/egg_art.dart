@@ -84,10 +84,11 @@ class _EggGhostPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-    final eggW = w * 0.56;
-    final eggH = h * 0.74;
+    // 巣リングの円いっぱいに卵型を出す（小さく見えないように枠のほぼ全体を使う）。
+    final eggW = w * 0.80;
+    final eggH = h * 0.96;
     final cx = w / 2;
-    final top = h * 0.12;
+    final top = h * 0.02;
     final bottom = top + eggH;
     final left = cx - eggW / 2;
     final right = cx + eggW / 2;

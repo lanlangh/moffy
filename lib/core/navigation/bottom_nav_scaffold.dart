@@ -6,8 +6,8 @@ import 'tab_icons.dart';
 
 /// ボトムナビ5タブのシェル（DESIGN_SYSTEM §7 BottomNav）。
 ///
-/// アクティブ = 塗りアイコン + warm.orange + ラベル。
-/// 非アクティブ = ライン + ink.600（ラベルなし）。
+/// アクティブ = 塗りアイコン + warm.orange + ラベル（太字）。
+/// 非アクティブ = ライン + ink.600 + ラベル（常時表示・どのタブか一目で分かるように）。
 /// 高さ 64 + セーフエリア、タブアイコン 26（AppSpace）。
 /// GoRouter の StatefulShellRoute から [child]（現在のブランチ）と
 /// [currentIndex] / [onTap] を受け取り、各タブの状態を保持する。
@@ -102,17 +102,15 @@ class _TabButton extends StatelessWidget {
               filled: active,
               size: AppSpace.tabIcon,
             ),
-            // ラベルはアクティブ時のみ（非アクティブはアイコンのみ）。
-            if (active) ...[
-              const SizedBox(height: AppSpace.xs),
-              Text(
-                tab.label,
-                style: AppType.caption.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                ),
+            // ラベルは常時表示（どのタブか一目で分かるように）。アクティブは太字＋orange。
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              tab.label,
+              style: AppType.caption.copyWith(
+                color: color,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
               ),
-            ],
+            ),
           ],
         ),
       ),

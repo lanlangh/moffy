@@ -17,6 +17,7 @@ class NestRing extends StatelessWidget {
     this.diameter = 160,
     this.glow,
     this.dimmed = false,
+    this.borderColor,
   });
 
   /// リングの直径（円形被写体の土台サイズ）。
@@ -31,6 +32,10 @@ class NestRing extends StatelessWidget {
   /// オフライン/無効時に彩度を落として表示する（state.offline 表現）。
   final bool dimmed;
 
+  /// 縁取りの色（null=既定の nest.bark）。強調時（育成中の枠など）に orange を渡すと、
+  /// リング本体の縁が同心で太く色づく（外側に別の円を重ねてズレるのを避ける）。
+  final Color? borderColor;
+
   @override
   Widget build(BuildContext context) {
     final ring = SizedBox(
@@ -44,7 +49,10 @@ class NestRing extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.surfaceNest,
-              border: Border.all(color: AppColors.nestBark, width: 2),
+              border: Border.all(
+                color: borderColor ?? AppColors.nestBark,
+                width: borderColor != null ? 3 : 2,
+              ),
               boxShadow: glow == null
                   ? null
                   : [
