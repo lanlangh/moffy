@@ -8,7 +8,7 @@ name: Web Preview
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feat/web-preview]
 
 permissions:
   contents: read
