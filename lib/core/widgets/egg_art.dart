@@ -42,20 +42,97 @@ class EggArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = progress.clamp(0.0, 1.0);
     return SizedBox(
       width: size,
       height: size,
-      child: Image.asset(
-        eggAssetFor(rarity),
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.medium,
-        // アセット欠落・読み込み失敗時は暫定ベクターで必ず卵を表示する。
-        errorBuilder: (context, error, stack) => CustomPaint(
-          painter: _EggPainter(rarity: rarity, progress: progress.clamp(0, 1)),
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            eggAssetFor(rarity),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            // アセット欠落・読み込み失敗時は暫定ベクターで必ず卵を表示する。
+            errorBuilder: (context, error, stack) => CustomPaint(
+              painter: _EggPainter(rarity: rarity, progress: p),
+            ),
+          ),
+          // 成長ヒビ（画像・ベクター共通の上乗せ / §4-5）。孵化が近づくほど割れる。
+          // 本番は段階別の卵イラスト（docs/ART_ASSETS.md）に差し替え可。
+          if (p >= _crack1Threshold)
+            CustomPaint(painter: _CrackOverlayPainter(progress: p)),
+        ],
       ),
     );
   }
+}
+
+/// ヒビ①/②のしきい値比（§4-5: 100/500=0.2 / 250/500=0.5）。
+const double _crack1Threshold = 0.2;
+const double _crack2Threshold = 0.5;
+
+/// 卵の上に重ねる成長ヒビ（画像・ベクター共通）。座標は卵の胴体（上部中央）に合わせた
+/// ウィジェット 0..1 比率。PIL で実アセットに重ねて位置を検証済み。
+class _CrackOverlayPainter extends CustomPainter {
+  _CrackOverlayPainter({required this.progress});
+
+  final double progress;
+
+  static const List<Offset> _crack1 = [
+    Offset(0.53, 0.20),
+    Offset(0.47, 0.30),
+    Offset(0.55, 0.37),
+    Offset(0.48, 0.46),
+  ];
+  static const List<Offset> _crack2 = [
+    Offset(0.30, 0.46),
+    Offset(0.42, 0.40),
+    Offset(0.50, 0.47),
+    Offset(0.60, 0.40),
+    Offset(0.70, 0.47),
+  ];
+
+  void _drawCrack(Canvas canvas, Size size, List<Offset> pts) {
+    Path pathOf(List<Offset> ps) {
+      final path = Path()
+        ..moveTo(ps.first.dx * size.width, ps.first.dy * size.height);
+      for (final o in ps.skip(1)) {
+        path.lineTo(o.dx * size.width, o.dy * size.height);
+      }
+      return path;
+    }
+
+    // 影の割れ線。
+    canvas.drawPath(
+      pathOf(pts),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(2, size.width * 0.018)
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round
+        ..color = AppColors.nestBark.withValues(alpha: 0.82),
+    );
+    // わずかにずらした淡いハイライトで割れの立体感。
+    canvas.drawPath(
+      pathOf([for (final o in pts) o.translate(0.006, 0.006)]),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1, size.width * 0.010)
+        ..strokeJoin = StrokeJoin.round
+        ..color = Colors.white.withValues(alpha: 0.28),
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress >= _crack1Threshold) _drawCrack(canvas, size, _crack1);
+    if (progress >= _crack2Threshold) _drawCrack(canvas, size, _crack2);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CrackOverlayPainter old) =>
+      old.progress != progress;
 }
 
 /// 空／ローディング状態の「卵型プレースホルダ（淡いゴースト）」。
@@ -222,33 +299,8 @@ class _EggPainter extends CustomPainter {
         ..color = AppColors.nestBark.withValues(alpha: 0.30),
     );
 
-    // 成長ヒビ。
-    final crack = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1.5, w * 0.018)
-      ..strokeJoin = StrokeJoin.round
-      ..color = AppColors.nestBark.withValues(alpha: 0.75);
-    if (progress >= 0.2) {
-      canvas.drawPath(
-        Path()
-          ..moveTo(cx + eggW * 0.10, top + eggH * 0.30)
-          ..lineTo(cx + eggW * 0.02, top + eggH * 0.38)
-          ..lineTo(cx + eggW * 0.12, top + eggH * 0.44)
-          ..lineTo(cx + eggW * 0.04, top + eggH * 0.50),
-        crack,
-      );
-    }
-    if (progress >= 0.5) {
-      canvas.drawPath(
-        Path()
-          ..moveTo(left + eggW * 0.06, top + eggH * 0.56)
-          ..lineTo(left + eggW * 0.30, top + eggH * 0.50)
-          ..lineTo(left + eggW * 0.48, top + eggH * 0.58)
-          ..lineTo(left + eggW * 0.68, top + eggH * 0.50)
-          ..lineTo(left + eggW * 0.92, top + eggH * 0.57),
-        crack,
-      );
-    }
+    // 成長ヒビは共通の _CrackOverlayPainter が画像・ベクター双方の上に重ねて描く
+    // （ここでは描かない＝二重描画回避）。
 
     // SSR はきらめき。
     if (rarity == RarityToken.ssr) {

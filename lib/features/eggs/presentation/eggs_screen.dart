@@ -142,23 +142,42 @@ class _EggsBody extends ConsumerWidget {
       builder: (_) => EggDetailSheet(
         egg: egg,
         state: state,
-        onSetActive: () async {
-          await ref.read(eggsControllerProvider.notifier).setActive(egg.id);
-          if (context.mounted) Navigator.of(context).pop();
-        },
-        onMoveToStorage: () async {
-          await ref.read(eggsControllerProvider.notifier).moveToStorage(egg.id);
-          if (context.mounted) Navigator.of(context).pop();
-        },
-        onMoveToIncubator: (slot) async {
-          await ref
+        onSetActive: () => _runEggAction(
+          context,
+          () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
+        ),
+        onMoveToStorage: () => _runEggAction(
+          context,
+          () => ref.read(eggsControllerProvider.notifier).moveToStorage(egg.id),
+        ),
+        onMoveToIncubator: (slot) => _runEggAction(
+          context,
+          () => ref
               .read(eggsControllerProvider.notifier)
-              .moveToIncubator(egg.id, slot);
-          if (context.mounted) Navigator.of(context).pop();
-        },
+              .moveToIncubator(egg.id, slot),
+        ),
         onHatch: () => _hatch(context, ref, egg),
       ),
     );
+  }
+
+  /// 枠操作（セット/戻す/切替）の共通実行。完了で詳細シートを閉じ、失敗は握って
+  /// トーストで知らせる（リポジトリが満杯/競合/不正状態で例外を投げても未処理にしない）。
+  Future<void> _runEggAction(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await action();
+      navigator.pop();
+    } catch (_) {
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('この操作はできませんでした。もう一度お試しください。')),
+      );
+    }
   }
 
   Future<void> _hatch(BuildContext context, WidgetRef ref, Egg egg) async {

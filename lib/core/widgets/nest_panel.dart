@@ -18,6 +18,7 @@ class NestRing extends StatelessWidget {
     this.glow,
     this.dimmed = false,
     this.borderColor,
+    this.inset = 0.14,
   });
 
   /// リングの直径（円形被写体の土台サイズ）。
@@ -35,6 +36,10 @@ class NestRing extends StatelessWidget {
   /// 縁取りの色（null=既定の nest.bark）。強調時（育成中の枠など）に orange を渡すと、
   /// リング本体の縁が同心で太く色づく（外側に別の円を重ねてズレるのを避ける）。
   final Color? borderColor;
+
+  /// 被写体の内側余白（直径比）。既定 0.14。Material アイコンのように「絵柄に元々
+  /// 余白がある」被写体は円に対して小さく見えるので、その画面では小さめ（例 0.03）を渡す。
+  final double inset;
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +71,7 @@ class NestRing extends StatelessWidget {
           ),
           // 中央の被写体（円内に収める）
           Padding(
-            padding: EdgeInsets.all(diameter * 0.14),
+            padding: EdgeInsets.all(diameter * inset),
             child: FittedBox(child: child),
           ),
         ],

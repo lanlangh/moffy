@@ -39,6 +39,14 @@ class EggsController extends AsyncNotifier<EggsState> {
 
   /// 保管枠の卵を空き育成枠へセットする（S6）。
   Future<void> moveToIncubator(String eggId, int slotIndex) async {
+    final current = state.valueOrNull;
+    if (current == null) throw StateError('Egg state is not loaded');
+    final actualSlot = current.firstEmptySlotIndex;
+    if (actualSlot == null) {
+      throw StateError('All incubator slots are occupied');
+    }
+    // A bottom sheet can outlive the snapshot it was built from.
+    slotIndex = actualSlot;
     await ref
         .read(eggRepositoryProvider)
         .moveToIncubator(eggId: eggId, slotIndex: slotIndex);

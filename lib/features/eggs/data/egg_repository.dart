@@ -49,7 +49,9 @@ class MockEggRepository implements EggRepository {
 
   /// メモリ上のモック卵（プロセス内で枠操作を反映するため可変リストで保持）。
   /// TODO(第2b): Supabase `eggs` select + Drift キャッシュに置換（S8 オフラインは Drift）。
-  final List<Egg> _eggs = [
+  // Keep mock mutations when a ProviderScope/repository is rebuilt in-process.
+  // A hot restart still intentionally restores the deterministic demo seed.
+  static final List<Egg> _sharedEggs = [
     const Egg(
       id: 'egg_starter',
       rarity: EggRarity.normal,
@@ -88,6 +90,8 @@ class MockEggRepository implements EggRepository {
     ),
   ];
 
+  final List<Egg> _eggs = _sharedEggs;
+
   @override
   Future<EggsState> loadEggs(EconomyParams params) async {
     final isOnline = _ref.read(isOnlineProvider);
@@ -119,6 +123,11 @@ class MockEggRepository implements EggRepository {
 
   @override
   Future<void> setActiveEgg(String eggId) async {
+    final targetIndex = _eggs.indexWhere((e) => e.id == eggId);
+    if (targetIndex < 0 ||
+        _eggs[targetIndex].location != EggLocation.incubating) {
+      throw StateError('Only an incubating egg can be active: $eggId');
+    }
     // TODO(第2b): サーバーで uq_eggs_one_active を満たす形で is_active を更新（RPC/直接update）。
     for (var i = 0; i < _eggs.length; i++) {
       final e = _eggs[i];
@@ -132,7 +141,7 @@ class MockEggRepository implements EggRepository {
   Future<void> moveToStorage(String eggId) async {
     // TODO(第2b): eggs.location/slot_index/is_active を更新（成長ptは保持 / S6）。
     final i = _eggs.indexWhere((e) => e.id == eggId);
-    if (i < 0) return;
+    if (i < 0) throw StateError('egg not found: $eggId');
     _eggs[i] = _eggs[i].copyWith(
       location: EggLocation.storage,
       isActive: false,
@@ -146,11 +155,26 @@ class MockEggRepository implements EggRepository {
     required int slotIndex,
   }) async {
     // TODO(第2b): 空きスロット検証 + eggs 更新（uq_eggs_slot 制約と整合）。
+    if (slotIndex < 1 || slotIndex > 3) {
+      throw RangeError.range(slotIndex, 1, 3, 'slotIndex');
+    }
     final i = _eggs.indexWhere((e) => e.id == eggId);
-    if (i < 0) return;
+    if (i < 0) throw StateError('egg not found: $eggId');
+    if (_eggs[i].location != EggLocation.storage) {
+      throw StateError('Only a stored egg can be moved: $eggId');
+    }
+    if (_eggs.any(
+      (e) => e.location == EggLocation.incubating && e.slotIndex == slotIndex,
+    )) {
+      throw StateError('Incubator slot $slotIndex is occupied');
+    }
+    final hasActive = _eggs.any(
+      (e) => e.location == EggLocation.incubating && e.isActive,
+    );
     _eggs[i] = _eggs[i].copyWith(
       location: EggLocation.incubating,
       slotIndex: slotIndex,
+      isActive: !hasActive,
     );
   }
 
@@ -210,10 +234,8 @@ class SupabaseEggRepository implements EggRepository {
     final isOnline = _ref.read(isOnlineProvider);
     try {
       // 育成枠 + 保管（hatched は除外）。
-      final rows = await _client
-          .from('eggs')
-          .select()
-          .neq('location', 'hatched');
+      final rows =
+          await _client.from('eggs').select().neq('location', 'hatched');
       final eggs = (rows as List)
           .map((e) => Egg.fromJson((e as Map).cast<String, Object?>()))
           .toList();
@@ -233,10 +255,8 @@ class SupabaseEggRepository implements EggRepository {
         ..sort((a, b) => b.growthPoints.compareTo(a.growthPoints));
 
       // プールpt（profiles.pooled_points / S6）。
-      final profile = await _client
-          .from('profiles')
-          .select('pooled_points')
-          .maybeSingle();
+      final profile =
+          await _client.from('profiles').select('pooled_points').maybeSingle();
       final pooled = (profile?['pooled_points'] as num?)?.toInt() ?? 0;
 
       return EggsState(
@@ -254,12 +274,19 @@ class SupabaseEggRepository implements EggRepository {
 
   @override
   Future<void> setActiveEgg(String eggId) async {
+    final target = await _client
+        .from('eggs')
+        .select('id, location')
+        .eq('id', eggId)
+        .maybeSingle();
+    if (target == null || target['location'] != 'incubating') {
+      throw StateError('Only an incubating egg can be active: $eggId');
+    }
     // uq_eggs_one_active を満たすため、まず育成中の全卵を非アクティブ化 → 対象のみ true。
     // RLS（本人update）で他人の卵は触れない。
     await _client
         .from('eggs')
-        .update({'is_active': false})
-        .eq('location', 'incubating');
+        .update({'is_active': false}).eq('location', 'incubating');
     await _client.from('eggs').update({'is_active': true}).eq('id', eggId);
   }
 
@@ -277,9 +304,36 @@ class SupabaseEggRepository implements EggRepository {
     required String eggId,
     required int slotIndex,
   }) async {
+    if (slotIndex < 1 || slotIndex > 3) {
+      throw RangeError.range(slotIndex, 1, 3, 'slotIndex');
+    }
+    final target = await _client
+        .from('eggs')
+        .select('id, location')
+        .eq('id', eggId)
+        .maybeSingle();
+    if (target == null || target['location'] != 'storage') {
+      throw StateError('Only a stored egg can be moved: $eggId');
+    }
+    final occupied = await _client
+        .from('eggs')
+        .select('id')
+        .eq('location', 'incubating')
+        .eq('slot_index', slotIndex)
+        .maybeSingle();
+    if (occupied != null) {
+      throw StateError('Incubator slot $slotIndex is occupied');
+    }
+    final active = await _client
+        .from('eggs')
+        .select('id')
+        .eq('location', 'incubating')
+        .eq('is_active', true)
+        .maybeSingle();
     await _client.from('eggs').update({
       'location': 'incubating',
       'slot_index': slotIndex,
+      'is_active': active == null,
     }).eq('id', eggId);
   }
 

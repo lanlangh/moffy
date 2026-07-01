@@ -226,9 +226,14 @@ class EggsState {
   bool get hasNoIncubating => incubatorSlots.every((e) => e == null);
 
   /// 卵を1つも持っていない（保管も育成も空 → クエスト誘導 / SCREEN_FLOWS §3）。
-  bool get isCompletelyEmpty =>
-      hasNoIncubating && storage.isEmpty;
+  bool get isCompletelyEmpty => hasNoIncubating && storage.isEmpty;
 
   /// 育成枠の総数（=3）。
   int get slotCount => incubatorSlots.length;
+
+  /// The first empty incubator slot as a 1-based index, or null when full.
+  int? get firstEmptySlotIndex {
+    final index = incubatorSlots.indexWhere((egg) => egg == null);
+    return index < 0 ? null : index + 1;
+  }
 }
