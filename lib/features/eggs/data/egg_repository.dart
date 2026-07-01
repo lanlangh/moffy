@@ -52,10 +52,11 @@ class MockEggRepository implements EggRepository {
   // Keep mock mutations when a ProviderScope/repository is rebuilt in-process.
   // A hot restart still intentionally restores the deterministic demo seed.
   static final List<Egg> _sharedEggs = [
+    // 育成2枠（1つ active）＝リング強調のズレ確認用。成長差でヒビ段階も見える。
     const Egg(
       id: 'egg_starter',
       rarity: EggRarity.normal,
-      growthPoints: 320,
+      growthPoints: 350, // ヒビ②
       location: EggLocation.incubating,
       slotIndex: 1,
       isActive: true,
@@ -64,15 +65,25 @@ class MockEggRepository implements EggRepository {
     const Egg(
       id: 'egg_rare_1',
       rarity: EggRarity.rare,
-      growthPoints: 120,
+      growthPoints: 180, // ヒビ①
       location: EggLocation.incubating,
       slotIndex: 2,
       isActive: false,
       acquiredSource: 'quest',
     ),
+    // 保管3つ（レア違い＋近孵化）＝セット/戻す・孵化ボタンの確認用。
     const Egg(
-      id: 'egg_storage_1',
+      id: 'egg_storage_ready',
       rarity: EggRarity.epic,
+      growthPoints: 480, // 孵化間近（セット→孵化を試せる）
+      location: EggLocation.storage,
+      slotIndex: null,
+      isActive: false,
+      acquiredSource: 'premium',
+    ),
+    const Egg(
+      id: 'egg_storage_legend',
+      rarity: EggRarity.legend, // ssr金の卵を確認
       growthPoints: 0,
       location: EggLocation.storage,
       slotIndex: null,
@@ -370,7 +381,7 @@ class SupabaseEggRepository implements EggRepository {
 /// 卵リポジトリの DI（ARCHITECTURE §1-3）。テストでは override 可能。
 /// Supabase 設定済み（Env.hasSupabase）なら本実装、未設定/PoC時はモックにフォールバック。
 final eggRepositoryProvider = Provider<EggRepository>((ref) {
-  if (Env.hasSupabase) {
+  if (Env.useSupabase) {
     return SupabaseEggRepository(ref, ref.read(supabaseClientProvider));
   }
   return MockEggRepository(ref);

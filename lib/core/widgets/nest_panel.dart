@@ -69,10 +69,13 @@ class NestRing extends StatelessWidget {
                     ],
             ),
           ),
-          // 中央の被写体（円内に収める）
-          Padding(
-            padding: EdgeInsets.all(diameter * inset),
-            child: FittedBox(child: child),
+          // 中央の被写体（円内に収める）。Positioned.fill で FittedBox に確定サイズを与え、
+          // サイズ指定の無いアイコン(24px)でも枠いっぱいに拡大する（円に対して小さく見える問題の修正）。
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.all(diameter * inset),
+              child: FittedBox(child: child),
+            ),
           ),
         ],
       ),

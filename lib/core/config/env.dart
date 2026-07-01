@@ -20,6 +20,15 @@ abstract final class Env {
   static bool get hasSupabase =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 
+  /// プレビュー(appetize)用に、Supabase 設定があっても**強制的にモック実装**で動かすフラグ。
+  /// テスト卵(育成2＋保管3)・発見済み図鑑を仕込んだ状態で、枠操作/リングのズレ/図鑑の
+  /// 見た目を検証するため（本番ビルド=未設定=false で必ず実バックエンド）。
+  static const forceMock =
+      bool.fromEnvironment('FORCE_MOCK', defaultValue: false);
+
+  /// 実バックエンド（Supabase）を使うか。forceMock 時はモックに倒す。
+  static bool get useSupabase => hasSupabase && !forceMock;
+
   // --- RevenueCat（IAP / 課金）の公開SDKキー ---
   //
   // 信頼境界（env.dart 冒頭の原則と同じ）:
