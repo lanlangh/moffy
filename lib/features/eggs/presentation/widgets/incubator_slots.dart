@@ -73,18 +73,13 @@ class _Slot extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          Container(
-            decoration: active
-                ? BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary, width: 3),
-                  )
-                : null,
-            child: NestRing(
-              diameter: 72,
-              glow: active ? rarity.glow : null,
-              child: EggSubject(rarity: e.rarity, stage: e.stage(params)),
-            ),
+          // 育成中は NestRing 自身の縁を orange 化して同心強調（外側に別円を重ねると
+          // 地面影ぶん中心がズレるため）。
+          NestRing(
+            diameter: 72,
+            glow: active ? rarity.glow : null,
+            borderColor: active ? AppColors.primary : null,
+            child: EggSubject(rarity: e.rarity, stage: e.stage(params)),
           ),
           const SizedBox(height: AppSpace.xs),
           Text(
