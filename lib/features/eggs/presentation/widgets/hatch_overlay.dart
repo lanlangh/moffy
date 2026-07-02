@@ -94,8 +94,7 @@ class _HatchOverlayState extends State<HatchOverlay>
   /// レンダリング前/失敗時は null を返し、テキストのみ共有へフォールバックさせる。
   Future<Uint8List?> _captureSharePng() async {
     try {
-      final boundary =
-          _shareBoundaryKey.currentContext?.findRenderObject();
+      final boundary = _shareBoundaryKey.currentContext?.findRenderObject();
       if (boundary is! RenderRepaintBoundary) return null;
       // 高解像度で書き出し（SNS表示で粗く見えないように）。
       final image = await boundary.toImage(pixelRatio: 3);
@@ -384,11 +383,7 @@ class _HatchShareCard extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.egg_rounded,
-                size: 18,
-                color: AppColors.primary,
-              ),
+              const EggArt(rarity: RarityToken.common, size: 18),
               const SizedBox(width: AppSpace.xs),
               Text(
                 'Moffy',
@@ -409,13 +404,15 @@ class _ShinySparklePainter extends CustomPainter {
   /// 0.0〜1.0。前半でホワイトアウト、後半で粒子が広がる。
   final double progress;
 
-  static const List<Color> _rainbow = [
-    Color(0xFFE0604D), // error系（暖色）
-    Color(0xFFE8A93C), // warn
-    Color(0xFF5CB87A), // green
-    Color(0xFF5BA9CC), // rare blue
-    Color(0xFFA77BD8), // sr purple
-    Color(0xFFF2B632), // ssr gold
+  // 虹色パレットは全てトークン参照（生の色値は tokens.dart のみ / DESIGN_SYSTEM SSOT）。
+  // RarityToken.*.main は enum フィールド getter で const 不可のため static final。
+  static final List<Color> _rainbow = [
+    AppColors.error,
+    AppColors.warn,
+    AppColors.success,
+    RarityToken.rare.main,
+    RarityToken.sr.main,
+    RarityToken.ssr.main,
   ];
 
   @override

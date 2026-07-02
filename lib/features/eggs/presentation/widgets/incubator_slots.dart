@@ -69,27 +69,31 @@ class _Slot extends StatelessWidget {
 
     final rarity = RarityVisuals.ofEgg(e.rarity);
     final active = e.isActive;
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          // 育成中は NestRing 自身の縁を orange 化して同心強調（外側に別円を重ねると
-          // 地面影ぶん中心がズレるため）。
-          NestRing(
-            diameter: 72,
-            glow: active ? rarity.glow : null,
-            borderColor: active ? AppColors.primary : null,
-            child: EggSubject(rarity: e.rarity, stage: e.stage(params)),
-          ),
-          const SizedBox(height: AppSpace.xs),
-          Text(
-            active ? '育成中' : 'まちぼうけ',
-            style: AppType.caption.copyWith(
-              color: active ? AppColors.primary : AppColors.textSecondary,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+    return Semantics(
+      button: true,
+      label: '${e.rarity.label}のたまご・${active ? '育成中' : 'まちぼうけ'}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            // 育成中は NestRing 自身の縁を orange 化して同心強調（外側に別円を重ねると
+            // 地面影ぶん中心がズレるため）。
+            NestRing(
+              diameter: 72,
+              glow: active ? rarity.glow : null,
+              borderColor: active ? AppColors.primary : null,
+              child: EggSubject(rarity: e.rarity, stage: e.stage(params)),
             ),
-          ),
-        ],
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              active ? '育成中' : 'まちぼうけ',
+              style: AppType.caption.copyWith(
+                color: active ? AppColors.primary : AppColors.textSecondary,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -49,12 +49,15 @@ class _Chip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // SVGアイコンは後続でアセット差し替え。MVPはラベル先頭文字の代替表示。
-          CircleAvatar(
-            radius: 10,
-            backgroundColor: AppColors.surfaceNest,
-            child: Text(
-              label.characters.first,
-              style: AppType.caption.copyWith(color: AppColors.textSecondary),
+          // 先頭文字アバターは装飾（フル名は隣の Text が読み上げる）→ 読み上げから除外。
+          ExcludeSemantics(
+            child: CircleAvatar(
+              radius: 10,
+              backgroundColor: AppColors.surfaceNest,
+              child: Text(
+                label.characters.first,
+                style: AppType.caption.copyWith(color: AppColors.textSecondary),
+              ),
             ),
           ),
           const SizedBox(width: AppSpace.xs),

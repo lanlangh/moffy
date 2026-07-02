@@ -72,7 +72,7 @@ class WelcomeScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpace.md),
                       const _HowToStep(
                         index: 2,
-                        icon: Icons.egg_rounded,
+                        icon: Icons.trending_up_rounded,
                         text: 'ポイントがたまると、卵が少しずつ育ちます。',
                       ),
                       const SizedBox(height: AppSpace.md),

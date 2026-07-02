@@ -73,7 +73,6 @@ class _EggsBody extends ConsumerWidget {
           if (state.isOffline) const OfflineBar(),
           Expanded(
             child: EmptyState(
-              icon: Icons.egg_outlined,
               message: 'まだ卵がありません',
               subMessage: 'クエストやポイントで卵を手に入れよう。',
               ctaLabel: 'クエストへ',
@@ -286,25 +285,32 @@ class _ActiveEggPanel extends StatelessWidget {
     final stage = egg.stage(params);
     final rarity = RarityVisuals.ofEgg(egg.rarity);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: NestPanel(
-        diameter: 180,
-        glow: egg.isNearHatch(params) ? rarity.glow : null,
-        caption: Text(
-          egg.canHatch(params) ? 'まもなく孵化' : '孵化まであと ${egg.remaining(params)}pt',
-          style: AppType.title,
-        ),
-        subject: EggSubject(rarity: egg.rarity, stage: stage),
-        footer: Column(
-          children: [
-            GrowthProgressBar(value: egg.progress(params)),
-            const SizedBox(height: AppSpace.sm),
-            Text(
-              '${stage.label}・${(egg.progress(params) * 100).round()}%',
-              style: AppType.numLabel,
-            ),
-          ],
+    return Semantics(
+      button: true,
+      container: true,
+      label: '育成中の卵の詳細を開く',
+      child: GestureDetector(
+        onTap: onTap,
+        child: NestPanel(
+          diameter: 180,
+          glow: egg.isNearHatch(params) ? rarity.glow : null,
+          caption: Text(
+            egg.canHatch(params)
+                ? 'まもなく孵化'
+                : '孵化まであと ${egg.remaining(params)}pt',
+            style: AppType.title,
+          ),
+          subject: EggSubject(rarity: egg.rarity, stage: stage),
+          footer: Column(
+            children: [
+              GrowthProgressBar(value: egg.progress(params)),
+              const SizedBox(height: AppSpace.sm),
+              Text(
+                '${stage.label}・${(egg.progress(params) * 100).round()}%',
+                style: AppType.numLabel,
+              ),
+            ],
+          ),
         ),
       ),
     );
