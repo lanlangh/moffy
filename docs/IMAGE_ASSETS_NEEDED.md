@@ -54,6 +54,28 @@ Square 1:1, 1024x1024.
 > レア色の目安（`RarityToken`）: N=霧緑 / R=水色 / **SR=紫（キャラのSRだけ紫OK）** / SSR=金。
 > **shiny は作らなくてOK**（プログラムで色替え）。まず通常色の30体（またはベビー15体）から。
 
+### ★ 進化前後を「1回の生成で」出すプロンプト（推奨＝一貫性が高い）
+
+1種ぶんの「ベビー＋アダルト」を **1回の生成で横並び1枚** に出す → こちらで2枚に切り分け。
+同じ生成なので画風・配色・顔が確実に揃う（`mofi_<id>_1.png` / `mofi_<id>_2.png` に分割配置）。
+
+英語プロンプト（`[BABY]` / `[ADULT]` を各種の説明に差し替え）:
+```
+A character reference sheet of ONE original cute collectible creature shown in its TWO
+evolution stages, side by side with a clear gap, on a plain flat white background.
+LEFT = BABY form: [BABY].
+RIGHT = ADULT (evolved) form, clearly the SAME creature grown up: [ADULT].
+Both full-body, centered in their own half, similar scale, facing the viewer. Keep the
+SAME art style, SAME color palette, SAME face / eye style, and SAME soft lighting from the
+upper-left for both. Soft 3D-rendered kawaii mobile-game style, gentle pastel colors, big
+expressive eyes, chibi proportions, rounded friendly shapes, smooth soft shading.
+Plain flat white background (easy to cut out), NO ground shadow, NO nest, NO text, NO
+labels, NO frame, NO extra props. Wide 2:1 image, high detail.
+```
+- `[BABY]` / `[ADULT]` は上の表の「ベビー/アダルトのヒント」を使う。
+- ツールが2枚同時出力できるなら左右でなく「2枚」でもOK。**1枚に含めてくれれば私が切り分け＋インク輪郭焼き込み＋リサイズ＋配線**します（卵と同じ工程）。
+- インク輪郭・背景透過は**こちらで後処理**するので、プロンプトに入れなくてよい。
+
 ---
 
 ## 🥈 任意：卵イラストの高品質版（今は参照シートからの切り出し＋輪郭で運用中）
