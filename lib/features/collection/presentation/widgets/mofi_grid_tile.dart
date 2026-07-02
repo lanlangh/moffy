@@ -26,44 +26,49 @@ class MofiGridTile extends StatelessWidget {
       ),
     );
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 色違いは虹枠（発見済みのみ / SCREEN_FLOWS §4）。
-          if (discovered && entry.isShiny)
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: SweepGradient(
-                  colors: [
-                    Color(0xFFE0604D),
-                    Color(0xFFE8A93C),
-                    Color(0xFF5CB87A),
-                    Color(0xFF5BA9CC),
-                    Color(0xFFA77BD8),
-                    Color(0xFFE0604D),
-                  ],
+    return Semantics(
+      button: true,
+      label: discovered
+          ? (entry.isShiny ? '${entry.species.name}・色違い' : entry.species.name)
+          : '未発見',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 色違いは虹枠（発見済みのみ / SCREEN_FLOWS §4）。色は RarityToken/AppColors（SSOT）。
+            if (discovered && entry.isShiny)
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: SweepGradient(
+                    colors: [
+                      AppColors.error,
+                      AppColors.warn,
+                      AppColors.success,
+                      RarityToken.rare.main,
+                      RarityToken.sr.main,
+                      AppColors.error,
+                    ],
+                  ),
                 ),
+                child: ring,
+              )
+            else
+              ring,
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              discovered ? entry.species.name : '？？？',
+              style: AppType.caption.copyWith(
+                color:
+                    discovered ? AppColors.textPrimary : AppColors.textDisabled,
               ),
-              child: ring,
-            )
-          else
-            ring,
-          const SizedBox(height: AppSpace.xs),
-          Text(
-            discovered ? entry.species.name : '？？？',
-            style: AppType.caption.copyWith(
-              color: discovered
-                  ? AppColors.textPrimary
-                  : AppColors.textDisabled,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

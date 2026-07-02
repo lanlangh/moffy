@@ -91,14 +91,10 @@ class QuestCard extends StatelessWidget {
 
   String _progressLabel(Quest q) {
     final unit = switch (q.condition.type) {
-      QuestConditionType.appUnder ||
-      QuestConditionType.reduceTotal =>
-        '分',
+      QuestConditionType.appUnder || QuestConditionType.reduceTotal => '分',
       QuestConditionType.hatchCount => '個',
       QuestConditionType.pointsEarn => 'pt',
-      QuestConditionType.streakKeep ||
-      QuestConditionType.unknown =>
-        '',
+      QuestConditionType.streakKeep || QuestConditionType.unknown => '',
     };
     if (q.condition.type == QuestConditionType.streakKeep) {
       return q.isCompleted ? '達成' : '今日まだ';
@@ -189,7 +185,7 @@ class _RewardBadges extends StatelessWidget {
     if (reward.points > 0) {
       badges.add(
         StatBadge(
-          icon: Icons.star_rounded,
+          icon: Icons.bolt_rounded,
           value: reward.points,
         ),
       );
