@@ -60,7 +60,7 @@ class EggArt extends StatelessWidget {
           ),
           // 成長ヒビ（画像・ベクター共通の上乗せ / §4-5）。孵化が近づくほど割れる。
           // 本番は段階別の卵イラスト（docs/ART_ASSETS.md）に差し替え可。
-          if (p >= _crack1Threshold)
+          if (p >= _crackStartThreshold)
             CustomPaint(painter: _CrackOverlayPainter(progress: p)),
         ],
       ),
@@ -68,69 +68,86 @@ class EggArt extends StatelessWidget {
   }
 }
 
-/// ヒビ①/②のしきい値比（§4-5: 100/500=0.2 / 250/500=0.5）。
-const double _crack1Threshold = 0.2;
-const double _crack2Threshold = 0.5;
+/// ヒビが出始める進捗しきい値（§4-5: 100/500=0.2）。以降は「1本のヒビが伸びて太くなる」。
+const double _crackStartThreshold = 0.2;
 
-/// 卵の上に重ねる成長ヒビ（画像・ベクター共通）。座標は卵の胴体（上部中央）に合わせた
-/// ウィジェット 0..1 比率。PIL で実アセットに重ねて位置を検証済み。
+/// 卵の上に重ねる成長ヒビ（画像・ベクター共通）。1本の横向きジグザグ亀裂が、進捗とともに
+/// 中央から左右へ伸び、太くなる（＝ヒビが「大きくなる」）。2本目を並べる方式はやめた（ユーザーFB）。
+/// 座標は卵の胴中央（0..1 比率・左右対称）。孵化間近だけ中央から短い枝ヒビを足す。
 class _CrackOverlayPainter extends CustomPainter {
   _CrackOverlayPainter({required this.progress});
 
   final double progress;
 
-  // 卵は横に割れる（横向きのジグザグ）。卵の胴中央・左右対称に配置（PILで実アセット検証済）。
-  // ①=中央やや上 / ②=中央やや下。
-  static const List<Offset> _crack1 = [
-    Offset(0.30, 0.35),
-    Offset(0.40, 0.32),
-    Offset(0.50, 0.36),
-    Offset(0.60, 0.32),
-    Offset(0.70, 0.35),
+  // 卵の胴中央を横切る1本のジグザグ（左右対称）のフルの姿。
+  static const List<Offset> _crack = [
+    Offset(0.16, 0.44),
+    Offset(0.28, 0.39),
+    Offset(0.38, 0.45),
+    Offset(0.50, 0.40),
+    Offset(0.62, 0.46),
+    Offset(0.72, 0.39),
+    Offset(0.84, 0.45),
   ];
-  static const List<Offset> _crack2 = [
-    Offset(0.29, 0.47),
-    Offset(0.40, 0.50),
-    Offset(0.50, 0.45),
-    Offset(0.60, 0.50),
-    Offset(0.71, 0.46),
-  ];
-
-  void _drawCrack(Canvas canvas, Size size, List<Offset> pts) {
-    Path pathOf(List<Offset> ps) {
-      final path = Path()
-        ..moveTo(ps.first.dx * size.width, ps.first.dy * size.height);
-      for (final o in ps.skip(1)) {
-        path.lineTo(o.dx * size.width, o.dy * size.height);
-      }
-      return path;
-    }
-
-    // 影の割れ線。
-    canvas.drawPath(
-      pathOf(pts),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(2, size.width * 0.018)
-        ..strokeJoin = StrokeJoin.round
-        ..strokeCap = StrokeCap.round
-        ..color = AppColors.nestBark.withValues(alpha: 0.82),
-    );
-    // わずかにずらした淡いハイライトで割れの立体感。
-    canvas.drawPath(
-      pathOf([for (final o in pts) o.translate(0.006, 0.006)]),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(1, size.width * 0.010)
-        ..strokeJoin = StrokeJoin.round
-        ..color = Colors.white.withValues(alpha: 0.28),
-    );
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (progress >= _crack1Threshold) _drawCrack(canvas, size, _crack1);
-    if (progress >= _crack2Threshold) _drawCrack(canvas, size, _crack2);
+    if (progress < _crackStartThreshold) return;
+    // 開始しきい値〜1.0 を 0..1 に正規化＝ヒビの成長度。
+    final t = ((progress - _crackStartThreshold) / (1 - _crackStartThreshold))
+        .clamp(0.0, 1.0);
+
+    final full = Path()
+      ..moveTo(_crack.first.dx * size.width, _crack.first.dy * size.height);
+    for (final o in _crack.skip(1)) {
+      full.lineTo(o.dx * size.width, o.dy * size.height);
+    }
+
+    // 中央から外側へ「伸びる」（reveal）＋進捗で「太くなる」（strokeW）。
+    final reveal = (0.34 + 0.66 * t).clamp(0.0, 1.0);
+    final strokeW = math.max(2.0, size.width * (0.014 + 0.016 * t));
+
+    final shadow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round
+      ..color = AppColors.nestBark.withValues(alpha: 0.85);
+    final highlight = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.0, strokeW * 0.45)
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.28);
+
+    for (final m in full.computeMetrics()) {
+      final seg = m.extractPath(
+        m.length * (0.5 - reveal / 2),
+        m.length * (0.5 + reveal / 2),
+      );
+      canvas.drawPath(seg, shadow);
+      canvas.drawPath(seg.shift(const Offset(0.6, 0.8)), highlight);
+    }
+
+    // 孵化間近: 中央から上下に短い枝ヒビ（“もう割れる”感。平行な2本目にはしない）。
+    if (t > 0.75) {
+      final cx = 0.5 * size.width;
+      final cy = 0.42 * size.height;
+      final branch = Path()
+        ..moveTo(cx, cy)
+        ..lineTo(cx - size.width * 0.03, cy - size.height * 0.08)
+        ..moveTo(cx, cy)
+        ..lineTo(cx + size.width * 0.025, cy + size.height * 0.09);
+      canvas.drawPath(
+        branch,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeW * 0.8
+          ..strokeJoin = StrokeJoin.round
+          ..strokeCap = StrokeCap.round
+          ..color = AppColors.nestBark.withValues(alpha: 0.7),
+      );
+    }
   }
 
   @override

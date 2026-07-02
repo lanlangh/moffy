@@ -23,7 +23,7 @@ class ReductionCard extends StatelessWidget {
     if (state.isPermissionMissing) {
       return AppCard(
         child: ErrorView(
-          message: '時間をはかるには「使用状況へのアクセス」の許可が必要です。'
+          message: '時間を計るには「使用状況へのアクセス」の許可が必要です。'
               '許可すると今日の削減ポイントが計算されます。',
           retryLabel: '許可する',
           onRetry: onRequestPermission,

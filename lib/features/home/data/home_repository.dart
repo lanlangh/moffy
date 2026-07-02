@@ -122,7 +122,14 @@ class HomeRepository {
   /// Supabase 未設定/オフライン/取得失敗時は安全なデフォルト（0 / 卵なし）を返し、画面を落とさない
   /// （TODO: Drift キャッシュへのフォールバックは永続化パスで配線 / S8）。
   Future<HomeServerSnapshot> loadServerSnapshot(EconomyParams params) async {
-    if (!Env.hasSupabase || !_ref.read(isOnlineProvider)) {
+    // モック/プレビュー（forceMock または Supabase 未設定）: たまご/図鑑タブの
+    // モックと整合するテスト用スナップショットを返す（育成中の卵＋残高を表示）。
+    // これが無いとホームだけ空の巣＋残高0になり、他タブと食い違う（ユーザーFB）。
+    // 本番（useSupabase=true）はこの分岐を通らず、必ず実バックエンドを select する。
+    if (!Env.useSupabase) {
+      return _mockSnapshot(params);
+    }
+    if (!_ref.read(isOnlineProvider)) {
       return HomeServerSnapshot.empty;
     }
     try {
@@ -164,6 +171,20 @@ class HomeRepository {
       return HomeServerSnapshot.empty;
     }
   }
+
+  /// プレビュー/モック用スナップショット（たまごタブ MockEggRepository のアクティブ卵＝
+  /// normal・350pt/ヒビ段階と揃える）。本番（useSupabase）はこの分岐を通らない。
+  HomeServerSnapshot _mockSnapshot(EconomyParams params) => HomeServerSnapshot(
+        pointBalance: 1240,
+        gemBalance: 8,
+        pooledPoints: 0,
+        activeEgg: ActiveEggSummary(
+          eggId: 'mock-active',
+          growthPoints: 350,
+          hatchThreshold: params.eggThresholds.hatch,
+          rarityLabel: 'normal',
+        ),
+      );
 
   /// ウォームアップ自動付与（S1 / F-01）をサーバーへ要求する。
   ///
