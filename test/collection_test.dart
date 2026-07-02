@@ -2,28 +2,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moffy/features/collection/domain/mofi_models.dart';
 import 'package:moffy/features/collection/presentation/collection_controller.dart';
 
-/// 図鑑の達成率算出（S13: 30エントリ）・マスタ整合・フィルタの単体テスト。
+/// 図鑑の達成率算出（S13: 40エントリ）・マスタ整合・フィルタの単体テスト。
 void main() {
   group('Mofiマスタ（§4-1 / migration seed 整合）', () {
-    test('15種ちょうど', () {
-      expect(kMofiSpeciesSeed.length, 15);
+    test('20種ちょうど', () {
+      expect(kMofiSpeciesSeed.length, 20);
     });
 
-    test('レアリティ構成: Common5 / Rare5 / SR3 / SSR2', () {
+    test('レアリティ構成: Common7 / Rare6 / SR4 / SSR3', () {
       int count(MofiRarity r) =>
           kMofiSpeciesSeed.where((s) => s.rarity == r).length;
-      expect(count(MofiRarity.common), 5);
-      expect(count(MofiRarity.rare), 5);
-      expect(count(MofiRarity.sr), 3);
-      expect(count(MofiRarity.ssr), 2);
+      expect(count(MofiRarity.common), 7);
+      expect(count(MofiRarity.rare), 6);
+      expect(count(MofiRarity.sr), 4);
+      expect(count(MofiRarity.ssr), 3);
     });
 
-    test('種族ごと5種ずつ', () {
+    test('種族ごと5種ずつ（4系統）', () {
       int count(MofiFamily f) =>
           kMofiSpeciesSeed.where((s) => s.family == f).length;
       expect(count(MofiFamily.slime), 5);
       expect(count(MofiFamily.critter), 5);
       expect(count(MofiFamily.dragon), 5);
+      expect(count(MofiFamily.beast), 5);
     });
 
     test('idは一意', () {
@@ -41,7 +42,7 @@ void main() {
           discoveredAt: found ? DateTime(2026, 6, 18) : null,
         );
 
-    test('全30エントリ中 発見済み数 / 30 = 達成率', () {
+    test('全40エントリ中 発見済み数 / 40 = 達成率', () {
       final entries = <MofiDexEntry>[];
       var found = 0;
       for (var i = 0; i < kMofiSpeciesSeed.length; i++) {
@@ -54,12 +55,12 @@ void main() {
       }
       final state = CollectionState(
         entries: entries,
-        totalEntries: 30,
+        totalEntries: 40,
         isOffline: false,
       );
       expect(state.discoveredCount, found);
-      expect(state.totalEntries, 30);
-      expect(state.completionRatio, closeTo(found / 30, 1e-9));
+      expect(state.totalEntries, 40);
+      expect(state.completionRatio, closeTo(found / 40, 1e-9));
       expect(state.isEmpty, isFalse);
     });
 
@@ -71,7 +72,7 @@ void main() {
         ],
       ];
       final state =
-          CollectionState(entries: entries, totalEntries: 30, isOffline: false);
+          CollectionState(entries: entries, totalEntries: 40, isOffline: false);
       expect(state.isEmpty, isTrue);
       expect(state.completionRatio, 0.0);
     });

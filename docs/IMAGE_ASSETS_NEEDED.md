@@ -12,7 +12,10 @@
 
 ---
 
-## 🥇 最優先：Mofi キャラ 15種 × 2進化段階 ＝ 30体（＝図鑑の主役・今は仮アイコン）
+## 🥇 最優先：Mofi キャラ 20種 × 2進化段階 ＝ 40体（＝図鑑の主役・今は仮アイコン）
+
+> 4系統：スライム / 小動物（＝かわいい枠）・ドラゴン / 獣（＝“かっこいい”枠）。
+> かわいい10:かっこいい10。**獣（虎/狼/獅子）はドラゴンと同じ「ドラゴン専用テンプレ」で cool に**。
 
 **進化仕様（`docs/EVOLUTION.md`）**: 各 Mofi は「ベビー→アダルト」の2段。**1種につき2枚**必要:
 - ベビー … `mofi_<id>_1.png`
@@ -50,6 +53,11 @@ Square 1:1, 1024x1024.
 | dragon_03 | ドラゴン | SR | らいりゅう | 雷（黄/紫）をまとう子竜（紫可＝SR） | 雷をまとい角・翼が発達 |
 | dragon_04 | ドラゴン | SR | こおりば | 氷・水色の子竜 | 氷の結晶の角・翼 |
 | dragon_05 | ドラゴン | SSR | てんりゅう | 金色の子天竜（SSR＝金） | 荘厳な金の天竜・後光 |
+| beast_01 | 獣 | N | とらまる | 縞のある子トラ、大きな肉球、元気 | 引き締まった若トラ、鋭い牙・凛々しい |
+| beast_02 | 獣 | N | うるが | 灰色の子オオカミ、とがった耳 | しなやかな灰狼、鋭い眼光・堂々 |
+| beast_03 | 獣 | R | れおん | たてがみの芽が出た子ライオン | 立派なたてがみの獅子、威厳ある姿 |
+| beast_04 | 獣 | SR | くろば | 黒豹の子、紫の艶（SR紫可） | 艶やかな黒豹、紫の光沢・俊敏で精悍 |
+| beast_05 | 獣 | SSR | びゃっこ | 白虎の子、金の斑、気高い | 荘厳な白虎、金の模様・神々しい威圧感 |
 
 > レア色の目安（`RarityToken`）: N=霧緑 / R=水色 / **SR=紫（キャラのSRだけ紫OK）** / SSR=金。
 > **shiny は作らなくてOK**（プログラムで色替え）。まず通常色の30体（またはベビー15体）から。
@@ -115,6 +123,30 @@ labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 > 3D-rendered mobile-game mascot style, same clean rendering as the cute creatures BUT this
 > one is COOL, not kawaii: sleek and sharp, defined horns / spikes / claws / wings, sharper
 > determined eyes, a slightly fierce heroic badass vibe, appealing and polished.
+> Plain flat white background (easy to cut out), NO ground shadow, NO nest, NO text, NO
+> labels, NO frame, NO extra props. Wide 2:1 image, high detail.
+> ```
+
+**獣（beast）＝“かっこいい”枠**（下の「獣専用テンプレ」を使う。ドラゴンと同じ cool 方向・虎/狼/獅子）
+- `beast_01` とらまる(N) — BABY: `a small spunky orange tiger cub with black stripes, big paws and a bold look` / ADULT: `the same tiger evolved into a sleek cool adult tiger, lean and muscular, sharp fangs and a confident fierce pose`
+- `beast_02` うるが(N) — BABY: `a small grey wolf pup with pointy ears and bright eyes, cute but tough` / ADULT: `the same wolf evolved into a cool lean grey wolf with a sharp gaze and a proud stance`
+- `beast_03` れおん(R) — BABY: `a small lion cub with a tiny tuft of mane and a brave look` / ADULT: `the same lion evolved into a cool majestic lion with a full mane and a regal powerful pose`
+- `beast_04` くろば(SR) — BABY: `a small sleek black panther cub with a faint violet sheen, sharp-eyed` / ADULT: `the same panther evolved into a cool sleek black panther with a glossy violet sheen, agile and fierce`
+- `beast_05` びゃっこ(SSR) — BABY: `a small radiant white tiger cub with faint golden markings, noble` / ADULT: `the same white tiger evolved into a majestic legendary white tiger with golden markings and a divine imposing aura`
+
+> **獣専用テンプレ**（共通テンプレの代わりに使う。`[BABY]` / `[ADULT]` を各獣の説明に差し替え。
+> ドラゴンと同じく cool 方向＝同じ世界観の中の「かっこいい枠」）:
+> ```
+> A character reference sheet of ONE original COOL collectible beast (a tiger / wolf / lion
+> type animal) shown in its TWO evolution stages, side by side with a clear gap, on a plain
+> flat white background.
+> LEFT = BABY form: [BABY].
+> RIGHT = ADULT (evolved) form, clearly the SAME beast grown up and much cooler: [ADULT].
+> Both full-body, centered in their own half, in a confident dynamic pose, facing the viewer.
+> Keep the SAME color palette and SAME soft lighting from the upper-left for both. Soft
+> 3D-rendered mobile-game mascot style, same clean rendering as the cute creatures BUT this
+> one is COOL, not kawaii: sleek and sharp, defined fur / fangs / claws, sharper determined
+> eyes, a slightly fierce heroic badass vibe, appealing and polished.
 > Plain flat white background (easy to cut out), NO ground shadow, NO nest, NO text, NO
 > labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 > ```

@@ -1,6 +1,6 @@
 name: DB Verify
 
-# Supabase の DB に経済マイグレーション(0001-0005)を適用し、抽選分布(distribution_check)を検証する。
+# Supabase の DB に経済マイグレーション(0001-0005,0007-0008)を適用し、抽選分布(distribution_check)を検証する。
 # 手動実行のみ。接続情報は GitHub Secret `SUPABASE_DB_URL`（あなたが設定。値は CI 以外に出ない）。
 # 推奨: まっさらな Supabase プロジェクトに対して実行（0001 は新規作成 DDL のため）。
 on:
@@ -23,7 +23,7 @@ jobs:
           fi
           echo "psql version:"; psql --version
 
-      - name: Apply migrations (0001 -> 0002 -> 0003 -> 0004 -> 0005)
+      - name: Apply migrations (0001 -> 0005, 0007 -> 0008)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
@@ -33,6 +33,10 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0003_warmup_grants.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0004_security_hardening.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0005_economy_exploit_fix.sql
+          # 0006(profilesトリガー)はauth.users依存のためクリーンDB検証では省略。
+          # 0007/0008(獣ファミリー): distribution_check が20種/SR4種を検証する前提。
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0007_beast_family_enum.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0008_beast_family_seed.sql
 
       - name: Run distribution check (§4 抽選分布 / drop_tables 合計=1.0)
         env:
