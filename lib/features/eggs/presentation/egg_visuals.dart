@@ -84,17 +84,25 @@ class MofiSubject extends StatelessWidget {
       MofiFamily.critter => Icons.pets_rounded,
       MofiFamily.dragon => Icons.local_fire_department_rounded,
     };
+    // NestRing の FittedBox は「子の本来サイズ」を枠に合わせて拡縮する。サイズ未指定の
+    // Image は読込前 0×0 になり FittedBox が何も描かない（Mofiが消える）ため、EggArt と
+    // 同じく確定サイズの箱で包む（フォールバック Icon も FittedBox で枠いっぱいに拡大）。
+    const dimension = 120.0;
+    final fallback = FittedBox(child: Icon(fallbackIcon, color: color));
     // 未発見はイラストを出さずシルエット（種族アイコンを textDisabled で）。
     if (silhouette) {
-      return Icon(fallbackIcon, color: color);
+      return SizedBox.square(dimension: dimension, child: fallback);
     }
     // 本番イラスト（mofi_<id>_<stage>.png / 進化段階で差し替え）。未配置・読み込み失敗時は
     // 種族アイコンにフォールバック（アート未着でも動き、届いた分から自動で切り替わる）。
-    return Image.asset(
-      'assets/images/mofi/mofi_${speciesId}_$stage.png',
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (context, error, stack) => Icon(fallbackIcon, color: color),
+    return SizedBox.square(
+      dimension: dimension,
+      child: Image.asset(
+        'assets/images/mofi/mofi_${speciesId}_$stage.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (context, error, stack) => fallback,
+      ),
     );
   }
 }
