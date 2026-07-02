@@ -7,6 +7,8 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
+import '../../../core/widgets/egg_art.dart';
+import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../paywall/presentation/paywall_screen.dart';
 import '../../profile/data/profile_repository.dart';
@@ -66,6 +68,14 @@ class _MenuBody extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(AppSpace.lg),
             children: [
+              // 署名要素「巣リング」をプロフィール頭に反復（全画面共通の核 / DESIGN_DIRECTION）。
+              const Center(
+                child: NestRing(
+                  diameter: 112,
+                  child: EggArt(rarity: RarityToken.common),
+                ),
+              ),
+              const SizedBox(height: AppSpace.xl),
               // プロフィール統計（SCREEN_FLOWS §6 / 数字はBaloo）。
               _StatsSection(stats: state.stats),
               const SizedBox(height: AppSpace.xl),

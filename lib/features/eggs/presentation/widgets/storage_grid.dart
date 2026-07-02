@@ -6,6 +6,11 @@ import '../../../../core/widgets/nest_panel.dart';
 import '../../domain/egg_models.dart';
 import '../egg_visuals.dart';
 
+/// 保管タイルの固定高さ(px)。中身は固定サイズ（巣リング64＋レアチップ＋pt行＋余白）で
+/// 縮まないため、幅で高さが決まる childAspectRatio だと狭い端末で下端が数px溢れる。
+/// 幅非依存の mainAxisExtent で「中身が必ず収まる高さ」に固定する（実測 約127px＋余白）。
+const double _kStorageTileExtent = 134;
+
 /// 保管枠（無制限）グリッド（SCREEN_FLOWS §3）。
 /// 各卵にレアリティ RarityChip 相当の色と成長ptを表示。空なら空状態文言。
 class StorageGrid extends StatelessWidget {
@@ -40,7 +45,7 @@ class StorageGrid extends StatelessWidget {
         crossAxisCount: 3,
         mainAxisSpacing: AppSpace.md,
         crossAxisSpacing: AppSpace.md,
-        childAspectRatio: 0.82,
+        mainAxisExtent: _kStorageTileExtent,
       ),
       itemCount: state.storage.length,
       itemBuilder: (context, i) {
