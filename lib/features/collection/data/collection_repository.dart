@@ -14,12 +14,12 @@ import '../domain/mofi_models.dart';
 /// 図鑑登録（mofi_collection）の書き込みはサーバーRPC `fn_hatch_egg` のみ（RLSで封鎖）。
 /// クライアントは読み取り専用。第2aパスは [MockCollectionRepository] で動作させる。
 abstract interface class CollectionRepository {
-  /// 図鑑全体（30エントリ = 15種×色違い）と発見状況を取得する。
+  /// 図鑑全体（40エントリ = 20種×色違い）と発見状況を取得する。
   /// 未発見エントリもシルエット表示のため返す（SCREEN_FLOWS §4）。
   Future<CollectionState> loadCollection(EconomyParams params);
 }
 
-/// モック実装（第2aパス）。マスタ15種から30エントリを生成し、一部を発見済みにする。
+/// モック実装（第2aパス）。マスタ20種から40エントリを生成し、一部を発見済みにする。
 /// TODO(第2b): Supabase `mofi_species`（公開select）+ `mofi_collection`（本人select）を
 ///   結合し、オフライン時は Drift キャッシュにフォールバック（S8）。
 class MockCollectionRepository implements CollectionRepository {
@@ -61,7 +61,7 @@ class MockCollectionRepository implements CollectionRepository {
     );
   }
 
-  /// マスタ15種 × {通常色, 色違い} = 30エントリを安定順で生成する。
+  /// マスタ20種 × {通常色, 色違い} = 40エントリを安定順で生成する。
   List<MofiDexEntry> _buildAllEntries(
     Map<String, DateTime> discovered,
     Map<String, int> counts,
@@ -90,7 +90,7 @@ class MockCollectionRepository implements CollectionRepository {
 
 /// Supabase 本実装（読み取り専用 / S5,S13）。
 ///
-/// `mofi_collection`（本人select）で発見済みを取得し、マスタ15種×色違いの全30エントリへ
+/// `mofi_collection`（本人select）で発見済みを取得し、マスタ20種×色違いの全40エントリへ
 /// マージする。図鑑書き込みは `fn_hatch_egg` のみ（クライアントは加算しない / 信頼境界）。
 class SupabaseCollectionRepository implements CollectionRepository {
   SupabaseCollectionRepository(this._ref, this._client);

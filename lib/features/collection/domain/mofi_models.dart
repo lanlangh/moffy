@@ -155,10 +155,10 @@ class MofiDexEntry {
 
 /// 図鑑全体のスナップショット（達成率算出 / SCREEN_FLOWS §4）。
 class CollectionState {
-  /// 30エントリ（発見/未発見すべて）。sortOrder × 色違いで安定順。
+  /// 40エントリ（発見/未発見すべて）。sortOrder × 色違いで安定順。
   final List<MofiDexEntry> entries;
 
-  /// コンプ率の分母（app_config.dex_total_entries = 30）。
+  /// コンプ率の分母（app_config.dex_total_entries = 40）。
   final int totalEntries;
 
   /// オフライン中か（キャッシュ表示 + 上端バー / S8）。

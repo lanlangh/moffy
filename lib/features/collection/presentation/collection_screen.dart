@@ -13,7 +13,7 @@ import 'widgets/mofi_detail_sheet.dart';
 import 'widgets/mofi_grid_tile.dart';
 
 /// 図鑑画面（SCREEN_FLOWS §4）。
-/// 達成率 + レアリティ/色違いフィルタ + 30エントリのグリッド（未発見はシルエット）。
+/// 達成率 + レアリティ/色違いフィルタ + 40エントリのグリッド（未発見はシルエット）。
 ///
 /// 5状態:
 ///   * ローディング: 巣リング型スケルトン。

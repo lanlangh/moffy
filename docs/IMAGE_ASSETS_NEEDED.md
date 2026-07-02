@@ -127,12 +127,29 @@ labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 > labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 > ```
 
-**獣（beast）＝“かっこいい”枠**（上の「ドラゴン専用テンプレ」を creature=beast/tiger/wolf/lion に読み替えて使う）
+**獣（beast）＝“かっこいい”枠**（下の「獣専用テンプレ」を使う。ドラゴンと同じ cool 方向・虎/狼/獅子）
 - `beast_01` とらまる(N) — BABY: `a small spunky orange tiger cub with black stripes, big paws and a bold look` / ADULT: `the same tiger evolved into a sleek cool adult tiger, lean and muscular, sharp fangs and a confident fierce pose`
 - `beast_02` うるが(N) — BABY: `a small grey wolf pup with pointy ears and bright eyes, cute but tough` / ADULT: `the same wolf evolved into a cool lean grey wolf with a sharp gaze and a proud stance`
 - `beast_03` れおん(R) — BABY: `a small lion cub with a tiny tuft of mane and a brave look` / ADULT: `the same lion evolved into a cool majestic lion with a full mane and a regal powerful pose`
 - `beast_04` くろば(SR) — BABY: `a small sleek black panther cub with a faint violet sheen, sharp-eyed` / ADULT: `the same panther evolved into a cool sleek black panther with a glossy violet sheen, agile and fierce`
 - `beast_05` びゃっこ(SSR) — BABY: `a small radiant white tiger cub with faint golden markings, noble` / ADULT: `the same white tiger evolved into a majestic legendary white tiger with golden markings and a divine imposing aura`
+
+> **獣専用テンプレ**（共通テンプレの代わりに使う。`[BABY]` / `[ADULT]` を各獣の説明に差し替え。
+> ドラゴンと同じく cool 方向＝同じ世界観の中の「かっこいい枠」）:
+> ```
+> A character reference sheet of ONE original COOL collectible beast (a tiger / wolf / lion
+> type animal) shown in its TWO evolution stages, side by side with a clear gap, on a plain
+> flat white background.
+> LEFT = BABY form: [BABY].
+> RIGHT = ADULT (evolved) form, clearly the SAME beast grown up and much cooler: [ADULT].
+> Both full-body, centered in their own half, in a confident dynamic pose, facing the viewer.
+> Keep the SAME color palette and SAME soft lighting from the upper-left for both. Soft
+> 3D-rendered mobile-game mascot style, same clean rendering as the cute creatures BUT this
+> one is COOL, not kawaii: sleek and sharp, defined fur / fangs / claws, sharper determined
+> eyes, a slightly fierce heroic badass vibe, appealing and polished.
+> Plain flat white background (easy to cut out), NO ground shadow, NO nest, NO text, NO
+> labels, NO frame, NO extra props. Wide 2:1 image, high detail.
+> ```
 
 ---
 
