@@ -4,6 +4,10 @@
 配置し、開発が `EggArt` に配線する。**背景は透過（PNGアルファ）**が必須。もし生成物が
 白/単色背景なら、こちらで背景を除去できる（透過で出せるならそのままでOK）。
 
+> **署名のインク輪郭（焦げ茶 `#4A3B2E`）はこちらで後処理(PIL)で焼き込みます**＝現行4種と
+> 同じ工程なので画風が揃う。プロンプトに太い輪郭を入れる必要はありません。
+> **巣（藁）は卵と一緒に描く**（アプリは砂リングを別に描く二層構成なので、藁の巣は画像に含める）。
+
 ---
 
 ## 共通スタイル（すべての卵で固定）
@@ -11,27 +15,33 @@
 英語プロンプト（画像生成は英語が安定）:
 
 ```
-A cute collectible egg resting in a small round straw nest, soft 3D-rendered kawaii
-mobile-game art style, gentle pastel colors, warm soft studio lighting, smooth glossy
-shell with subtle speckles, rounded friendly shapes, Nintendo-like charm.
-Centered composition; the egg + little nest fill most of the frame.
-Plain transparent background (PNG alpha), NO ground shadow, NO text, NO border, NO frame.
-Square 1:1, 1024x1024, high detail, consistent lighting across the set.
+A single cute collectible egg cradled in a small round woven straw nest, soft 3D-rendered
+kawaii mobile-gacha-game art style, smooth glossy eggshell with a soft specular highlight
+in the UPPER-LEFT from a single warm light source, gentle rounded friendly shape, clean
+high-quality soft shading, Nintendo/Pokemon-toy-like charm. The egg is large and centered
+and the little straw nest cradles its base. Plain transparent background (PNG alpha);
+NO cast/ground shadow, NO text, NO border, NO frame, NO extra objects.
+Square 1:1, 1024x1024, crisp, consistent egg shape / nest / lighting across the whole set.
 ```
 
-日本語メモ: 「藁の小さな巣に乗ったかわいい卵／やわらか3D・パステル・あたたかい光／
-つやのある殻に控えめな斑点／中央・卵が大きく／**背景は完全透過・地面影なし・文字なし**」。
+日本語メモ: 「藁の小さな巣に抱かれたかわいい卵／やわらか3Dガチャ風／つやのある殻・光は
+**左上から**の一灯／中央・卵大きめ／**背景は完全透過・地面影なし・文字/枠なし**／4種で
+卵形・巣・ライティングを揃える」。
 
 ---
 
 ## レアリティ別（殻と斑点の色）— 上の共通文に足す
 
-| レアリティ | 追記する英語 |
+| レアリティ | 追記する英語（現行アセットに合わせて調整） |
 |---|---|
-| common（ノーマル） | `cream/off-white shell with soft grey-green blotchy speckles` |
-| rare（レア） | `cream shell with sky-blue blotchy speckles` |
-| epic/SR（エピック） | `cream shell with soft lavender-purple blotchy speckles` |
-| legend/SSR（レジェンド） | `deep royal-purple shell decorated with glowing golden stars, premium magical shimmer` |
+| common（ノーマル） | `cream / off-white shell with soft blurry-edged SAGE-GREEN blotches and small speckles; a small shallow light-brown woven straw nest` |
+| rare（レア） | `cream / off-white shell with soft blurry-edged SKY-BLUE blotches and speckles; a fuller warm-brown woven straw nest` |
+| sr / epic（エピック） | `cream / off-white shell with soft blurry-edged blotches in TWO tones of PINK and LAVENDER-PURPLE; a small warm-brown woven straw nest` |
+| ssr / legend（レジェンド） | `deep royal-PURPLE glossy shell scattered with five-pointed GOLDEN stars of varying sizes, premium golden magical shimmer and a bright highlight; a golden softly-glowing woven straw nest; a legendary luxurious feel` |
+
+> **画風を揃える最大のコツ**: まず common を1枚作り、残り3種は **既存の `assets/images/egg/egg_common.png`
+> （または最初に作った1枚）を「参照画像」として添付**し、「**同じ画風・同じ卵形・同じ巣・同じライティングで、
+> 殻の色と模様だけ〔レア色〕に変える**」と指示する。テキストだけより圧倒的に揃う。
 
 ---
 
