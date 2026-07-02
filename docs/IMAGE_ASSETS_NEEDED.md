@@ -76,6 +76,32 @@ labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 - ツールが2枚同時出力できるなら左右でなく「2枚」でもOK。**1枚に含めてくれれば私が切り分け＋インク輪郭焼き込み＋リサイズ＋配線**します（卵と同じ工程）。
 - インク輪郭・背景透過は**こちらで後処理**するので、プロンプトに入れなくてよい。
 
+### 差し替え用 `[BABY]` / `[ADULT]` 英語（15種・そのまま貼れる）
+
+**プロンプトは全部英語で統一**（英語テンプレに日本語を混ぜると精度・一貫性が落ちやすい）。
+下をそのまま `[BABY]` / `[ADULT]` に入れる。ADULT は "the same ..." で始めて「同じ子の成長」を明示。
+
+**スライム**
+- `slime_01` ぷるりん(N) — BABY: `a tiny round pale sky-blue jelly slime with rosy cheeks, a big happy smile and simple dot eyes` / ADULT: `the same sky-blue jelly slime, a bit taller and shinier, with small water-droplet frills on top`
+- `slime_02` もちすら(N) — BABY: `a tiny soft cream-white mochi-like slime, squishy and round, tiny dot eyes and a calm smile` / ADULT: `the same cream mochi slime, grown taller and puffier, formed of two stacked rounded mochi tiers`
+- `slime_03` きらすら(R) — BABY: `a small aqua-blue jelly slime with a few tiny sparkling gem facets on its body and bright eyes` / ADULT: `the same aqua slime, now semi-crystalline and glossy, its body glinting like polished gemstone`
+- `slime_04` にじすら(R) — BABY: `a small slime with a soft pastel rainbow gradient body and a cheerful face` / ADULT: `the same rainbow slime, larger, with brighter flowing rainbow bands and a gentle glow`
+- `slime_05` しずくおう(SR) — BABY: `a small violet water-droplet-shaped slime wearing a tiny golden crown, cute` / ADULT: `the same violet droplet slime, taller and regal, with a larger ornate crown and a small floating orb`
+
+**小動物**
+- `critter_01` ころみ(N) — BABY: `a tiny round brown hamster-like critter with big cheeks, tiny paws and big sparkly eyes` / ADULT: `the same brown hamster, grown a little bigger with fuller cheeks and a soft cream tummy`
+- `critter_02` ぽてうさ(N) — BABY: `a pudgy little white bunny with short round ears, pink cheeks and big eyes` / ADULT: `the same white bunny, grown with longer floppy ears and a small ribbon`
+- `critter_03` まめきつ(R) — BABY: `a small orange fox kit with oversized pointy ears and a fluffy tail` / ADULT: `the same orange fox, grown sleeker with a larger bushy tail, looking dignified`
+- `critter_04` ふわりす(R) — BABY: `a tiny fluffy brown squirrel with a small puffy tail and round cheeks` / ADULT: `the same squirrel, grown with an enormous ultra-fluffy tail curling over its back`
+- `critter_05` こんげつ(SSR) — BABY: `a small mystical golden fox kit with crescent-moon markings and softly glowing eyes` / ADULT: `the same golden fox, grown with several flowing tails and a glowing moon halo, mystical`
+
+**ドラゴン**
+- `dragon_01` とかげり(N) — BABY: `a tiny stubby green baby lizard-dragon, no wings, round belly and a cute little tail` / ADULT: `the same green dragon, grown up with small horns and little wings just starting to spread`
+- `dragon_02` ほのおこ(R) — BABY: `a small orange baby dragon wrapped in a gentle warm flame, round and cute` / ADULT: `the same orange dragon, grown with bigger flames along its back and small spread wings`
+- `dragon_03` らいりゅう(SR) — BABY: `a small violet baby dragon crackling with tiny yellow-and-purple lightning sparks` / ADULT: `the same violet dragon, grown with developed horns and wings and a crackling lightning aura`
+- `dragon_04` こおりば(SR) — BABY: `a small pale ice-blue baby dragon with a frosty sheen, round and cute` / ADULT: `the same ice dragon, grown with crystalline ice horns and icy translucent wings`
+- `dragon_05` てんりゅう(SSR) — BABY: `a small radiant golden celestial baby dragon with soft glowing scales` / ADULT: `the same golden dragon, grown majestic and serpentine with a divine halo and flowing whiskers`
+
 ---
 
 ## 🥈 任意：卵イラストの高品質版（今は参照シートからの切り出し＋輪郭で運用中）
