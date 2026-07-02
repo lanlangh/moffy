@@ -106,7 +106,9 @@ class _CollectionBody extends ConsumerWidget {
                 final entry = visible[i];
                 return MofiGridTile(
                   entry: entry,
-                  onTap: () => _openDetail(context, entry),
+                  stage2Count: state.evolveStage2Count,
+                  onTap: () =>
+                      _openDetail(context, entry, state.evolveStage2Count),
                 );
               },
             ),
@@ -116,12 +118,12 @@ class _CollectionBody extends ConsumerWidget {
     );
   }
 
-  void _openDetail(BuildContext context, MofiDexEntry entry) {
+  void _openDetail(BuildContext context, MofiDexEntry entry, int stage2Count) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => MofiDetailSheet(entry: entry),
+      builder: (_) => MofiDetailSheet(entry: entry, stage2Count: stage2Count),
     );
   }
 }

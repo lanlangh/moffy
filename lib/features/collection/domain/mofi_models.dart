@@ -127,6 +127,20 @@ class MofiDexEntry {
 
   /// 図鑑内の一意キー（species_id × shiny）。
   String get dexKey => '${species.id}:${isShiny ? 'shiny' : 'normal'}';
+
+  /// 進化段階（1=ベビー / 2=アダルト / docs/EVOLUTION.md）。重複入手数
+  /// [obtainedCount] が [stage2Count] 以上でアダルト。未発見は 1（表示はシルエット）。
+  /// [obtainedCount] はサーバー専管の値なので、この段階は偽装できない（改ざん耐性維持）。
+  int evolutionStage(int stage2Count) =>
+      (discovered && obtainedCount >= stage2Count) ? 2 : 1;
+
+  /// 次の進化まであと何体か。進化済み/未発見/しきい値≤1 は 0。
+  int toNextEvolution(int stage2Count) {
+    if (!discovered || stage2Count <= 1 || obtainedCount >= stage2Count) {
+      return 0;
+    }
+    return stage2Count - obtainedCount;
+  }
 }
 
 /// 図鑑全体のスナップショット（達成率算出 / SCREEN_FLOWS §4）。
@@ -140,10 +154,14 @@ class CollectionState {
   /// オフライン中か（キャッシュ表示 + 上端バー / S8）。
   final bool isOffline;
 
+  /// 進化アダルト化の重複しきい値（EconomyParams由来 / docs/EVOLUTION.md）。
+  final int evolveStage2Count;
+
   const CollectionState({
     required this.entries,
     required this.totalEntries,
     required this.isOffline,
+    this.evolveStage2Count = 3,
   });
 
   /// 発見済みエントリ数（達成率の分子）。

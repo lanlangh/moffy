@@ -46,6 +46,11 @@ class EconomyParams {
   /// S13 図鑑総エントリー数（15種×2色）。コンプ率の分母。
   final int dexTotalEntries;
 
+  /// Mofi進化(v1.0 / docs/EVOLUTION.md): アダルトに進化する重複入手数（既定3）。
+  /// `app_config.mofi_evolve_stage2_count` で上書き可（未設定＝3）。進化段階は
+  /// この値と `mofi_collection.obtained_count`（サーバー専管）から算出する表示ロジック。
+  final int mofiEvolveStage2Count;
+
   const EconomyParams({
     required this.pointPerMinute,
     required this.dailyPointCap,
@@ -57,6 +62,7 @@ class EconomyParams {
     required this.shinyRate,
     required this.pooledPointsMaxDays,
     required this.dexTotalEntries,
+    this.mofiEvolveStage2Count = 3,
   });
 
   /// 起動直後/オフライン用のデフォルト（migration seed と一致）。
@@ -71,6 +77,7 @@ class EconomyParams {
     shinyRate: 0.02,
     pooledPointsMaxDays: 3,
     dexTotalEntries: 30,
+    mofiEvolveStage2Count: 3,
   );
 
   /// `app_config` から取得した key->value(jsonbデコード済み) マップで構築する。
@@ -104,6 +111,8 @@ class EconomyParams {
       pooledPointsMaxDays:
           _asInt(config['pooled_points_max_days']) ?? d.pooledPointsMaxDays,
       dexTotalEntries: _asInt(config['dex_total_entries']) ?? d.dexTotalEntries,
+      mofiEvolveStage2Count: _asInt(config['mofi_evolve_stage2_count']) ??
+          d.mofiEvolveStage2Count,
     );
   }
 

@@ -8,9 +8,16 @@ import '../../domain/mofi_models.dart';
 /// Mofi詳細シート（SCREEN_FLOWS §4 / 要件: 名前・レア・種族・発見日時・色違い有無）。
 /// 未発見は項目を伏せ、「卵を育てて見つけよう」を案内する。
 class MofiDetailSheet extends StatelessWidget {
-  const MofiDetailSheet({super.key, required this.entry});
+  const MofiDetailSheet({
+    super.key,
+    required this.entry,
+    required this.stage2Count,
+  });
 
   final MofiDexEntry entry;
+
+  /// 進化アダルト化の重複しきい値（CollectionState由来 / docs/EVOLUTION.md）。
+  final int stage2Count;
 
   @override
   Widget build(BuildContext context) {
@@ -33,8 +40,10 @@ class MofiDetailSheet extends StatelessWidget {
               diameter: 160,
               glow: discovered ? rarity.main : null,
               child: MofiSubject(
+                speciesId: entry.species.id,
                 family: entry.species.family,
                 rarity: entry.species.rarity,
+                stage: entry.evolutionStage(stage2Count),
                 silhouette: !discovered,
               ),
             ),
@@ -66,6 +75,14 @@ class MofiDetailSheet extends StatelessWidget {
             if (discovered) ...[
               _DetailRow(label: 'レアリティ', value: entry.species.rarity.label),
               _DetailRow(label: '種族', value: entry.species.family.label),
+              _DetailRow(
+                label: '進化',
+                value: entry.evolutionStage(stage2Count) >= 2
+                    ? 'アダルト（進化済み）'
+                    : (entry.toNextEvolution(stage2Count) > 0
+                        ? 'ベビー・あと${entry.toNextEvolution(stage2Count)}体で進化'
+                        : 'ベビー'),
+              ),
               _DetailRow(
                 label: '色違い',
                 value: entry.isShiny ? 'あり' : '通常色',
