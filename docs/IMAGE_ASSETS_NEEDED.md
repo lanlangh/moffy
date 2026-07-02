@@ -95,12 +95,29 @@ labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 - `critter_04` ふわりす(R) — BABY: `a tiny fluffy brown squirrel with a small puffy tail and round cheeks` / ADULT: `the same squirrel, grown with an enormous ultra-fluffy tail curling over its back`
 - `critter_05` こんげつ(SSR) — BABY: `a small mystical golden fox kit with crescent-moon markings and softly glowing eyes` / ADULT: `the same golden fox, grown with several flowing tails and a glowing moon halo, mystical`
 
-**ドラゴン**
-- `dragon_01` とかげり(N) — BABY: `a tiny stubby green baby lizard-dragon, no wings, round belly and a cute little tail` / ADULT: `the same green dragon, grown up with small horns and little wings just starting to spread`
-- `dragon_02` ほのおこ(R) — BABY: `a small orange baby dragon wrapped in a gentle warm flame, round and cute` / ADULT: `the same orange dragon, grown with bigger flames along its back and small spread wings`
-- `dragon_03` らいりゅう(SR) — BABY: `a small violet baby dragon crackling with tiny yellow-and-purple lightning sparks` / ADULT: `the same violet dragon, grown with developed horns and wings and a crackling lightning aura`
-- `dragon_04` こおりば(SR) — BABY: `a small pale ice-blue baby dragon with a frosty sheen, round and cute` / ADULT: `the same ice dragon, grown with crystalline ice horns and icy translucent wings`
-- `dragon_05` てんりゅう(SSR) — BABY: `a small radiant golden celestial baby dragon with soft glowing scales` / ADULT: `the same golden dragon, grown majestic and serpentine with a divine halo and flowing whiskers`
+**ドラゴン（＝“かっこいい”枠・男性ユーザー向け。下の「ドラゴン専用テンプレ」を使う）**
+- `dragon_01` とかげり(N) — BABY: `a small spunky green baby dragon with tiny sharp horns and a determined look, cute but tough` / ADULT: `the same green dragon evolved into a sleek cool adult with sharp horns, spread wings, claws and a confident fierce pose`
+- `dragon_02` ほのおこ(R) — BABY: `a small fiery orange baby dragon with a spark of flame and a bold brave look` / ADULT: `the same dragon evolved into a cool blazing adult, flames along its back, spikes, wings spread wide, powerful stance`
+- `dragon_03` らいりゅう(SR) — BABY: `a small violet baby dragon crackling with tiny lightning sparks, sharp-eyed` / ADULT: `the same dragon evolved into a cool storm dragon, sleek body wreathed in yellow-and-purple lightning, sharp horns and wings`
+- `dragon_04` こおりば(SR) — BABY: `a small pale ice-blue baby dragon with tiny ice spikes, cool-looking` / ADULT: `the same dragon evolved into a cool ice dragon with sharp crystalline horns, jagged icy wings and a proud stance`
+- `dragon_05` てんりゅう(SSR) — BABY: `a small radiant golden baby dragon with a noble brave look` / ADULT: `the same dragon evolved into a majestic imposing golden celestial dragon, serpentine and powerful, divine and cool`
+
+> **ドラゴン専用テンプレ**（共通テンプレの代わりに使う）。レンダリング・光・世界観は同じまま、
+> キャラ設計だけ “kawaii/chibi” → “cool/sleek/fierce” に振る＝同じ世界の中に「かっこいい枠」を作る
+> （ポケモンでピカチュウとリザードンが同居する感じ）:
+> ```
+> A character reference sheet of ONE original COOL collectible dragon shown in its TWO
+> evolution stages, side by side with a clear gap, on a plain flat white background.
+> LEFT = BABY form: [BABY].
+> RIGHT = ADULT (evolved) form, clearly the SAME dragon grown up and much cooler: [ADULT].
+> Both full-body, centered in their own half, in a confident dynamic pose, facing the viewer.
+> Keep the SAME color palette and SAME soft lighting from the upper-left for both. Soft
+> 3D-rendered mobile-game mascot style, same clean rendering as the cute creatures BUT this
+> one is COOL, not kawaii: sleek and sharp, defined horns / spikes / claws / wings, sharper
+> determined eyes, a slightly fierce heroic badass vibe, appealing and polished.
+> Plain flat white background (easy to cut out), NO ground shadow, NO nest, NO text, NO
+> labels, NO frame, NO extra props. Wide 2:1 image, high detail.
+> ```
 
 ---
 

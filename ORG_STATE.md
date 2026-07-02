@@ -135,6 +135,7 @@
 ## 意思決定ログ（=新しいものを上に。日付 / 決定 / 理由）
 | 日付 | 決定 | 理由 |
 |---|---|---|
+| 2026-07-02 | 【デザイン/マーケ】キャラのアート方向: **スライム/小動物=かわいい、ドラゴン=“かっこいい”枠**(男性ユーザー訴求)。進化で「ベビー=ちょいかわ→アダルト=明確にカッコいい」。レンダリング/光/世界観は全種統一。ドラゴンは専用プロンプト(`docs/IMAGE_ASSETS_NEEDED.md`) | かわいい一辺倒だと男性層に刺さらない。同一世界観内でポケモン的に可愛い/カッコいいを同居させ訴求幅を広げる＋進化の見せ場になる。オーナーFB(生成したドラゴンが可愛くなり過ぎ)反映 |
 | 2026-07-02 | 【企画/CEO】v1.0にMofi進化を追加＝**重複入手で2段(ベビー→アダルト)**。トリガー=`obtainedCount`(サーバー専管)、しきい値=`app_config`(既定3)。仕様`docs/EVOLUTION.md` | ダブりに価値を与え収集の深み/リテンションを作る。重複カウント再利用で**経済RPC・報酬経路を変えず改ざん耐性を維持**(段階はobtainedCount由来で偽装不可)。孵化収集型の手触りに乗る(1体育成型への作り替え回避)。アート増(15→30)と実装は許容しオーナー判断で採用 |
 | 2026-06-30 | 【開発】iOS署名/配布: ASC Adminキー(`SVU9YZ67XQ`)で自動プロビジョニング→署名IPA→**TestFlightアップロード成功**。ビルドは**Xcode 26(iOS26 SDK)必須**(Appleのアップロード要件)＋**sentry_flutter 9.x**(8.xはXcode26非対応)＋CocoaPods。 | Exportのクラウド署名はAdminロール必須(App Manager不可)。AppleがiOS26 SDKビルドを強制(18.5 SDKはvalidation 409)。8.x→9.xはconst廃止等あるが当方使用API(init/captureException(hint)/captureMessage/Hint.withMap)は無改変でCI緑。device_info_plus上書きはXcode26で不要化し撤去 |
 | 2026-06-29 | 【CEO/QA】iOS Screen Timeをフル実装→Web検証(high-conf)→Claude-QA独立3観点クロスレビュー(GO_WITH_FIXES)反映→**macOS実コンパイル成功**(既存依存衝突=device_info_plus/sentry SPM/Xcode版/build cycleを解消後)。**シールド(アプリブロック)はしない=報酬型・観測のみ** | iOSは分数取得不可の別設計でMac無し→「実装前にAPI検証・実装後に別観点レビュー・実コンパイルで最終確証」で誤りを潰す(書いた本人が検品しない鉄則)。シールド回避で2つ目の拡張/Entitlement申請を不要に。依存衝突はAndroidに無関係(iOS初ビルドで露呈) |
