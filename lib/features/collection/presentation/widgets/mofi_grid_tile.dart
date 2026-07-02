@@ -19,6 +19,19 @@ class MofiGridTile extends StatelessWidget {
     final discovered = entry.discovered;
     final ring = NestRing(
       diameter: 72,
+      // 色違いは巣リングの外周を虹色リムに（リングと同心＝中心がずれない / SCREEN_FLOWS §4）。
+      rimGradient: (discovered && entry.isShiny)
+          ? SweepGradient(
+              colors: [
+                AppColors.error,
+                AppColors.warn,
+                AppColors.success,
+                RarityToken.rare.main,
+                RarityToken.sr.main,
+                AppColors.error,
+              ],
+            )
+          : null,
       child: MofiSubject(
         family: entry.species.family,
         rarity: entry.species.rarity,
@@ -36,27 +49,7 @@ class MofiGridTile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 色違いは虹枠（発見済みのみ / SCREEN_FLOWS §4）。色は RarityToken/AppColors（SSOT）。
-            if (discovered && entry.isShiny)
-              Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: SweepGradient(
-                    colors: [
-                      AppColors.error,
-                      AppColors.warn,
-                      AppColors.success,
-                      RarityToken.rare.main,
-                      RarityToken.sr.main,
-                      AppColors.error,
-                    ],
-                  ),
-                ),
-                child: ring,
-              )
-            else
-              ring,
+            ring,
             const SizedBox(height: AppSpace.xs),
             Text(
               discovered ? entry.species.name : '？？？',

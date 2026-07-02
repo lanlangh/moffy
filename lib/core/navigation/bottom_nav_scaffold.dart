@@ -6,7 +6,7 @@ import 'tab_icons.dart';
 
 /// ボトムナビ5タブのシェル（DESIGN_SYSTEM §7 BottomNav）。
 ///
-/// アクティブ = 塗りアイコン + warm.orange + ラベル（太字）。
+/// アクティブ = orange のラインアイコン + 淡いハイライトのピル + ラベル（太字）。
 /// 非アクティブ = ライン + ink.600 + ラベル（常時表示・どのタブか一目で分かるように）。
 /// 高さ 64 + セーフエリア、タブアイコン 26（AppSpace）。
 /// GoRouter の StatefulShellRoute から [child]（現在のブランチ）と
@@ -95,12 +95,22 @@ class _TabButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 塗り（アクティブ）/ ライン（非アクティブ）の2状態（DESIGN_SYSTEM §6）。
-            TabIcon(
-              glyph: tab.glyph,
-              color: color,
-              filled: active,
-              size: AppSpace.tabIcon,
+            // アクティブは「線アイコン + 淡いハイライトのピル」で示す（M3風インジケータ）。
+            // 単純なグリフを塗りつぶすと単色の塊に見えて分かりにくいため、塗りはやめた（ユーザーFB）。
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
+              decoration: active
+                  ? const BoxDecoration(
+                      color: AppColors.primarySoft,
+                      borderRadius: AppRadius.pillR,
+                    )
+                  : null,
+              child: TabIcon(
+                glyph: tab.glyph,
+                color: color,
+                filled: false,
+                size: AppSpace.tabIcon,
+              ),
             ),
             // ラベルは常時表示（どのタブか一目で分かるように）。アクティブは太字＋orange。
             const SizedBox(height: AppSpace.xs),

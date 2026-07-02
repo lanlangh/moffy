@@ -19,6 +19,7 @@ class NestRing extends StatelessWidget {
     this.dimmed = false,
     this.borderColor,
     this.inset = 0.14,
+    this.rimGradient,
   });
 
   /// リングの直径（円形被写体の土台サイズ）。
@@ -41,32 +42,56 @@ class NestRing extends StatelessWidget {
   /// 余白がある」被写体は円に対して小さく見えるので、その画面では小さめ（例 0.03）を渡す。
   final double inset;
 
+  /// 外周を虹色などのグラデーションで縁取る（色違い表現など）。null=通常の nest.bark 縁取り。
+  /// リングと完全同心に描くため、外側に別の円を重ねる方式（中心ズレの原因）を使わない。
+  final Gradient? rimGradient;
+
   @override
   Widget build(BuildContext context) {
+    final glowShadow = glow == null
+        ? null
+        : [
+            BoxShadow(
+              color: glow!.withValues(alpha: 0.55),
+              blurRadius: 24,
+              spreadRadius: 2,
+            ),
+          ];
+    // レイヤーは全て Positioned.fill で同一の円に重ねる＝リム/地/被写体が完全同心。
     final ring = SizedBox(
       width: diameter,
       height: diameter,
       child: Stack(
-        alignment: Alignment.center,
         children: [
-          // 巣リング本体（nest.sand 地 + nest.bark 2px 縁取り = 署名の輪郭）
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.surfaceNest,
-              border: Border.all(
-                color: borderColor ?? AppColors.nestBark,
-                width: borderColor != null ? 3 : 2,
+          // 虹色リム（色違い等）: 指定時のみ、外周いっぱいのグラデ円を敷く。
+          if (rimGradient != null)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: rimGradient,
+                  boxShadow: glowShadow,
+                ),
               ),
-              boxShadow: glow == null
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: glow!.withValues(alpha: 0.55),
-                        blurRadius: 24,
-                        spreadRadius: 2,
-                      ),
-                    ],
+            ),
+          // 巣リング本体（nest.sand 地 + nest.bark 縁取り = 署名の輪郭）。虹リムがある時は
+          // 縁取りを消し、リムぶん内側に寄せて「リング状」に見せる（同心）。
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.all(rimGradient != null ? 3 : 0),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.surfaceNest,
+                  border: rimGradient != null
+                      ? null
+                      : Border.all(
+                          color: borderColor ?? AppColors.nestBark,
+                          width: borderColor != null ? 3 : 2,
+                        ),
+                  boxShadow: rimGradient == null ? glowShadow : null,
+                ),
+              ),
             ),
           ),
           // 中央の被写体（円内に収める）。Positioned.fill で FittedBox に確定サイズを与え、
