@@ -362,6 +362,7 @@ class _HatchShareCard extends StatelessWidget {
             diameter: 200,
             glow: isShiny ? rarity.glow.withValues(alpha: 0.9) : rarity.main,
             child: MofiSubject(
+              speciesId: result.species.id,
               family: result.species.family,
               rarity: result.species.rarity,
             ),

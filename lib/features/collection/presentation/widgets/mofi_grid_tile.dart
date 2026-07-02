@@ -9,9 +9,17 @@ import '../../domain/mofi_models.dart';
 ///   * 発見済み: カラー + 名前。色違いは虹枠。
 ///   * 未発見: シルエット（巣だけ残す）+ 「？？？」。
 class MofiGridTile extends StatelessWidget {
-  const MofiGridTile({super.key, required this.entry, required this.onTap});
+  const MofiGridTile({
+    super.key,
+    required this.entry,
+    required this.stage2Count,
+    required this.onTap,
+  });
 
   final MofiDexEntry entry;
+
+  /// 進化アダルト化の重複しきい値（CollectionState由来 / docs/EVOLUTION.md）。
+  final int stage2Count;
   final VoidCallback onTap;
 
   @override
@@ -33,8 +41,10 @@ class MofiGridTile extends StatelessWidget {
             )
           : null,
       child: MofiSubject(
+        speciesId: entry.species.id,
         family: entry.species.family,
         rarity: entry.species.rarity,
+        stage: entry.evolutionStage(stage2Count),
         silhouette: !discovered,
       ),
     );

@@ -57,13 +57,20 @@ class EggSubject extends StatelessWidget {
 class MofiSubject extends StatelessWidget {
   const MofiSubject({
     super.key,
+    required this.speciesId,
     required this.family,
     required this.rarity,
+    this.stage = 1,
     this.silhouette = false,
   });
 
+  /// 個体ID（'slime_01' 等）。イラストのファイル名に使う。
+  final String speciesId;
   final MofiFamily family;
   final MofiRarity rarity;
+
+  /// 進化段階（1=ベビー / 2=アダルト / docs/EVOLUTION.md）。イラスト差し替えに使う。
+  final int stage;
   final bool silhouette;
 
   @override
@@ -71,13 +78,23 @@ class MofiSubject extends StatelessWidget {
     final color = silhouette
         ? AppColors.textDisabled
         : RarityVisuals.ofMofi(rarity).main;
-    // MVPは個体イラスト未配置。せめて種族(family)ごとにアイコンを変え、図鑑が
-    // 全マス同一アイコンに見えるのを避ける（本番は個体イラストへ差し替え）。
-    final icon = switch (family) {
+    // 種族ごとのフォールバックアイコン（本番イラスト未配置・シルエット時）。
+    final fallbackIcon = switch (family) {
       MofiFamily.slime => Icons.water_drop_rounded,
       MofiFamily.critter => Icons.pets_rounded,
       MofiFamily.dragon => Icons.local_fire_department_rounded,
     };
-    return Icon(icon, color: color);
+    // 未発見はイラストを出さずシルエット（種族アイコンを textDisabled で）。
+    if (silhouette) {
+      return Icon(fallbackIcon, color: color);
+    }
+    // 本番イラスト（mofi_<id>_<stage>.png / 進化段階で差し替え）。未配置・読み込み失敗時は
+    // 種族アイコンにフォールバック（アート未着でも動き、届いた分から自動で切り替わる）。
+    return Image.asset(
+      'assets/images/mofi/mofi_${speciesId}_$stage.png',
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (context, error, stack) => Icon(fallbackIcon, color: color),
+    );
   }
 }

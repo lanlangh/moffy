@@ -44,17 +44,28 @@ class MockCollectionRepository implements CollectionRepository {
       'dragon_03:normal': DateTime(2026, 6, 19, 19, 15),
     };
 
-    final entries = _buildAllEntries(discovered);
+    // プレビュー用の重複入手数（進化の見た目を確認するため / しきい値=3）。
+    const counts = <String, int>{
+      'slime_01:normal': 4, // アダルトに進化済み
+      'critter_01:normal': 3, // ちょうど進化
+      'slime_02:normal': 2, // ベビー・あと1体で進化（発見済み）
+    };
+
+    final entries = _buildAllEntries(discovered, counts);
 
     return CollectionState(
       entries: entries,
       totalEntries: params.dexTotalEntries,
       isOffline: !isOnline,
+      evolveStage2Count: params.mofiEvolveStage2Count,
     );
   }
 
   /// マスタ15種 × {通常色, 色違い} = 30エントリを安定順で生成する。
-  List<MofiDexEntry> _buildAllEntries(Map<String, DateTime> discovered) {
+  List<MofiDexEntry> _buildAllEntries(
+    Map<String, DateTime> discovered,
+    Map<String, int> counts,
+  ) {
     final species = [...kMofiSpeciesSeed]
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     final result = <MofiDexEntry>[];
@@ -68,7 +79,7 @@ class MockCollectionRepository implements CollectionRepository {
             isShiny: shiny,
             discovered: at != null,
             discoveredAt: at,
-            obtainedCount: at != null ? 1 : 0,
+            obtainedCount: at != null ? (counts[key] ?? 1) : 0,
           ),
         );
       }
@@ -128,6 +139,7 @@ class SupabaseCollectionRepository implements CollectionRepository {
         entries: entries,
         totalEntries: params.dexTotalEntries,
         isOffline: !isOnline,
+        evolveStage2Count: params.mofiEvolveStage2Count,
       );
     } catch (e, st) {
       Log.e('loadCollection failed', error: e, stack: st);
