@@ -12,7 +12,10 @@
 
 ---
 
-## 🥇 最優先：Mofi キャラ 15種 × 2進化段階 ＝ 30体（＝図鑑の主役・今は仮アイコン）
+## 🥇 最優先：Mofi キャラ 20種 × 2進化段階 ＝ 40体（＝図鑑の主役・今は仮アイコン）
+
+> 4系統：スライム / 小動物（＝かわいい枠）・ドラゴン / 獣（＝“かっこいい”枠）。
+> かわいい10:かっこいい10。**獣（虎/狼/獅子）はドラゴンと同じ「ドラゴン専用テンプレ」で cool に**。
 
 **進化仕様（`docs/EVOLUTION.md`）**: 各 Mofi は「ベビー→アダルト」の2段。**1種につき2枚**必要:
 - ベビー … `mofi_<id>_1.png`
@@ -50,6 +53,11 @@ Square 1:1, 1024x1024.
 | dragon_03 | ドラゴン | SR | らいりゅう | 雷（黄/紫）をまとう子竜（紫可＝SR） | 雷をまとい角・翼が発達 |
 | dragon_04 | ドラゴン | SR | こおりば | 氷・水色の子竜 | 氷の結晶の角・翼 |
 | dragon_05 | ドラゴン | SSR | てんりゅう | 金色の子天竜（SSR＝金） | 荘厳な金の天竜・後光 |
+| beast_01 | 獣 | N | とらまる | 縞のある子トラ、大きな肉球、元気 | 引き締まった若トラ、鋭い牙・凛々しい |
+| beast_02 | 獣 | N | うるが | 灰色の子オオカミ、とがった耳 | しなやかな灰狼、鋭い眼光・堂々 |
+| beast_03 | 獣 | R | れおん | たてがみの芽が出た子ライオン | 立派なたてがみの獅子、威厳ある姿 |
+| beast_04 | 獣 | SR | くろば | 黒豹の子、紫の艶（SR紫可） | 艶やかな黒豹、紫の光沢・俊敏で精悍 |
+| beast_05 | 獣 | SSR | びゃっこ | 白虎の子、金の斑、気高い | 荘厳な白虎、金の模様・神々しい威圧感 |
 
 > レア色の目安（`RarityToken`）: N=霧緑 / R=水色 / **SR=紫（キャラのSRだけ紫OK）** / SSR=金。
 > **shiny は作らなくてOK**（プログラムで色替え）。まず通常色の30体（またはベビー15体）から。
@@ -118,6 +126,13 @@ labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 > Plain flat white background (easy to cut out), NO ground shadow, NO nest, NO text, NO
 > labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 > ```
+
+**獣（beast）＝“かっこいい”枠**（上の「ドラゴン専用テンプレ」を creature=beast/tiger/wolf/lion に読み替えて使う）
+- `beast_01` とらまる(N) — BABY: `a small spunky orange tiger cub with black stripes, big paws and a bold look` / ADULT: `the same tiger evolved into a sleek cool adult tiger, lean and muscular, sharp fangs and a confident fierce pose`
+- `beast_02` うるが(N) — BABY: `a small grey wolf pup with pointy ears and bright eyes, cute but tough` / ADULT: `the same wolf evolved into a cool lean grey wolf with a sharp gaze and a proud stance`
+- `beast_03` れおん(R) — BABY: `a small lion cub with a tiny tuft of mane and a brave look` / ADULT: `the same lion evolved into a cool majestic lion with a full mane and a regal powerful pose`
+- `beast_04` くろば(SR) — BABY: `a small sleek black panther cub with a faint violet sheen, sharp-eyed` / ADULT: `the same panther evolved into a cool sleek black panther with a glossy violet sheen, agile and fierce`
+- `beast_05` びゃっこ(SSR) — BABY: `a small radiant white tiger cub with faint golden markings, noble` / ADULT: `the same white tiger evolved into a majestic legendary white tiger with golden markings and a divine imposing aura`
 
 ---
 

@@ -43,7 +43,7 @@ class EconomyParams {
   /// S6 アクティブ卵不在時のpt最大プール日数。
   final int pooledPointsMaxDays;
 
-  /// S13 図鑑総エントリー数（15種×2色）。コンプ率の分母。
+  /// S13 図鑑総エントリー数（20種×2色）。コンプ率の分母。
   final int dexTotalEntries;
 
   /// Mofi進化(v1.0 / docs/EVOLUTION.md): アダルトに進化する重複入手数（既定3）。
@@ -76,7 +76,7 @@ class EconomyParams {
     streakMultipliers: StreakTier.defaults,
     shinyRate: 0.02,
     pooledPointsMaxDays: 3,
-    dexTotalEntries: 30,
+    dexTotalEntries: 40,
     mofiEvolveStage2Count: 3,
   );
 

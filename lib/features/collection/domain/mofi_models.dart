@@ -39,13 +39,15 @@ enum MofiRarity {
 enum MofiFamily {
   slime,
   critter,
-  dragon;
+  dragon,
+  beast;
 
   String get wire => name;
 
   static MofiFamily fromWire(String s) => switch (s) {
         'critter' => MofiFamily.critter,
         'dragon' => MofiFamily.dragon,
+        'beast' => MofiFamily.beast,
         _ => MofiFamily.slime,
       };
 
@@ -54,6 +56,7 @@ enum MofiFamily {
         MofiFamily.slime => 'スライム',
         MofiFamily.critter => '小動物',
         MofiFamily.dragon => 'ドラゴン',
+        MofiFamily.beast => '獣',
       };
 }
 
@@ -83,8 +86,9 @@ class MofiSpecies {
       );
 }
 
-/// §4-1 Mofi個体マスタ 15種（migration 0001_init.sql の seed と一致）。
-/// スライム: C2/R2/SR1 / 小動物: C2/R2/SSR1 / ドラゴン: C1/R1/SR2/SSR1。
+/// §4-1 Mofi個体マスタ 20種（migration 0001+0008 の seed と一致）。
+/// スライム: C2/R2/SR1 / 小動物: C2/R2/SSR1 / ドラゴン: C1/R1/SR2/SSR1 /
+/// 獣(かっこいい枠): C2/R1/SR1/SSR1。合計 C7/R6/SR4/SSR3。
 const List<MofiSpecies> kMofiSpeciesSeed = [
   MofiSpecies(id: 'slime_01', family: MofiFamily.slime, rarity: MofiRarity.common, name: 'ぷるりん', sortOrder: 1),
   MofiSpecies(id: 'slime_02', family: MofiFamily.slime, rarity: MofiRarity.common, name: 'もちすら', sortOrder: 2),
@@ -101,6 +105,12 @@ const List<MofiSpecies> kMofiSpeciesSeed = [
   MofiSpecies(id: 'dragon_03', family: MofiFamily.dragon, rarity: MofiRarity.sr, name: 'らいりゅう', sortOrder: 13),
   MofiSpecies(id: 'dragon_04', family: MofiFamily.dragon, rarity: MofiRarity.sr, name: 'こおりば', sortOrder: 14),
   MofiSpecies(id: 'dragon_05', family: MofiFamily.dragon, rarity: MofiRarity.ssr, name: 'てんりゅう', sortOrder: 15),
+  // 獣（beast）＝“かっこいい”枠（男性ユーザー訴求 / 0007 で追加）。
+  MofiSpecies(id: 'beast_01', family: MofiFamily.beast, rarity: MofiRarity.common, name: 'とらまる', sortOrder: 16),
+  MofiSpecies(id: 'beast_02', family: MofiFamily.beast, rarity: MofiRarity.common, name: 'うるが', sortOrder: 17),
+  MofiSpecies(id: 'beast_03', family: MofiFamily.beast, rarity: MofiRarity.rare, name: 'れおん', sortOrder: 18),
+  MofiSpecies(id: 'beast_04', family: MofiFamily.beast, rarity: MofiRarity.sr, name: 'くろば', sortOrder: 19),
+  MofiSpecies(id: 'beast_05', family: MofiFamily.beast, rarity: MofiRarity.ssr, name: 'びゃっこ', sortOrder: 20),
 ];
 
 /// 図鑑エントリ（= マスタ個体 × 色違い有無）。図鑑総数30はこの組み合わせ（S13）。

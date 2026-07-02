@@ -1,0 +1,42 @@
+name: DB Apply 0007/0008 (beast family + dex 40)
+
+# 0007(mofi_family enum に 'beast' 追加) → 0008(獣5種 + 図鑑総数30→40) を
+# ライブ DB(moffy-prod)に適用する。冪等なので再実行可。接続は Secret SUPABASE_DB_URL。
+# enum追加(0007)と使用(0008)を別々の psql -f で流し、enum を先にコミットさせる。手動実行のみ。
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          psql --version
+
+      - name: Apply 0007 (enum add 'beast')
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0007_beast_family_enum.sql
+
+      - name: Apply 0008 (beast species + dex 40)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0008_beast_family_seed.sql
+
+      - name: Verify (species=20 / beast=5 / dex_total=40)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select count(*) as species from public.mofi_species;"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select family, count(*) from public.mofi_species group by family order by family;"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select value as dex_total from public.app_config where key = 'dex_total_entries';"

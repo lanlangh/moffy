@@ -83,6 +83,7 @@ class MofiSubject extends StatelessWidget {
       MofiFamily.slime => Icons.water_drop_rounded,
       MofiFamily.critter => Icons.pets_rounded,
       MofiFamily.dragon => Icons.local_fire_department_rounded,
+      MofiFamily.beast => Icons.whatshot_rounded,
     };
     // NestRing の FittedBox は「子の本来サイズ」を枠に合わせて拡縮する。サイズ未指定の
     // Image は読込前 0×0 になり FittedBox が何も描かない（Mofiが消える）ため、EggArt と
