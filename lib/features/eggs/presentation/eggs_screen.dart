@@ -399,10 +399,7 @@ class _NoActiveEggPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return NestPanel(
       diameter: 160,
-      subject: const Opacity(
-        opacity: 0.5,
-        child: EggArt(rarity: RarityToken.common),
-      ),
+      subject: const EmptyNestEgg(),
       caption: Text('育てる卵を選ぼう', style: AppType.title),
       footer: Text(
         pooledPoints > 0
