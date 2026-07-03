@@ -9,6 +9,7 @@ import '../../../core/sync/finalize_models.dart';
 import '../../../core/usage/point_calculator.dart';
 import '../../../core/usage/usage_models.dart';
 import '../../../core/usage/usage_providers.dart';
+import '../../eggs/data/egg_repository.dart';
 import '../domain/home_state.dart';
 
 /// ホームのデータ層（ARCHITECTURE §1-2 data）。
@@ -172,19 +173,26 @@ class HomeRepository {
     }
   }
 
-  /// プレビュー/モック用スナップショット（たまごタブ MockEggRepository のアクティブ卵＝
-  /// normal・350pt/ヒビ段階と揃える）。本番（useSupabase）はこの分岐を通らない。
-  HomeServerSnapshot _mockSnapshot(EconomyParams params) => HomeServerSnapshot(
-        pointBalance: 1240,
-        gemBalance: 8,
-        pooledPoints: 0,
-        activeEgg: ActiveEggSummary(
-          eggId: 'mock-active',
-          growthPoints: 350,
-          hatchThreshold: params.eggThresholds.hatch,
-          rarityLabel: 'normal',
-        ),
-      );
+  /// プレビュー/モック用スナップショット。**たまごタブと同じモック(eggRepository)の育成中
+  /// アクティブ卵を読み**、ホームと たまご の表示を一致させる（ハードコードだとホームだけ
+  /// 卵が出て たまご は空、という不整合が起きるため / ユーザーFB）。本番はこの分岐を通らない。
+  Future<HomeServerSnapshot> _mockSnapshot(EconomyParams params) async {
+    final eggs = await _ref.read(eggRepositoryProvider).loadEggs(params);
+    final active = eggs.activeEgg; // is_active な育成中の卵（無ければ null＝空の巣）
+    return HomeServerSnapshot(
+      pointBalance: 1240,
+      gemBalance: 8,
+      pooledPoints: eggs.pooledPoints,
+      activeEgg: active == null
+          ? null
+          : ActiveEggSummary(
+              eggId: active.id,
+              growthPoints: active.growthPoints,
+              hatchThreshold: params.eggThresholds.hatch,
+              rarityLabel: active.rarity.wire,
+            ),
+    );
+  }
 
   /// ウォームアップ自動付与（S1 / F-01）をサーバーへ要求する。
   ///
