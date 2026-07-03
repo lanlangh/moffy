@@ -39,6 +39,9 @@ supabase/.temp/
 .DS_Store
 Thumbs.db
 
+# Mofi 生データ置き場（オーナー生成の元画像・切り分け前。最終物は assets/images/mofi/ へ配置）
+assets/images/mofi_raw/
+
 # App-dev tooling / 大容量物（アプリ本体のリポジトリには含めない）
 .claude/
 app-dev-org/
