@@ -10,6 +10,7 @@ import '../domain/home_state.dart';
 import 'home_controller.dart';
 import 'widgets/active_egg_panel.dart';
 import 'widgets/app_usage_chips.dart';
+import 'widgets/home_activity.dart';
 import 'widgets/reduction_card.dart';
 import 'widgets/warmup_celebration.dart';
 
@@ -97,6 +98,17 @@ class _HomeBody extends StatelessWidget {
                 ReductionCard(
                   state: state,
                   onRequestPermission: () => onRequestPermission(),
+                ),
+                const SizedBox(height: AppSpace.lg),
+
+                // 今日のクエスト（ストリーク＋上位2件）＋コレクション達成率。
+                // 毎日の動機づけ・収集導線（ユーザーFB: ホームの情報量を増やす）。
+                HomeQuestsCard(
+                  onSeeAll: () => context.go(AppTab.quests.path),
+                ),
+                const SizedBox(height: AppSpace.lg),
+                HomeCollectionCard(
+                  onOpen: () => context.go(AppTab.collection.path),
                 ),
                 const SizedBox(height: AppSpace.lg),
 

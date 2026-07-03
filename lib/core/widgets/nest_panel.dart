@@ -111,10 +111,14 @@ class NestRing extends StatelessWidget {
       children: [
         if (dimmed)
           ColorFiltered(
-            colorFilter: const ColorFilter.mode(
-              AppColors.offline,
-              BlendMode.saturation,
-            ),
+            // 彩度を落とす（グレースケール寄り）。BlendMode.saturation は Web で透明部分まで
+            // 塗って「グレーの四角」に見えるため、アルファを保つ彩度マトリクスを使う。
+            colorFilter: const ColorFilter.matrix(<double>[
+              0.33, 0.33, 0.33, 0, 0,
+              0.33, 0.33, 0.33, 0, 0,
+              0.33, 0.33, 0.33, 0, 0,
+              0, 0, 0, 1, 0,
+            ]),
             child: ring,
           )
         else

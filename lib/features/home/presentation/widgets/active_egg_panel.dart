@@ -26,8 +26,10 @@ class ActiveEggPanel extends StatelessWidget {
     if (egg == null) {
       return NestPanel(
         diameter: 160,
-        dimmed: true,
-        subject: const NestPlaceholder(),
+        subject: const Opacity(
+          opacity: 0.5,
+          child: EggArt(rarity: RarityToken.common),
+        ),
         caption: Text('巣が空いています', style: AppType.title),
         footer: Column(
           children: [
