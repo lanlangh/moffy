@@ -130,7 +130,7 @@ labels, NO frame, NO extra props. Wide 2:1 image, high detail.
 **獣（beast）＝“かっこいい”枠**（下の「獣専用テンプレ」を使う。ドラゴンと同じ cool 方向・虎/狼/獅子）
 - `beast_01` とらまる(N) — BABY: `a small spunky orange tiger cub with black stripes, big paws and a bold look` / ADULT: `the same tiger evolved into a sleek cool adult tiger, lean and muscular, sharp fangs and a confident fierce pose`
 - `beast_02` うるが(N) — BABY: `a small grey wolf pup with pointy ears and bright eyes, cute but tough` / ADULT: `the same wolf evolved into a cool lean grey wolf with a sharp gaze and a proud stance`
-- `beast_03` れおん(R) — BABY: `a small lion cub with a tiny tuft of mane and a brave look` / ADULT: `the same lion evolved into a cool majestic lion with a full mane and a regal powerful pose`
+- `beast_03` れおん(R) — BABY: `a small round cute ORIGINAL mascot creature with a little golden fluffy lion-like mane, big friendly eyes and a brave expression` / ADULT: `the same creature evolved into a cool original lion-type mascot with a fuller golden fluffy mane and a confident, strong, heroic pose` ／ ※IP誤検知で弾かれたら先頭に `Original character design, not based on any existing movie, game or franchise character.` を足す
 - `beast_04` くろば(SR) — BABY: `a small sleek black panther cub with a faint violet sheen, sharp-eyed` / ADULT: `the same panther evolved into a cool sleek black panther with a glossy violet sheen, agile and fierce`
 - `beast_05` びゃっこ(SSR) — BABY: `a small radiant white tiger cub with faint golden markings, noble` / ADULT: `the same white tiger evolved into a majestic legendary white tiger with golden markings and a divine imposing aura`
 
