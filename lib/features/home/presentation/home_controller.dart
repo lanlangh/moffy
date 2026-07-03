@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/economy.dart';
 import '../../../core/constants/remote_config.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/sync/finalize_models.dart';
 import '../../../core/usage/usage_providers.dart';
+import '../../eggs/domain/egg_models.dart';
+import '../../eggs/presentation/eggs_controller.dart';
 import '../data/home_repository.dart';
 import '../data/warmup_tracker.dart';
 import '../domain/home_state.dart';
@@ -25,7 +28,22 @@ class HomeController extends AsyncNotifier<HomeState> {
     final targets = ref.read(targetPackagesProvider);
     final isOnline = ref.watch(isOnlineProvider);
 
-    // サーバー/キャッシュ（通貨・卵）は権限の有無に関わらず取得（部分エラーにしない）。
+    // 育成中アクティブ卵は「たまごタブと同じ eggsController」を単一情報源にする。
+    // これで枠移動/孵化にホームも自動追従し、「ホームだけ古い/幻の卵が残る」不整合を根治
+    // （mock/本番どちらも同じ状態を見る / ユーザーFB 再発分）。
+    // 卵の取得失敗でホーム全体を落とさない（卵は無しとして続行）。watch は依存を張るので、
+    // 卵が変わればホームも再構築される。
+    EggsState? eggsState;
+    try {
+      eggsState = await ref.watch(eggsControllerProvider.future);
+    } catch (_) {
+      eggsState = null;
+    }
+    final activeEgg = eggsState == null
+        ? null
+        : _toActiveSummary(eggsState.activeEgg, params);
+
+    // サーバー/キャッシュ（通貨残高）は権限の有無に関わらず取得（部分エラーにしない）。
     var snapshot = await repo.loadServerSnapshot(params);
 
     // 利用取得（権限なし/失敗でも baseline は warmup フォールバックで非null）。
@@ -54,13 +72,24 @@ class HomeController extends AsyncNotifier<HomeState> {
       baseline: usage.baseline,
       provisionalPoints: usage.provisionalPoints,
       yesterdayMinutes: usage.yesterdayMinutes,
-      activeEgg: snapshot.activeEgg,
+      activeEgg: activeEgg,
       pointBalance: snapshot.pointBalance,
       gemBalance: snapshot.gemBalance,
       pooledPoints: snapshot.pooledPoints,
       isOffline: !isOnline,
       params: params,
       warmupGrant: warmupGrant,
+    );
+  }
+
+  /// たまごの Egg → ホーム表示用 ActiveEggSummary（無ければ null＝空の巣）。
+  ActiveEggSummary? _toActiveSummary(Egg? egg, EconomyParams params) {
+    if (egg == null) return null;
+    return ActiveEggSummary(
+      eggId: egg.id,
+      growthPoints: egg.growthPoints,
+      hatchThreshold: params.eggThresholds.hatch,
+      rarityLabel: egg.rarity.wire,
     );
   }
 

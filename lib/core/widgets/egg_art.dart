@@ -176,6 +176,32 @@ class NestPlaceholder extends StatelessWidget {
   }
 }
 
+/// 空状態（「育てる卵を選ぼう」/「巣が空いています」）の“これから育てる卵”プレースホルダ。
+/// オーナー用意の白い卵 `assets/images/egg/egg_empty.png` を薄く（半透明）表示する。
+/// 未配置/読み込み失敗時はレア共通の [EggArt] にフォールバック（画像が届くまでも動く）。
+class EmptyNestEgg extends StatelessWidget {
+  const EmptyNestEgg({super.key, this.size = 120});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: 0.5,
+      child: SizedBox.square(
+        dimension: size,
+        child: Image.asset(
+          'assets/images/egg/egg_empty.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (context, error, stack) =>
+              const EggArt(rarity: RarityToken.common),
+        ),
+      ),
+    );
+  }
+}
+
 class _EggGhostPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
