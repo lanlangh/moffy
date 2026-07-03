@@ -56,9 +56,10 @@ class _Slot extends StatelessWidget {
       // 空きスロット（保管庫から入れ替え誘導）。
       return Column(
         children: [
+          // 空きは「暗く沈める(dimmed=グレー)」のをやめ、温かい砂色の巣リング＋薄い + に
+          // ＝「ここに卵を入れられる」誘導（グレーの四角に見える問題の修正 / ユーザーFB）。
           const NestRing(
             diameter: 72,
-            dimmed: true,
             child: Icon(Icons.add_rounded, color: AppColors.textDisabled),
           ),
           const SizedBox(height: AppSpace.xs),
