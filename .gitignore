@@ -49,3 +49,6 @@ asc-mcp/
 flutter_sdk.zip
 .claude/settings.local.json
 .claude/gpc/
+
+# 色違い確認用の書き出し画像（レビュー用・アプリには不要＝プログラムで色変換）
+shiny_preview/
