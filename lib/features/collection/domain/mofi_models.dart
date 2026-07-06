@@ -113,6 +113,16 @@ const List<MofiSpecies> kMofiSpeciesSeed = [
   MofiSpecies(id: 'beast_05', family: MofiFamily.beast, rarity: MofiRarity.ssr, name: 'びゃっこ', sortOrder: 20),
 ];
 
+/// 色違い（shiny）の色相回転角（度 / クライアント表示のみ・追加アート不要）。
+/// 既定は 150°（承認済みのスライム/虎の見た目）。色相回転が似合わないキャラだけ、
+/// ここに `species_id: 角度` を足して個別上書きする（ユーザー確認後に微調整）。
+const Map<String, double> kShinyHueOverride = <String, double>{
+  // 例: 'critter_01': 300, 'dragon_02': 210, ... （確認後に追記）
+};
+
+/// 個体IDの色違い色相回転角（未指定は既定150°）。
+double shinyHueDegFor(String speciesId) => kShinyHueOverride[speciesId] ?? 150;
+
 /// 図鑑エントリ（= マスタ個体 × 色違い有無）。図鑑総数30はこの組み合わせ（S13）。
 class MofiDexEntry {
   final MofiSpecies species;

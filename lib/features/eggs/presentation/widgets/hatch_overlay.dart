@@ -365,6 +365,7 @@ class _HatchShareCard extends StatelessWidget {
               speciesId: result.species.id,
               family: result.species.family,
               rarity: result.species.rarity,
+              isShiny: result.isShiny,
             ),
           ),
           const SizedBox(height: AppSpace.xl),
