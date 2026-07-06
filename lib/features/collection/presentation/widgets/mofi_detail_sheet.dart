@@ -45,6 +45,7 @@ class MofiDetailSheet extends StatelessWidget {
                 rarity: entry.species.rarity,
                 stage: entry.evolutionStage(stage2Count),
                 silhouette: !discovered,
+                isShiny: entry.isShiny,
               ),
             ),
             const SizedBox(height: AppSpace.xl),
