@@ -42,6 +42,10 @@ Thumbs.db
 # Mofi 生データ置き場（オーナー生成の元画像・切り分け前。最終物は assets/images/mofi/ へ配置）
 assets/images/mofi_raw/
 
+# 色違いの元画像ドロップ置き場（オーナーが任意の名前で置く→私が識別・リネーム・処理して
+# assets/images/mofi/ の mofi_<id>_<stage>_shiny.png へ配置。元画像はリポジトリに含めない）
+assets/images/mofi_shiny_raw/
+
 # App-dev tooling / 大容量物（アプリ本体のリポジトリには含めない）
 .claude/
 app-dev-org/

@@ -76,8 +76,9 @@ class MofiSubject extends StatelessWidget {
   final int stage;
   final bool silhouette;
 
-  /// 色違い（shiny）。true のとき色相を回して“特別な色”に（プログラム / 追加アート不要）。
-  /// ベビー/アダルトどちらの絵にも同じフィルタが乗る（＝進化前も色違いになる）。
+  /// 色違い（shiny）。true のとき、まず手描きの本番色違いイラスト
+  /// （mofi_<id>_<stage>_shiny.png）を表示し、未配置なら従来の色相回転フィルタに
+  /// フォールバックする（アートが届いた個体・段階から自動で本物へ切り替わる）。
   final bool isShiny;
 
   @override
@@ -113,10 +114,21 @@ class MofiSubject extends StatelessWidget {
       ),
     );
     if (!isShiny) return content;
-    // 色違い: 色相を回して特別な色に（虹枠は呼び出し側の rimGradient が担当）。
-    return ColorFiltered(
-      colorFilter: _shinyHueFilter(shinyHueDegFor(speciesId)),
-      child: content,
+    // 色違い: まず手描きの本番色違いイラスト（mofi_<id>_<stage>_shiny.png）を表示する。
+    // 未配置・読み込み失敗時は従来の色相回転フィルタにフォールバック（アートが届いた
+    // 個体・段階から自動で本物へ切り替わる）。虹枠は呼び出し側の rimGradient が担当。
+    // FittedBox の 0×0 描画消失を避けるため、通常絵と同じく確定サイズの箱で包む。
+    return SizedBox.square(
+      dimension: dimension,
+      child: Image.asset(
+        'assets/images/mofi/mofi_${speciesId}_${stage}_shiny.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (context, error, stack) => ColorFiltered(
+          colorFilter: _shinyHueFilter(shinyHueDegFor(speciesId)),
+          child: content,
+        ),
+      ),
     );
   }
 }
