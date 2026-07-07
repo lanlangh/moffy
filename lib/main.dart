@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
@@ -5,6 +7,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
+import 'core/ads/ads.dart';
 import 'core/config/env.dart';
 import 'core/observability/crash_reporter.dart';
 import 'core/observability/log.dart';
@@ -14,6 +17,10 @@ import 'core/providers/supabase_provider.dart';
 /// 初期化順: Flutter binding -> Supabase（任意）-> 監視/分析（任意）-> ProviderScope(override) -> App。
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 広告SDK(AdMob)の初期化。無料プランのバナー広告用（PRICING §2）。
+  // 起動をブロックしないよう非同期で開始（モバイルのみ実行・Web/デスクトップ/失敗時は no-op）。
+  unawaited(initAds());
 
   // override リスト（初期化できたものだけ注入）。
   final overrides = <Override>[];

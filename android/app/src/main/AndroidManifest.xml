@@ -40,5 +40,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!--
+          AdMob アプリID（無料プランのバナー広告 / core/ads）。
+          現在は Google 公式テストID。本番は AdMob で作成した実アプリIDへ差し替える
+          （広告ユニットIDは lib/core/ads/ad_config.dart 側）。
+        -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
     </application>
 </manifest>

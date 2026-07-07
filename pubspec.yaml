@@ -49,6 +49,11 @@ dependencies:
   # --- 外部リンク起動 (サブスク管理＝ストアの定期購読画面 / 法務リンク) ---
   url_launcher: ^6.3.0
 
+  # --- 広告 (AdMob / 無料プランのバナー広告・PRICING §2) ---
+  # Web 非対応のため core/ads は条件付き import で分離（Web/デスクトップは no-op）。
+  # 現在は Google 公式テスト広告ID を使用（core/ads/ad_config.dart）。本番は実IDへ差し替え。
+  google_mobile_ads: ^5.3.1
+
   # --- 監視/分析（クラッシュ監視 = Sentry / 行動分析 = PostHog） ---
   # 公開DSN / APIキーは --dart-define で注入（env.dart）。未設定時は Noop 実装に
   # フォールバックし、PoC・テストでクラッシュさせない。PII/生データは送らない（OBSERVABILITY_SETUP.md）。

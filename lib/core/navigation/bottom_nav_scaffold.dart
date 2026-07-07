@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../ads/ad_banner.dart';
 import '../theme/tokens.dart';
 import 'app_tab.dart';
 import 'tab_icons.dart';
@@ -29,9 +30,16 @@ class BottomNavScaffold extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: child,
-      bottomNavigationBar: _MoffyBottomNav(
-        currentIndex: currentIndex,
-        onTap: onTap,
+      // 無料ユーザーのみ、ボトムナビの真上にバナー広告を出す（AdBanner が出し分け）。
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AdBanner(),
+          _MoffyBottomNav(
+            currentIndex: currentIndex,
+            onTap: onTap,
+          ),
+        ],
       ),
     );
   }

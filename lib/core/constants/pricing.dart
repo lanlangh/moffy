@@ -124,7 +124,9 @@ class PremiumEntitlements {
   PremiumEntitlements._();
 
   /// 無料プランに広告を表示するか（=プレミアムは広告削除）。
-  /// MVPは広告SDK未導入（PRD §6）。将来の広告導入を見越したフラグの土台。
+  /// AdMob バナー広告を実装済み（`core/ads`・無料のみ画面下部に表示／プレミアム非表示＝
+  /// 「広告削除」の実体／Web・デスクトップは自動 no-op）。現在は Google 公式テスト広告ID
+  /// （`core/ads/ad_config.dart`）で、本番収益化時に AdMob の実ユニット/アプリIDへ差し替える。
   static const bool freeShowsAds = true;
   static const bool premiumShowsAds = false;
 
