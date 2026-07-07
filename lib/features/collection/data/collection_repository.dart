@@ -40,8 +40,11 @@ class MockCollectionRepository implements CollectionRepository {
       'critter_01:normal': DateTime(2026, 6, 16, 8, 5),
       'critter_03:normal': DateTime(2026, 6, 17, 21, 48),
       'dragon_02:normal': DateTime(2026, 6, 18, 7, 2),
-      'slime_03:shiny': DateTime(2026, 6, 18, 22, 40), // 色違い1体
       'dragon_03:normal': DateTime(2026, 6, 19, 19, 15),
+      // プレビュー(FORCE_MOCK)専用: 色違い本番アート20種を図鑑で確認できるよう、
+      // 全種の色違いを発見済みにする（本番は SupabaseCollectionRepository の実データが
+      // 真の情報源で、この行は本番挙動に影響しない）。
+      for (final s in kMofiSpeciesSeed) '${s.id}:shiny': DateTime(2026, 6, 18, 22, 40),
     };
 
     // プレビュー用の重複入手数（進化の見た目を確認するため / しきい値=3）。
