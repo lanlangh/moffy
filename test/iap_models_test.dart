@@ -126,10 +126,10 @@ void main() {
       expect(PremiumEntitlements.detailedAnalytics, isFalse);
     });
 
-    test('広告削除は広告SDK未導入のため現状は列挙しない（実装と乖離させない）', () {
+    test('広告削除は freeShowsAds のときだけ列挙する（実装＝広告あり と一致）', () {
       final hasAdFree =
           benefits.any((b) => b.kind == PremiumBenefitKind.adFree);
-      expect(hasAdFree, isFalse);
+      expect(hasAdFree, PremiumEntitlements.freeShowsAds);
     });
   });
 

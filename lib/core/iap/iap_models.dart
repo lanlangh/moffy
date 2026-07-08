@@ -229,9 +229,18 @@ class PremiumBenefits {
       );
     }
 
-    // 広告削除: MVPは広告SDK未導入（PRICING §2 注記）。広告が無い間は強く謳わない。
-    //   実装と乖離させないため、広告が実際に存在するようになるまで列挙しない。
-    //   TODO(広告パス): 広告SDK導入後に PremiumBenefitKind.adFree を追加（freeShowsAds 参照）。
+    // 広告削除: AdMob バナー広告を実装済（core/ads・無料プランのみ表示）。無料に広告が
+    //   出る（freeShowsAds=true）間だけ、プレミアム特典として「広告削除」を列挙する
+    //   （実装と一致・PRICING §2 / STORE_DATA_SAFETY §4-3）。
+    if (PremiumEntitlements.freeShowsAds) {
+      benefits.add(
+        const PremiumBenefit(
+          kind: PremiumBenefitKind.adFree,
+          title: '広告を非表示に',
+          description: '無料プランで表示されるバナー広告が消えて、すっきり遊べます。',
+        ),
+      );
+    }
 
     // 詳細分析は detailedAnalytics=false（v1.1送り）のため**列挙しない**（誇大表示回避）。
     return benefits;
