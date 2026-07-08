@@ -54,7 +54,8 @@
 | **デバイスまたはその他のID → 広告ID** | **はい** | AdMob(Google) がバナー広告配信のため広告ID（AAID）を収集・Google と共有 | **広告またはマーケティング** | 必須（無料で表示・プレミアムは非表示） | Google（AdMob） |
 
 > 上記の「他アプリの利用状況」項目は Play フォーム上で該当区分を選択し、説明欄に「SNS利用時間削減を支援するコア機能のためにのみ使用し、広告・販売には使用しない」旨を明記する。
-> **広告ID**は Google AdMob のバナー広告配信のためにのみ用い、無料プランでのみ表示する（プレミアムは非表示）。SNS利用時間・アカウント情報等のコアデータを広告目的に使うことはない。iOS版で広告を出す場合は ATT（App Tracking Transparency）対応が必要（v1.1・Androidファースト）。
+> **広告ID**は Google AdMob のバナー広告配信のためにのみ用い、無料プランでのみ表示する（プレミアムは非表示）。SNS利用時間・アカウント情報等のコアデータを広告目的に使うことはない。iOS版で広告を出す場合は ATT（App Tracking Transparency）対応（`NSUserTrackingUsageDescription`）が必要（v1.1・Androidファースト）。
+> **【CEO決定・v1.0=配信国 日本限定でローンチ】** パーソナライズ広告の同意（UMP/GDPR）はEEA/英/スイス配信時に必須だが**未実装**。v1.0は Play Console で**配信国を日本に限定**して UMP 要件を回避する（Androidファースト・日本市場重視の戦略と整合）。国際配信に広げる際は `google_mobile_ads` の `ConsentInformation`（UMP）実装を前提とし、同意後に `AdRequest` を発火させること。あわせて Play Console の**対象年齢は成人向け**に設定し child-directed タグは立てない（本アプリは18歳以上対象・privacy_policy §7）。
 
 ### 2-3. `PACKAGE_USAGE_STATS`（機微権限）の宣言根拠 — 最重要
 
