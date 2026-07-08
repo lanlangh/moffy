@@ -16,6 +16,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!--
+      AdMob 広告ID（core/ads のバナー広告）。targetSdk 33+ で広告ID(AD_ID)取得に必須。
+      データ安全性フォームで「広告ID収集（目的=広告）」を必ず申告（docs/legal/STORE_DATA_SAFETY.md）。
+    -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+
     <application
         android:label="Moffy"
         android:name="${applicationName}"
