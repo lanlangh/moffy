@@ -2,4 +2,6 @@
 <resources>
     <!-- nest.cream（DESIGN_SYSTEM §2）。styles.xml の colorBackground 用。 -->
     <color name="background">#FBF6EA</color>
+    <!-- アプリアイコン(アダプティブ)の背景オレンジ。既存アイコンから採取。 -->
+    <color name="ic_launcher_background">#EB8C58</color>
 </resources>
