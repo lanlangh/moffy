@@ -155,25 +155,20 @@ class _CrackOverlayPainter extends CustomPainter {
       old.progress != progress;
 }
 
-/// 空／ローディング状態の「卵型プレースホルダ（淡いゴースト）」。
+/// 空／ローディング状態の「卵型プレースホルダ」。
 ///
-/// 実物の卵（[EggArt]）ではなく「ここに卵が入る／読み込み中」を示す。Material の
-/// 既製アイコン（`Icons.egg_*`）の代わりに使い、巣リング（[NestRing]）の中央に置く。
-/// 卵アセット方針（DESIGN_SYSTEM §6・2026-06-30）: 空状態は卵の実画像を出さず、
-/// 巣リング＝空の巣 の上にこの淡い卵型ゴーストだけを乗せる。
+/// 「ここに卵が入る／読み込み中」を示す。**署名の卵アート `egg_empty.png`** を薄く表示する
+/// （[EmptyNestEgg] に委譲）。巣リング（[NestRing]）の中央に置く。旧実装のグレーのベクター
+/// ゴースト（`_EggGhostPainter`）は廃止し、空状態/ローディングも卵イラストで統一した
+/// （オーナーFB 2026-07-09）。これを使う全画面（各種 NestSkeleton / EmptyState）が自動で
+/// ブランドの卵になる。
 class NestPlaceholder extends StatelessWidget {
   const NestPlaceholder({super.key, this.size = 120});
 
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(painter: _EggGhostPainter()),
-    );
-  }
+  Widget build(BuildContext context) => EmptyNestEgg(size: size);
 }
 
 /// 空状態（「育てる卵を選ぼう」/「巣が空いています」）の“これから育てる卵”プレースホルダ。
@@ -200,29 +195,6 @@ class EmptyNestEgg extends StatelessWidget {
       ),
     );
   }
-}
-
-class _EggGhostPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final egg = eggOutlinePath(w, size.height);
-    // ごく淡い塗り＋細い輪郭。「不在＝これから入る」を静かに示す（本物の卵型）。
-    canvas.drawPath(
-      egg,
-      Paint()..color = AppColors.textDisabled.withValues(alpha: 0.12),
-    );
-    canvas.drawPath(
-      egg,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(1.5, w * 0.012)
-        ..color = AppColors.textDisabled.withValues(alpha: 0.5),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _EggGhostPainter old) => false;
 }
 
 /// 本物の卵型シルエット（底が丸く上が細い）を `w`×`h` の枠にほぼ収める。
