@@ -248,3 +248,51 @@ class WarmupClaimResult {
         alreadyClaimed: j['already_claimed'] == true,
       );
 }
+
+/// fn_ensure_first_egg（最初の卵保証RPC / FTUE）の戻り jsonb（migration 0009）のパース結果。
+///
+/// 信頼境界（§2-3 / S1・S6）: 「巣が完全に空（育成枠も保管枠も空）のとき標準卵を1つだけ
+/// 生成する」判断はサーバー RPC `fn_ensure_first_egg()` の責務。クライアントは「巣が空なら
+/// 保証して」と要求するだけで、生成するか否か・何を生成するかは決めない（ウォームアップ窓や
+/// ローカル日付に依存しない堅牢な復帰フォールバック）。冪等: 未孵化卵が1つでもあれば no-op。
+class EnsureFirstEggResult {
+  /// 今回この呼び出しで新規に卵を生成したか（true=巣に卵が出た初回 / 祝福トリガ）。
+  /// 既に卵を持つ（冪等 no-op）/ 並行競合で収束 は false。
+  final bool granted;
+
+  /// 判定理由（'granted' | 'already_has_egg'）。
+  final String reason;
+
+  /// 生成 or 既存のアクティブ卵 id（無ければ null）。
+  final String? eggId;
+
+  /// 生成した卵のレアリティ（常に 'normal'）。
+  final String? rarity;
+
+  /// これが「生涯で最初の卵」か（孵化履歴も無い新規ユーザー）。全孵化して空になった復帰
+  /// ユーザーへの refill は false。FTUE ファネル計測（first_egg_granted）を「初回のみ」に
+  /// 保つためのフラグ（granted=true かつ is_first_ever=true のときだけ計測する）。
+  final bool isFirstEver;
+
+  const EnsureFirstEggResult({
+    required this.granted,
+    required this.reason,
+    this.eggId,
+    this.rarity,
+    this.isFirstEver = false,
+  });
+
+  /// 未付与（Mock 未配線 / オフライン / 失敗）の既定結果。granted=false で画面を止めない。
+  static const EnsureFirstEggResult notGranted =
+      EnsureFirstEggResult(granted: false, reason: 'not_granted');
+
+  /// migration 0009 の `jsonb_build_object(...)` 形からパースする。
+  factory EnsureFirstEggResult.fromJson(Map<String, Object?> j) =>
+      EnsureFirstEggResult(
+        granted: j['granted'] == true,
+        reason: (j['reason'] as String?) ?? '',
+        eggId: j['egg_id'] as String?,
+        rarity: j['rarity'] as String?,
+        isFirstEver: j['is_first_ever'] == true,
+      );
+}

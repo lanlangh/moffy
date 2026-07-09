@@ -34,6 +34,11 @@ abstract final class AnalyticsEvents {
 
   // --- コアループ（pt → 孵化 → 図鑑 / PRD §2） ---
 
+  /// 最初の卵が保証された（FTUE / 空の巣の解消 = コアループへの入口 / migration 0009）。
+  /// **生涯初回のみ**発火（RPC の is_first_ever=true。全孵化して空になった復帰ユーザーへの
+  /// refill では発火させない = FTUE ファネルの水増しを防ぐ / 計測は初回1回に固定）。
+  static const firstEggGranted = 'first_egg_granted';
+
   /// 日次の削減ポイントが確定した（pt獲得の代表点 / S1・S4）。
   /// 注: 確定 pt の「数値」は載せない（生データ非送信）。is_provisional 等の区分のみ可。
   static const dayFinalized = 'day_finalized';

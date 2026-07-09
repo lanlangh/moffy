@@ -8,6 +8,7 @@ import '../../../core/error/failure.dart';
 import '../../../core/observability/log.dart';
 import '../../../core/providers/supabase_provider.dart';
 import '../../../core/sync/connectivity_provider.dart';
+import '../../../core/sync/finalize_models.dart';
 import '../../collection/domain/mofi_models.dart';
 import '../domain/egg_models.dart';
 
@@ -20,6 +21,16 @@ import '../domain/egg_models.dart';
 abstract interface class EggRepository {
   /// たまご画面のスナップショット（育成3枠 + 保管 + プールpt）を取得する。
   Future<EggsState> loadEggs(EconomyParams params);
+
+  /// FTUE 最初の卵保証（復帰フォールバック / migration 0009）。
+  ///
+  /// 巣が完全に空（育成枠も保管枠も空 = 未孵化の卵を1つも持たない）のとき、サーバーへ
+  /// 標準卵を1つ**冪等**付与要求する。結果 [EnsureFirstEggResult]（granted / is_first_ever）を
+  /// 返す。既に卵を持つ（no-op）/ 未配線（Mock）/ オフライン / 失敗は granted=false
+  /// （[EnsureFirstEggResult.notGranted]）で、例外は投げない（画面を止めない）。
+  /// 付与判断はサーバー RPC `fn_ensure_first_egg` の責務（ウォームアップ窓・ローカル日付に
+  /// 依存しない堅牢な保証 / ARCHITECTURE §2-3）。
+  Future<EnsureFirstEggResult> ensureFirstEgg();
 
   /// アクティブ卵（加点対象 / S6: 1枠のみ）を [eggId] に切り替える。
   /// 成長ptは卵ごとに保持される（枠移動で失われない / S6）。
@@ -129,6 +140,34 @@ class MockEggRepository implements EggRepository {
       pooledPoints: 0,
       isOffline: !isOnline,
       params: params,
+    );
+  }
+
+  @override
+  Future<EnsureFirstEggResult> ensureFirstEgg() async {
+    // モック/プレビュー: 巣が完全に空（未孵化の卵ゼロ）のときだけ standard 卵を1つ足す
+    // （本番 RPC fn_ensure_first_egg と同じ guard = 冪等）。既定シードは非空のため通常は no-op。
+    final hasAny = _eggs.any((e) => e.location != EggLocation.hatched);
+    if (hasAny) return EnsureFirstEggResult.notGranted;
+    // 孵化卵も無ければ生涯初（first-ever）。孵化卵だけ残るなら復帰ユーザーの refill。
+    final firstEver = _eggs.isEmpty;
+    _eggs.add(
+      const Egg(
+        id: 'egg_starter_ensured',
+        rarity: EggRarity.normal,
+        growthPoints: 0,
+        location: EggLocation.incubating,
+        slotIndex: 1,
+        isActive: true,
+        acquiredSource: 'starter',
+      ),
+    );
+    return EnsureFirstEggResult(
+      granted: true,
+      reason: 'granted',
+      eggId: 'egg_starter_ensured',
+      rarity: 'normal',
+      isFirstEver: firstEver,
     );
   }
 
@@ -280,6 +319,22 @@ class SupabaseEggRepository implements EggRepository {
     } catch (e, st) {
       Log.e('loadEggs failed', error: e, stack: st);
       rethrow;
+    }
+  }
+
+  @override
+  Future<EnsureFirstEggResult> ensureFirstEgg() async {
+    // 卵付与はサーバー書き込み。オフライン中は保証できない（次回接続時のロードで再試行 =
+    // guard は「巣が空」という状態そのものなので取りこぼさない）。
+    if (!_ref.read(isOnlineProvider)) return EnsureFirstEggResult.notGranted;
+    try {
+      final res = await _client.rpc('fn_ensure_first_egg');
+      if (res is! Map) return EnsureFirstEggResult.notGranted;
+      return EnsureFirstEggResult.fromJson(res.cast<String, Object?>());
+    } catch (e, st) {
+      // 保証に失敗しても画面は出す（冪等 RPC なので次回ロードで再試行可能）。
+      Log.e('ensureFirstEgg failed', error: e, stack: st);
+      return EnsureFirstEggResult.notGranted;
     }
   }
 

@@ -2,7 +2,7 @@
 -- 経済セキュリティ・エピックのライブ最終証明（信頼境界の検証）。
 -- BACKEND_SETUP.md §3 の RPC 権限グリッド ＋ 列レベル GRANT（G-2/G-3/H4-1/M4-1/C-1/C-3）を
 -- 実 DB に対して自己検証する。期待と異なれば RAISE EXCEPTION で失敗させる（CI ゲート化）。
--- migration 0001〜0005 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
+-- migration 0001〜0009 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
 
 \echo '================ permission_check.sql 開始 ================'
 
@@ -22,6 +22,7 @@ declare
     'fn_spend_currency',         jsonb_build_array(true,  false),
     'fn_delete_account',         jsonb_build_array(true,  false),
     'fn_claim_warmup',           jsonb_build_array(true,  false),
+    'fn_ensure_first_egg',       jsonb_build_array(true,  false),
     'fn_purge_deleted_accounts', jsonb_build_array(false, false),
     'fn_apply_growth',           jsonb_build_array(false, false),
     'quest_condition_met',       jsonb_build_array(false, false),

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/remote_config.dart';
+import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../data/egg_repository.dart';
 import '../domain/egg_models.dart';
@@ -17,7 +19,26 @@ class EggsController extends AsyncNotifier<EggsState> {
   Future<EggsState> _load() async {
     final params = await ref.watch(economyParamsProvider.future);
     final repo = ref.read(eggRepositoryProvider);
-    return repo.loadEggs(params);
+    var state = await repo.loadEggs(params);
+
+    // FTUE 最初の卵保証（復帰フォールバック / migration 0009・2026-07-07 決定）。
+    // 巣が完全に空（育成枠も保管枠も空）のとき、サーバーへ標準卵1つを冪等付与要求し、
+    // 新規に付与できたら1回だけ再読込して巣に卵を出す。ウォームアップ窓（Day1/2）や
+    // ローカル日付に依存せず、「空の巣で手詰まり」を状態ベースで根治する（新規も、全孵化して
+    // 空になった復帰ユーザーも救済）。Mock/オフライン/失敗は granted=false で通常表示。
+    // ホームは eggsController を watch するため、この保証はたまご/ホーム双方に効く（単一経路）。
+    if (state.isCompletelyEmpty) {
+      final res = await repo.ensureFirstEgg();
+      if (res.granted) {
+        // FTUE ファネル計測は「生涯初回の卵」のみ（is_first_ever）。復帰ユーザーが全孵化して
+        // 空になり再付与された refill では発火させない（funnel の水増しを防ぐ）。
+        if (res.isFirstEver) {
+          ref.read(analyticsProvider).capture(AnalyticsEvents.firstEggGranted);
+        }
+        state = await repo.loadEggs(params);
+      }
+    }
+    return state;
   }
 
   Future<void> refresh() async {
