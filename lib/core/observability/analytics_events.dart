@@ -85,7 +85,8 @@ abstract final class AnalyticsProps {
   static const planPeriod = 'plan_period';
 
   /// 流入経路（どの画面からペイウォールへ来たか）。paywall_viewed。
-  /// 値はカテゴリ文字列のみ（例: 'eggs_storage_lock' / 'menu'）。
+  /// 値の SSOT は `PaywallSource`（paywall_screen.dart）。実送信値は
+  /// 'menu' / 'eggs_storage' / 'home' / 'collection'。
   static const source = 'source';
 
   /// 確定ステージ（warmup/provisional/confirmed）。day_finalized。

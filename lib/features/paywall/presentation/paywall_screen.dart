@@ -14,6 +14,24 @@ import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
 import 'paywall_controller.dart';
 
+/// ペイウォールへの導線元（AnalyticsProps.source の値 / カテゴリ文字列 = 表記ゆれ防止の SSOT）。
+///
+/// 各入口はこの定数を [PaywallScreen.pathWithSource] に渡して遷移する。値は paywall_viewed の
+/// `source` プロパティにそのまま載り、PostHog で「どの入口が課金に繋がるか」を集計できる。
+abstract final class PaywallSource {
+  /// メニューのプレミアムタイル。
+  static const String menu = 'menu';
+
+  /// たまご画面の保管枠アップセル（無料上限に近づいた時）。
+  static const String eggsStorage = 'eggs_storage';
+
+  /// ホームのプレミアムカード。
+  static const String home = 'home';
+
+  /// 図鑑のプレミアム導線。
+  static const String collection = 'collection';
+}
+
 /// ペイウォール画面（プレミアム購入 / DESIGN_SYSTEM 準拠・PRICING §1,§4）。
 ///
 /// 5状態（DoD / ARCHITECTURE §0-3）:
@@ -28,10 +46,18 @@ import 'paywall_controller.dart';
 ///   * トライアル文言は **資格 eligible のときだけ**（PlanOffer.showTrialBadge / iap-setup）。
 ///   * 特典は **実装済みのものだけ**（PremiumBenefits.active / 詳細分析は宣伝しない）。
 class PaywallScreen extends ConsumerStatefulWidget {
-  const PaywallScreen({super.key});
+  const PaywallScreen({super.key, this.source});
+
+  /// 導線元（どの入口から来たか / [PaywallSource]）。paywall_viewed に付与して
+  /// 入口別の CVR を計測する（null=不明。ルータが ?source= クエリから渡す）。
+  final String? source;
 
   static const String routeName = 'paywall';
   static const String routePath = '/paywall';
+
+  /// 導線元（source）付きの遷移パスを組み立てる（`/paywall?source=home` 等）。
+  /// 各入口はこれを使って push し、どの入口が課金に繋がったかを計測可能にする。
+  static String pathWithSource(String source) => '$routePath?source=$source';
 
   @override
   ConsumerState<PaywallScreen> createState() => _PaywallScreenState();
@@ -42,8 +68,13 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   void initState() {
     super.initState();
     // ファネル: ペイウォール表示（課金ファネルの入口 / PRD §5-5）。
-    // 入口に依らず1度だけ発火（呼び出し側で重複発火させない）。
-    ref.read(analyticsProvider).capture(AnalyticsEvents.paywallViewed);
+    // 入口に依らず1度だけ発火（呼び出し側で重複発火させない）。source があれば
+    // 入口カテゴリを付与（PII なし・カテゴリ値のみ / AnalyticsProps.source）。
+    final source = widget.source;
+    ref.read(analyticsProvider).capture(
+          AnalyticsEvents.paywallViewed,
+          properties: source == null ? null : {AnalyticsProps.source: source},
+        );
   }
 
   @override

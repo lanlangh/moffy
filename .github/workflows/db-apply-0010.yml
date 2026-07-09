@@ -1,0 +1,37 @@
+name: DB Apply 0010 (storage cap enforcement)
+
+# 0010(保管枠上限のサーバー強制 = fn_eggs_enforce_storage_cap トリガー + app_config 上限値) を
+# ライブ DB(moffy-prod)に適用する。app_config=on conflict do nothing / 関数=create or replace /
+# トリガー=drop if exists→create ＝ 冪等なので再実行可。接続は Secret SUPABASE_DB_URL。
+# 前提: 0001〜0009 は適用済み(本番)。手動実行のみ。
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          psql --version
+
+      - name: Apply 0010 (storage cap trigger + app_config limits)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0010_storage_cap.sql
+
+      - name: Verify (トリガー存在 / app_config 上限値)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select tgname from pg_trigger where tgname = 'trg_eggs_enforce_storage_cap';"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select key, value from public.app_config where key in ('storage_slots_free','storage_slots_premium') order by key;"

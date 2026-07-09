@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/iap/iap_providers.dart';
 import '../../../../core/theme/tokens.dart';
 import '../../../../core/widgets/common_widgets.dart';
 import '../../../collection/data/collection_repository.dart';
@@ -186,6 +187,70 @@ class HomeCollectionCard extends ConsumerWidget {
               fillColor: AppColors.success,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ホームのプレミアム導線カード（非プレミアムのみ・非naggy / 磨き込み②）。
+///
+/// 訴求は **v1.0 で実提供している特典だけ**（広告オフ・保管枠アップ）。プレミアム卵/限定Mofi
+/// は未実装のため謳わない（PremiumEntitlements のコメント / 景表法・3.1.2 回避）。
+/// 加入者には出さない（isPremium で丸ごと畳む＝課金済みを煩わせない）。表示は自己完結の
+/// 下余白を持ち、非表示時は上の間隔だけ残る（二重の空きを作らない）。
+class HomePremiumCard extends ConsumerWidget {
+  const HomePremiumCard({super.key, required this.onOpen});
+
+  /// タップ時の遷移（ホームが `PaywallScreen.pathWithSource(PaywallSource.home)` を渡す）。
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 加入者には一切出さない（アップセルは無料ユーザーだけ）。
+    if (ref.watch(isPremiumProvider)) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.lg),
+      child: AppCard(
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: AppRadius.lgR,
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: AppColors.primarySoft,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Moffyプレミアム', style: AppType.bodyStrong),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      '広告オフで、たっぷり集める。',
+                      style: AppType.caption,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
         ),
       ),
     );

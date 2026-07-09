@@ -118,8 +118,9 @@ class _MenuBody extends StatelessWidget {
                 title: isPremium ? 'プレミアム（加入中）' : 'プレミアムにする',
                 subtitle: isPremium
                     ? '特典が解放されています'
-                    : '保管枠アップ・限定Mofi・プレミアム卵',
-                onTap: () => context.push(PaywallScreen.routePath),
+                    : '広告オフ・保管枠アップ',
+                onTap: () => context
+                    .push(PaywallScreen.pathWithSource(PaywallSource.menu)),
               ),
               const SizedBox(height: AppSpace.xl),
 

@@ -120,6 +120,19 @@ void main() {
       expect(hasPremiumEgg, PremiumEntitlements.premiumUnlocksPremiumEgg);
     });
 
+    test('v1.0 は未実装のプレミアム卵/限定Mofiを宣伝しない（誇大表示・3.1.2 回避）', () {
+      // 付与機構/限定個体が未実装のため off に固定。再有効化は「実装」とセットで行う
+      // （このテストが誤って未実装特典を宣伝する状態への回帰を防ぐ / 磨き込み②）。
+      expect(PremiumEntitlements.premiumUnlocksPremiumEgg, isFalse);
+      expect(PremiumEntitlements.premiumUnlocksExclusiveMofi, isFalse);
+      // v1.0 で実際に列挙される特典 = 保管枠 + 広告削除 のみ（実提供のもの）。
+      final kinds = PremiumBenefits.active.map((b) => b.kind).toSet();
+      expect(
+        kinds,
+        {PremiumBenefitKind.storage, PremiumBenefitKind.adFree},
+      );
+    });
+
     test('詳細分析（v1.1送り）は宣伝しない＝特典に含めない', () {
       // detailedAnalytics は false（pricing.dart）。特典 kind に該当値が無いことを確認。
       // （PremiumBenefitKind に analytics を設けていない＝構造的に列挙不可）。
@@ -130,6 +143,23 @@ void main() {
       final hasAdFree =
           benefits.any((b) => b.kind == PremiumBenefitKind.adFree);
       expect(hasAdFree, PremiumEntitlements.freeShowsAds);
+    });
+  });
+
+  group('StorageLimits（保管枠 SSOT / migration 0010 と一致）', () {
+    test('無料=20 / プレミアム=200（app_config storage_slots_* と一致させる）', () {
+      // これらは pricing.dart（クライアント表示）と migration 0010（サーバー強制の app_config
+      // 既定値）の双方の SSOT。片方だけ変えると宣伝と実挙動がズレる（景表法）。値を変える
+      // ときは 0010_storage_cap.sql の app_config 既定値も必ず合わせること。
+      expect(StorageLimits.freeStorageSlots, 20);
+      expect(StorageLimits.premiumStorageSlots, 200);
+    });
+
+    test('プレミアムは無料より多い（差分が実在＝訴求が本物）', () {
+      expect(
+        StorageLimits.premiumStorageSlots,
+        greaterThan(StorageLimits.freeStorageSlots),
+      );
     });
   });
 

@@ -171,6 +171,15 @@ class _EggsBody extends ConsumerWidget {
     try {
       await action();
       navigator.pop();
+    } on StorageFullException {
+      // 保管枠が上限（無料20/プレミアム200 は 0010 で実際に強制）。満杯は事実なので
+      // 具体的に案内する（孵化 or プレミアム拡張）。上部の保管枠アップセルから課金導線へ。
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('保管庫がいっぱいです。卵を孵化させるか、プレミアムで枠を増やせます。'),
+        ),
+      );
     } catch (_) {
       navigator.pop();
       messenger.showSnackBar(
@@ -376,7 +385,9 @@ class _StorageUpsell extends ConsumerWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(
-                onPressed: () => context.push(PaywallScreen.routePath),
+                onPressed: () => context.push(
+                  PaywallScreen.pathWithSource(PaywallSource.eggsStorage),
+                ),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.primaryDeep,
                 ),

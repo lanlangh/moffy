@@ -207,13 +207,17 @@ class PremiumBenefits {
       ),
     ];
 
-    // 限定Mofi（実装フラグが true のときだけ）。
+    // 限定Mofi / プレミアム卵は **v1.0 では実装フラグ off**（未実装のため列挙しない）。
+    //   両特典は付与機構が入るまで宣伝しない（PremiumEntitlements のコメント参照 / 誇大表示回避）。
+    //   実装後にフラグを true へ戻せば、下記の（実態に即した）文言で自動的に列挙される。
+    // 限定Mofi（実装フラグが true のときだけ）。文言は「必ず/でしか」等の断定を避け、
+    //   確率で高レアに出会いやすくなる、という実態ベースにする（景表法）。
     if (PremiumEntitlements.premiumUnlocksExclusiveMofi) {
       benefits.add(
         const PremiumBenefit(
           kind: PremiumBenefitKind.exclusiveMofi,
-          title: '限定Mofiに出会える',
-          description: 'プレミアムでしか出会えない特別な個体が登場します。',
+          title: 'レアな仲間に出会いやすく',
+          description: 'SSRや色違いのMofiに、ぐっと出会いやすくなります。',
         ),
       );
     }

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/env.dart';
 import '../../../core/constants/economy.dart';
+import '../../../core/constants/pricing.dart';
 import '../../../core/constants/remote_config.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/observability/log.dart';
@@ -192,6 +193,15 @@ class MockEggRepository implements EggRepository {
     // TODO(第2b): eggs.location/slot_index/is_active を更新（成長ptは保持 / S6）。
     final i = _eggs.indexWhere((e) => e.id == eggId);
     if (i < 0) throw StateError('egg not found: $eggId');
+    // 保管枠上限（migration 0010 と同じ強制）。Mock は非プレミアム扱い＝無料上限。
+    // 既に storage の卵を数え、上限以上なら弾く（本番トリガーの UPDATE 経路と同義）。
+    if (_eggs[i].location != EggLocation.storage) {
+      final storageCount =
+          _eggs.where((e) => e.location == EggLocation.storage).length;
+      if (storageCount >= StorageLimits.freeStorageSlots) {
+        throw const StorageFullException();
+      }
+    }
     _eggs[i] = _eggs[i].copyWith(
       location: EggLocation.storage,
       isActive: false,
@@ -358,11 +368,21 @@ class SupabaseEggRepository implements EggRepository {
 
   @override
   Future<void> moveToStorage(String eggId) async {
-    await _client.from('eggs').update({
-      'location': 'storage',
-      'is_active': false,
-      'slot_index': null,
-    }).eq('id', eggId);
+    // 保管枠上限はサーバー（migration 0010 トリガー）が権威。上限超過は storage_full を送出
+    // するので、それを [StorageFullException] に正規化して UI が「満杯」を案内できるようにする。
+    try {
+      await _client.from('eggs').update({
+        'location': 'storage',
+        'is_active': false,
+        'slot_index': null,
+      }).eq('id', eggId);
+    } on PostgrestException catch (e, st) {
+      if (e.message.contains('storage_full')) {
+        throw const StorageFullException();
+      }
+      Log.e('moveToStorage failed: ${e.code}', error: e, stack: st);
+      rethrow;
+    }
   }
 
   @override

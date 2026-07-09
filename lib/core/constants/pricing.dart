@@ -118,8 +118,19 @@ class StorageLimits {
 
 /// プレミアム特典フラグ（MVPの境界）。
 ///
-/// CEO裁定: MVPプレミアム = 広告削除 ＋ 保管枠増加 ＋ 限定Mofi ＋ プレミアム卵。
-/// 詳細分析（曜日/時間帯/SNS別/月次/予測）は v1.1 送り（=ここでは false 固定）。
+/// 一致原則（PRICING §2 / iap_models.dart PremiumBenefits）: ペイウォールは **v1.0 で
+/// 実際に提供できている特典だけ** を列挙する（景表法 優良誤認・App Store 3.1.2 /
+/// Google Play「未機能の有料機能」= リジェクト＋返金クレーム の回避）。フラグはこの
+/// 「実装済みか」を表し、UI（PremiumBenefits.active）はフラグ true のものだけ出す。
+///
+/// v1.0 の実提供特典 = **広告削除**（実装済み）＋ 保管枠アップ（プラン差・下記注記）。
+///   * 詳細分析（曜日/時間帯/SNS別/月次/予測）: v1.1 送り（detailedAnalytics=false）。
+///   * プレミアム卵 / 限定Mofi: **v1.0 は未実装のため off**。理由:
+///       - プレミアム卵の付与機構が無い（app_config.egg_drop_distribution の "premium"
+///         配分はどの RPC からも参照されていない＝プレミアムでも高レア卵は配られない）。
+///       - 限定Mofi は 0 体（2026-07-07 決定「ハード限定0体・図鑑40全て無料到達可」）。
+///     → 到達"速度差"(約7.6倍速) はプレミアム卵付与（migration 0010系）が前提。付与実装が
+///        入った時点で premiumUnlocksPremiumEgg を true に戻し、本物の特典として訴求する。
 class PremiumEntitlements {
   PremiumEntitlements._();
 
@@ -131,10 +142,13 @@ class PremiumEntitlements {
   static const bool premiumShowsAds = false;
 
   /// プレミアム限定Mofi（=プレミアムでのみ出会える個体）の解放。
-  static const bool premiumUnlocksExclusiveMofi = true;
+  /// **v1.0=false**: 限定個体は 0 体（2026-07-07 決定）。実装するまで宣伝しない（誇大表示回避）。
+  static const bool premiumUnlocksExclusiveMofi = false;
 
-  /// プレミアム卵（ジェム/課金で入手する高レアリティ卵）への導線解放。
-  static const bool premiumUnlocksPremiumEgg = true;
+  /// プレミアム卵（高レアリティ配分の卵）への導線解放。
+  /// **v1.0=false**: プレミアム卵の付与機構が未実装（egg_drop_distribution["premium"] 未参照）。
+  /// 付与を実装（0010系）したら true に戻す。それまでは宣伝しない（未機能の有料機能=審査/返金リスク）。
+  static const bool premiumUnlocksPremiumEgg = false;
 
   /// 詳細分析（曜日/時間帯/SNS別/月次/予測）。MVPは無効（v1.1送り）。
   /// 無料の「今日/今週」分析は本フラグの対象外で、全プランに提供される。

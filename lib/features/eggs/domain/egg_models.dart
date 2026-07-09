@@ -37,6 +37,19 @@ enum EggRarity {
 /// 卵の所在（migration: egg_location enum / S6）。
 enum EggLocation { incubating, storage, hatched }
 
+/// 保管枠が上限に達しているため保管できない（moveToStorage 時）。
+///
+/// サーバー（migration 0010 の storage_cap トリガーが送出する `storage_full`）と、Mock の
+/// 上限チェックの双方が投げる。UI はこれを捕まえて「満杯（孵化 or プレミアムで拡張）」を
+/// 案内する（無料20/プレミアム200 は実際に強制されており、この案内は事実に即す / 景表法）。
+/// sealed [Failure] 階層には**加えない**（既存の網羅 switch を壊さない軽量例外）。
+class StorageFullException implements Exception {
+  const StorageFullException();
+
+  @override
+  String toString() => 'StorageFullException';
+}
+
 /// 卵の成長段階（§4-5: ヒビ①100 / ヒビ②250 / 孵化500）。
 enum EggGrowthStage {
   /// 0〜99pt: ヒビなし。
