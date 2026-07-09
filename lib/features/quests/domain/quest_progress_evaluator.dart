@@ -48,9 +48,22 @@ abstract final class QuestProgressEvaluator {
   static Quest evaluate(Quest definition, QuestMetrics metrics) {
     final c = definition.condition;
     final progress = _progressFor(c, metrics);
-    // target<=0 の防御: 0目標は「常に達成」とみなさず未達に倒す（不正定義で誤付与しない）。
-    final completed = c.target > 0 && progress >= c.target;
+    final completed = _completedFor(c, progress);
     return definition.copyWith(progress: progress, isCompleted: completed);
+  }
+
+  /// 進捗量から達成を判定する。
+  ///
+  ///   * target<=0 の不正定義は達成にしない（誤付与防止）。
+  ///   * **app_under は維持型**（上限未満で成功）。当日確定前は「あとで使い足す」可能性が
+  ///     あり成立を断定できないため、達成の確定はサーバー（日次確定後の
+  ///     `quest_condition_met` = used < target・fail-closed）に委ね、ここでは達成を立てない
+  ///     （進捗表示専用の評価器が未確定を達成扱いして誤って受取要求を出さない / 信頼境界）。
+  ///   * 他タイプ（reduce_total / hatch_count / points_earn / streak_keep）は progress>=target。
+  static bool _completedFor(QuestCondition c, int progress) {
+    if (c.target <= 0) return false;
+    if (c.type == QuestConditionType.appUnder) return false;
+    return progress >= c.target;
   }
 
   /// condition.type ごとの現在進捗量を返す（単位は type 依存）。
@@ -58,11 +71,9 @@ abstract final class QuestProgressEvaluator {
     switch (c.type) {
       case QuestConditionType.appUnder:
         // 「対象アプリの利用が target 分未満」= 削減チャレンジ。
-        // 進捗バーは「target に対してどれだけ下回れたか」を 0..target で表す。
-        // 例: 目標30分未満 / 実利用10分 → 進捗20（=達成方向に20分の余裕）。
-        final used = c.package == null ? 0 : (m.perAppMinutes[c.package] ?? 0);
-        final headroom = c.target - used;
-        return headroom < 0 ? 0 : headroom.clamp(0, c.target);
+        // 進捗＝**使った分**（予算メーター規約 / カード描画と一致）。使うほどバーが埋まり、
+        // 上限到達/超過はカード側で赤表示。上限超過分もそのまま返す（クランプしない）。
+        return c.package == null ? 0 : (m.perAppMinutes[c.package] ?? 0);
       case QuestConditionType.reduceTotal:
         return m.reducedMinutes < 0 ? 0 : m.reducedMinutes;
       case QuestConditionType.streakKeep:

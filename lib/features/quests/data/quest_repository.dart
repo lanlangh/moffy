@@ -230,7 +230,9 @@ class SupabaseQuestRepository implements QuestRepository {
         final reward = QuestReward.fromJson(
           ((def['reward'] as Map?) ?? const {}).cast<String, Object?>(),
         );
-        // 進捗は user_quests.progress（jsonb）の 'value' を採用（評価器の規約に合わせる）。
+        // 進捗は user_quests.progress（jsonb）の 'value' を採用（評価器 QuestProgressEvaluator と
+        // 同一規約）。規約: app_under は **使用分**（予算メーター）、他タイプは達成量。未書込は 0
+        // （app_under なら「使用0=バー空=まだ余裕」に描画される / カードが type 別に解釈）。
         final progressMap =
             ((r['progress'] as Map?) ?? const {}).cast<String, Object?>();
         final progress = (progressMap['value'] as num?)?.toInt() ?? 0;

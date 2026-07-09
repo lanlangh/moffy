@@ -27,18 +27,20 @@ class QuestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 「app_under（○分まで）」型は意味が逆（使うほど悪い）なので、バーは
-    // 「残り allowance（使うほど減る）」を表す。達成は満タン、上限超過は赤。
+    // 「app_under（○分まで）」型は"予算メーター"として描く（磨き込み③）: progress=使った分。
+    //   バーは「使用量 ÷ 上限」で **使うほど埋まる**。未使用(=空バー)＝まだ余裕・未達に見え、
+    //   満タン＝上限に達した(=悪い)を意味する（"満タン=達成に見える"誤読の解消）。上限接近で
+    //   警告色、上限到達/超過で赤。達成(=上限内)の確定はサーバー（日次確定後）で、そのときだけ
+    //   緑満タン＋受取を出す。他タイプ(reduce_total等)は従来どおり「進捗=良い（埋まる=達成）」。
     final isUnderType = quest.condition.type == QuestConditionType.appUnder;
-    final overLimit = isUnderType && quest.progress > quest.condition.target;
-    final barValue = quest.isCompleted
-        ? 1.0
-        : isUnderType
-            ? (1 - quest.progressRatio).clamp(0.0, 1.0)
-            : quest.progressRatio;
+    final atOrOverLimit = isUnderType &&
+        quest.condition.target > 0 &&
+        quest.progress >= quest.condition.target;
+    // 全タイプ共通: 達成=満タン、未達=進捗率（app_under も使用量/上限で埋まる）。
+    final barValue = quest.isCompleted ? 1.0 : quest.progressRatio;
     final barColor = quest.isCompleted
         ? AppColors.success
-        : overLimit
+        : atOrOverLimit
             ? AppColors.error
             : (isUnderType && quest.progressRatio > 0.8)
                 ? AppColors.warn
@@ -67,7 +69,7 @@ class QuestCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpace.md),
-          // 進捗バー（達成=緑満タン / 上限超過=赤 / 「〜まで」型=残り allowance）。
+          // 進捗バー（達成=緑満タン / app_under=予算メーター:使用量で埋まり上限到達=赤）。
           GrowthProgressBar(value: barValue, fillColor: barColor),
           const SizedBox(height: AppSpace.sm),
           Row(
@@ -99,14 +101,15 @@ class QuestCard extends StatelessWidget {
     if (q.condition.type == QuestConditionType.streakKeep) {
       return q.isCompleted ? '達成' : '今日まだ';
     }
-    // 「○分まで」型は「残り／上限」で表す（使った量の分子表示だと意味が逆に読める）。
+    // app_under（「○分まで」）は "あと○分（上限N分）" で残り allowance を明示（progress=使用分）。
+    // バーは使用量で埋まる（予算メーター）が、文言は残り時間で「あとどれだけ使えるか」を伝える。
     if (q.condition.type == QuestConditionType.appUnder) {
       final target = q.condition.target;
       final remaining = target - q.progress;
       if (q.isCompleted) return '上限内で達成';
-      return remaining >= 0
-          ? 'あと$remaining分（上限$target分）'
-          : '上限を${-remaining}分オーバー';
+      if (remaining > 0) return 'あと$remaining分（上限$target分）';
+      if (remaining == 0) return '上限に到達（$target分）';
+      return '上限を${-remaining}分オーバー';
     }
     return '${q.progress} / ${q.condition.target}$unit';
   }

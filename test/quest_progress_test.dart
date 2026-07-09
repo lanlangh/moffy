@@ -44,7 +44,7 @@ void main() {
       expect(r.isCompleted, isFalse);
     });
 
-    test('app_under: 対象アプリが目標分未満なら達成（余裕分を進捗化）', () {
+    test('app_under: progress=使用分（12分利用→12・予算メーター規約）', () {
       final q = def(
         const QuestCondition(
           type: QuestConditionType.appUnder,
@@ -52,16 +52,17 @@ void main() {
           package: 'com.x',
         ),
       );
-      // 12分利用 → 余裕8分 → 進捗8。達成は progress>=target=20 を要するため未達。
+      // 12分利用 → progress=12（使用量）。バーは12/20で埋まる（カード側）。
       final r = QuestProgressEvaluator.evaluate(
         q,
         const QuestMetrics(perAppMinutes: {'com.x': 12}),
       );
-      expect(r.progress, 8);
+      expect(r.progress, 12);
+      // 維持型の達成確定はサーバー（日次確定後）。評価器は達成を立てない（fail-closed）。
       expect(r.isCompleted, isFalse);
     });
 
-    test('app_under: 全く使わなければ余裕=target で達成', () {
+    test('app_under: 未使用は progress=0（バー空＝まだ余裕）。評価器は達成を立てない', () {
       final q = def(
         const QuestCondition(
           type: QuestConditionType.appUnder,
@@ -70,11 +71,12 @@ void main() {
         ),
       );
       final r = QuestProgressEvaluator.evaluate(q, const QuestMetrics());
-      expect(r.progress, 20);
-      expect(r.isCompleted, isTrue);
+      expect(r.progress, 0);
+      // 使用0でも達成扱いにしない（当日確定前・あとで使い足す可能性 / サーバー確定に委ねる）。
+      expect(r.isCompleted, isFalse);
     });
 
-    test('app_under: 使いすぎ（超過）は進捗0', () {
+    test('app_under: 超過は使用分をそのまま返す（40分→40・カードが上限超過=赤に）', () {
       final q = def(
         const QuestCondition(
           type: QuestConditionType.appUnder,
@@ -86,7 +88,7 @@ void main() {
         q,
         const QuestMetrics(perAppMinutes: {'com.x': 40}),
       );
-      expect(r.progress, 0);
+      expect(r.progress, 40);
       expect(r.isCompleted, isFalse);
     });
 
