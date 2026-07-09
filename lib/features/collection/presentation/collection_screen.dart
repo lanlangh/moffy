@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/iap/iap_providers.dart';
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../eggs/presentation/egg_visuals.dart';
+import '../../paywall/presentation/paywall_screen.dart';
 import '../domain/mofi_models.dart';
 import 'collection_controller.dart';
 import 'widgets/mofi_detail_sheet.dart';
@@ -83,6 +85,8 @@ class _CollectionBody extends ConsumerWidget {
       children: [
         if (state.isOffline) const OfflineBar(),
         _AchievementHeader(state: state),
+        // プレミアム導線（非プレミアムのみ・実提供特典のみ訴求 / 磨き込み②）。
+        const _CollectionPremiumHint(),
         _FilterBar(
           filter: filter,
           onRarity: filterNotifier.toggleRarity,
@@ -161,6 +165,68 @@ class _AchievementHeader extends StatelessWidget {
             fillColor: AppColors.success,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 図鑑のプレミアム導線（非プレミアムのみ・非naggy / 磨き込み②）。
+///
+/// 図鑑＝収集の文脈に自然に置く細身バナー。訴求は **v1.0 で実提供している特典だけ**
+/// （広告オフ）。プレミアム卵/限定Mofi（＝レアが早く集まる系）は未実装のため謳わない
+/// （PremiumEntitlements のコメント / 景表法・3.1.2 回避）。加入者には出さない。
+class _CollectionPremiumHint extends ConsumerWidget {
+  const _CollectionPremiumHint();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(isPremiumProvider)) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        0,
+        AppSpace.lg,
+        AppSpace.sm,
+      ),
+      child: InkWell(
+        onTap: () => context.push(
+          PaywallScreen.pathWithSource(PaywallSource.collection),
+        ),
+        borderRadius: AppRadius.pillR,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.md,
+            vertical: AppSpace.sm,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.primarySoft.withValues(alpha: 0.5),
+            borderRadius: AppRadius.pillR,
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.workspace_premium_rounded,
+                size: 16,
+                color: AppColors.primaryDeep,
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: Text(
+                  '広告オフで、コレクションに集中',
+                  style: AppType.caption.copyWith(
+                    color: AppColors.primaryDeep,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: AppColors.primaryDeep,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

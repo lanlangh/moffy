@@ -6,6 +6,7 @@ import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../paywall/presentation/paywall_screen.dart';
 import '../domain/home_state.dart';
 import 'home_controller.dart';
 import 'widgets/active_egg_panel.dart';
@@ -111,6 +112,14 @@ class _HomeBody extends StatelessWidget {
                   onOpen: () => context.go(AppTab.collection.path),
                 ),
                 const SizedBox(height: AppSpace.lg),
+
+                // プレミアム導線（非プレミアムのみ表示・実提供特典のみ訴求 / 磨き込み②）。
+                // 非表示時（加入者）は shrink し、上の間隔だけ残る（二重の空きを作らない）。
+                HomePremiumCard(
+                  onOpen: () => context.push(
+                    PaywallScreen.pathWithSource(PaywallSource.home),
+                  ),
+                ),
 
                 // 対象4アプリ別の利用時間（権限ありかつ取得済みのみ）。
                 if (!state.isPermissionMissing &&

@@ -138,11 +138,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: DeleteAccountScreen.routeName,
         builder: (context, state) => const DeleteAccountScreen(),
       ),
-      // ペイウォール（プレミアム購入 / RevenueCat）。メニュー・保管枠満杯から push。
+      // ペイウォール（プレミアム購入 / RevenueCat）。各入口から push。
+      // ?source= クエリで導線元を受け取り、paywall_viewed に付与する（入口別CVR計測）。
       GoRoute(
         path: PaywallScreen.routePath,
         name: PaywallScreen.routeName,
-        builder: (context, state) => const PaywallScreen(),
+        builder: (context, state) =>
+            PaywallScreen(source: state.uri.queryParameters['source']),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
