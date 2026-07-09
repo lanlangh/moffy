@@ -6,6 +6,11 @@ name: Build AAB
 # 手動実行。成果物 app-release.aab を artifact としてダウンロードできる。
 on:
   workflow_dispatch:
+    inputs:
+      prod_ads:
+        description: "本番の実広告を出す（=公開直前のみ true。通常は false でテスト広告）"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -60,7 +65,8 @@ jobs:
             --build-number=${{ github.run_number }} \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=REVENUECAT_ANDROID_KEY="$REVENUECAT_ANDROID_KEY"
+            --dart-define=REVENUECAT_ANDROID_KEY="$REVENUECAT_ANDROID_KEY" \
+            --dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }}
 
       - name: Build signed release APK (appetize/プレビュー用)
         env:
