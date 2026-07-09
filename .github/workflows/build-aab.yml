@@ -57,6 +57,7 @@ jobs:
           REVENUECAT_ANDROID_KEY: ${{ secrets.REVENUECAT_ANDROID_KEY }}
         run: |
           flutter build appbundle --release \
+            --build-number=${{ github.run_number }} \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=REVENUECAT_ANDROID_KEY="$REVENUECAT_ANDROID_KEY"
@@ -70,6 +71,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           flutter build apk --release \
+            --build-number=${{ github.run_number }} \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=FORCE_MOCK=true
