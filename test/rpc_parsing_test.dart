@@ -240,6 +240,67 @@ void main() {
     });
   });
 
+  group('EnsureFirstEggResult.fromJson（fn_ensure_first_egg の戻り jsonb / FTUE）', () {
+    test('新規（生涯初回）付与（granted / is_first_ever=true）をパース', () {
+      // migration 0009 の fn_ensure_first_egg（v_granted=true / 孵化履歴なし）の戻り形。
+      final json = <String, Object?>{
+        'granted': true,
+        'reason': 'granted',
+        'egg_id': 'egg_ensured_1',
+        'rarity': 'normal',
+        'is_first_ever': true,
+      };
+      final r = EnsureFirstEggResult.fromJson(json);
+      expect(r.granted, isTrue);
+      expect(r.reason, 'granted');
+      expect(r.eggId, 'egg_ensured_1');
+      expect(r.rarity, 'normal');
+      expect(r.isFirstEver, isTrue);
+    });
+
+    test('復帰 refill（granted だが is_first_ever=false / 孵化履歴あり）をパース', () {
+      // 全孵化して空になった復帰ユーザーへの再付与（FTUE ファネルには計上しない）。
+      final json = <String, Object?>{
+        'granted': true,
+        'reason': 'granted',
+        'egg_id': 'egg_refill',
+        'rarity': 'normal',
+        'is_first_ever': false,
+      };
+      final r = EnsureFirstEggResult.fromJson(json);
+      expect(r.granted, isTrue);
+      expect(r.isFirstEver, isFalse);
+    });
+
+    test('冪等 no-op（already_has_egg / 既に卵あり・granted=false）をパース', () {
+      final json = <String, Object?>{
+        'granted': false,
+        'reason': 'already_has_egg',
+        'egg_id': 'egg_active_existing',
+        'rarity': 'normal',
+        'is_first_ever': false,
+      };
+      final r = EnsureFirstEggResult.fromJson(json);
+      expect(r.granted, isFalse);
+      expect(r.reason, 'already_has_egg');
+      expect(r.eggId, 'egg_active_existing');
+      expect(r.isFirstEver, isFalse);
+    });
+
+    test('egg_id / is_first_ever 欠落でも安全にパース（既定=false）', () {
+      final json = <String, Object?>{
+        'granted': false,
+        'reason': 'already_has_egg',
+        'egg_id': null,
+        'rarity': 'normal',
+      };
+      final r = EnsureFirstEggResult.fromJson(json);
+      expect(r.granted, isFalse);
+      expect(r.eggId, isNull);
+      expect(r.isFirstEver, isFalse);
+    });
+  });
+
   group('Egg.fromJson（eggs select の行）', () {
     test('育成中・アクティブ卵をパース', () {
       final json = <String, Object?>{

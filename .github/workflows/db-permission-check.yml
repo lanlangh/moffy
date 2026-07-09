@@ -24,6 +24,15 @@ jobs:
           fi
           echo "psql version:"; psql --version
 
+      # permission_check.sql の RPC 権限グリッドは fn_ensure_first_egg(0009) を期待する。
+      # 本ワークフローはマイグレーションを再適用しない方針だが、0009 は冪等(create or replace
+      # + grant)で権限確認そのものに必要なため、チェック前にこれだけ適用しておく(未適用の
+      # ライブ DB でグリッド件数不一致で誤失敗するのを防ぐ)。0001〜0008 は適用済み前提。
+      - name: Apply 0009 (idempotent / permission_check の前提)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0009_ensure_first_egg.sql
+
       - name: Run permission check (§3 RPC権限グリッド / 列GRANT / H4-1実証)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}

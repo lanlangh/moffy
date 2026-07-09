@@ -1,0 +1,36 @@
+name: DB Apply 0009 (ensure first egg / FTUE)
+
+# 0009(fn_ensure_first_egg = 最初の卵保証 RPC) をライブ DB(moffy-prod)に適用する。
+# create or replace + revoke/grant のみ = 冪等なので再実行可。接続は Secret SUPABASE_DB_URL。
+# 前提: 0001〜0008 は適用済み(本番)。手動実行のみ。
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          psql --version
+
+      - name: Apply 0009 (fn_ensure_first_egg)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0009_ensure_first_egg.sql
+
+      - name: Verify (関数存在 / authenticated=execute可 / anon=不可 / security definer)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select proname, prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname='public' and p.proname='fn_ensure_first_egg';"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select has_function_privilege('authenticated', 'public.fn_ensure_first_egg()', 'execute') as auth_can, has_function_privilege('anon', 'public.fn_ensure_first_egg()', 'execute') as anon_can;"
