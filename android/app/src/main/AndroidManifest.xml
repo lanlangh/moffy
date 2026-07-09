@@ -48,12 +48,14 @@
             android:name="flutterEmbedding"
             android:value="2" />
         <!--
-          AdMob アプリID（無料プランのバナー広告 / core/ads）。
-          現在は Google 公式テストID。本番は AdMob で作成した実アプリIDへ差し替える
-          （広告ユニットIDは lib/core/ads/ad_config.dart 側）。
+          AdMob アプリID（無料プランのバナー広告 / core/ads）。合同会社Lan の実アプリID。
+          既定（開発/内部テスト）は lib/core/ads/ad_config.dart がテスト広告ユニットを使うため、
+          この実アプリIDでも出るのはテスト広告のみ＝自クリック安全。実広告の実配信は
+          「本番公開ビルド（--dart-define=ADMOB_USE_PROD_ADS=true）＋AdMob 審査承認後（一般公開後）」。
+          広告ユニットIDの切替は ad_config.dart 側。
         -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
+            android:value="ca-app-pub-5063966757462588~9241790104" />
     </application>
 </manifest>
