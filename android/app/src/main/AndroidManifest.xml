@@ -51,7 +51,7 @@
           AdMob アプリID（無料プランのバナー広告 / core/ads）。合同会社Lan の実アプリID。
           既定（開発/内部テスト）は lib/core/ads/ad_config.dart がテスト広告ユニットを使うため、
           この実アプリIDでも出るのはテスト広告のみ＝自クリック安全。実広告の実配信は
-          「本番公開ビルド（--dart-define=ADMOB_USE_PROD_ADS=true）＋AdMob 審査承認後（一般公開後）」。
+          「本番公開ビルド（dart-define で ADMOB_USE_PROD_ADS=true 指定）＋AdMob 審査承認後（一般公開後）」。
           広告ユニットIDの切替は ad_config.dart 側。
         -->
         <meta-data
