@@ -46,9 +46,10 @@ abstract final class Env {
   // iOS キーはオーナー方針で GitHub Secret を使わず既定値に直書きする。この appl_ は
   // RevenueCat の「公開SDKキー」＝端末に焼き込んで安全（上記の信頼境界どおり）。
   // ビルド時に --dart-define=REVENUECAT_IOS_KEY=... で上書きも可能。
-  static const revenueCatIosKey =
-      String.fromEnvironment('REVENUECAT_IOS_KEY',
-          defaultValue: 'appl_FCViFEmKhlJBlGSamihpKSiLFSN');
+  static const revenueCatIosKey = String.fromEnvironment(
+    'REVENUECAT_IOS_KEY',
+    defaultValue: 'appl_FCViFEmKhlJBlGSamihpKSiLFSN',
+  );
 
   /// プラットフォーム別の公開SDKキーが設定されているか。
   /// [isApplePlatform] が true なら iOS キー、false なら Android キーを見る。
