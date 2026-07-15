@@ -62,7 +62,7 @@
 |---|---|---|---|
 | **育成枠**（アクティブに育てるスロット / PRD S6） | 3枠 | 3枠（**プラン非依存**） | `StorageLimits.incubationSlots = 3` |
 | **保管枠**（孵化前の卵の在庫） | **20** | **200** | `freeStorageSlots=20` / `premiumStorageSlots=200` |
-| **広告** | あり（無料側のみ） | **なし（広告削除）** | `PremiumEntitlements.freeShowsAds=true` / `premiumShowsAds=false` |
+| **広告** | あり（無料側のみ・**Android のみ**／iOS v1.0・Web は広告なし＝CEO裁定2026-07-15） | **なし（広告削除）** | 方針: `PremiumEntitlements.freeShowsAds=true`／実態(UI出し分け): `core/ads` の `freeTierAdsActive`（Android のみ true） |
 | **限定Mofi** | × | **○（プレミアムで出会える個体）** | `premiumUnlocksExclusiveMofi=true` |
 | **プレミアム卵** | ×（導線なし） | **○（高レア卵への導線解放）** | `premiumUnlocksPremiumEgg=true` |
 | **今日/今週分析** | ○ | ○ | （全プラン・対象外） |

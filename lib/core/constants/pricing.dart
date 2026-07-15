@@ -134,10 +134,15 @@ class StorageLimits {
 class PremiumEntitlements {
   PremiumEntitlements._();
 
-  /// 無料プランに広告を表示するか（=プレミアムは広告削除）。
-  /// AdMob バナー広告を実装済み（`core/ads`・無料のみ画面下部に表示／プレミアム非表示＝
-  /// 「広告削除」の実体／Web・デスクトップは自動 no-op）。現在は Google 公式テスト広告ID
+  /// 無料プランが「広告あり」の設計か（=プレミアムは広告削除）。これは**プラン設計上の方針**
+  /// （純粋・プラットフォーム非依存の定数）で、"その端末で実際に広告が出るか" とは別概念。
+  /// AdMob バナーは Android の無料プランのみ表示（**iOS v1.0/Web は広告なし**＝CEO裁定
+  /// 2026-07-15 / `core/ads/ads_platform_io.dart`）。現在は Google 公式テスト広告ID
   /// （`core/ads/ad_config.dart`）で、本番収益化時に AdMob の実ユニット/アプリIDへ差し替える。
+  ///
+  /// ⚠️ UI/ペイウォールの「広告オフ」訴求は、この const を直接参照しないこと（常に true のため
+  ///   iOS/Web で実態と乖離＝優良誤認・景表法・3.1.2）。実際に広告が出るかは `core/ads` の
+  ///   `freeTierAdsActive`（Android のみ true）を使って出し分ける（実態フラグが唯一の判断源）。
   static const bool freeShowsAds = true;
   static const bool premiumShowsAds = false;
 
@@ -153,10 +158,6 @@ class PremiumEntitlements {
   /// 詳細分析（曜日/時間帯/SNS別/月次/予測）。MVPは無効（v1.1送り）。
   /// 無料の「今日/今週」分析は本フラグの対象外で、全プランに提供される。
   static const bool detailedAnalytics = false;
-
-  /// 指定プランで広告を表示するか。
-  static bool showsAdsFor(PricingPlan plan) =>
-      plan == PricingPlan.free ? freeShowsAds : premiumShowsAds;
 
   /// 指定プランがプレミアム特典を持つか（限定Mofi/プレミアム卵/広告削除）。
   static bool isPremium(PricingPlan plan) => plan != PricingPlan.free;

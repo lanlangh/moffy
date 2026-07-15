@@ -7,6 +7,11 @@ library;
 
 import 'package:flutter/widgets.dart';
 
+/// 無料プランで実際に広告が表示されるか（Web/非対応環境は常に false ＝広告なし）。
+/// UI の「広告オフ」訴求は、この値で出し分ける（Web では「広告オフ」を出さない）。
+/// io 版（`ads_platform_io.dart`）と同じ公開シグネチャを持つ（条件付き export の整合）。
+bool get freeTierAdsActive => false;
+
 /// 広告SDK初期化（スタブ＝何もしない）。
 Future<void> initAds() async {}
 

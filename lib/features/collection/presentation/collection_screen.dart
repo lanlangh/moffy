@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/ads/ads.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
@@ -172,9 +173,10 @@ class _AchievementHeader extends StatelessWidget {
 
 /// 図鑑のプレミアム導線（非プレミアムのみ・非naggy / 磨き込み②）。
 ///
-/// 図鑑＝収集の文脈に自然に置く細身バナー。訴求は **v1.0 で実提供している特典だけ**
-/// （広告オフ）。プレミアム卵/限定Mofi（＝レアが早く集まる系）は未実装のため謳わない
-/// （PremiumEntitlements のコメント / 景表法・3.1.2 回避）。加入者には出さない。
+/// 図鑑＝収集の文脈に自然に置く細身バナー。訴求は **v1.0 で実提供している特典だけ**。
+/// 「広告オフ」は実際に広告が出る環境（Android）でのみ・出ない iOS/Web は保管枠訴求に
+/// 切り替える（`freeTierAdsActive` で出し分け／実態と一致）。プレミアム卵/限定Mofi
+/// （＝レアが早く集まる系）は未実装のため謳わない（景表法・3.1.2 回避）。加入者には出さない。
 class _CollectionPremiumHint extends ConsumerWidget {
   const _CollectionPremiumHint();
 
@@ -212,7 +214,9 @@ class _CollectionPremiumHint extends ConsumerWidget {
               const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
-                  '広告オフで、コレクションに集中',
+                  freeTierAdsActive
+                      ? '広告オフで、コレクションに集中'
+                      : '保管枠アップで、コレクションに集中',
                   style: AppType.caption.copyWith(
                     color: AppColors.primaryDeep,
                     fontWeight: FontWeight.w700,

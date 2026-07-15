@@ -68,14 +68,16 @@ class MockQuestRepository implements QuestRepository {
         rewardGranted: false,
       ),
       Quest(
-        id: 'daily_tiktok_under_20',
+        id: 'daily_sns_under_60',
         kind: QuestKind.daily,
-        title: 'TikTokは20分まで',
-        description: 'TikTokの利用を20分未満におさえる',
+        // 特定アプリ名を名指ししない（iOS の FamilyControls はアプリを個別識別できず
+        // 名指しは実装乖離＝docs/IOS_SCREENTIME.md）。package を持たない app_under＝
+        // 対象SNS合計の"予算メーター"（quest_models: package null=合計）。
+        title: 'SNSは合計60分まで',
+        description: '対象SNSの合計利用を60分未満におさえる',
         condition: QuestCondition(
           type: QuestConditionType.appUnder,
-          target: 20,
-          package: 'com.zhiliaoapp.musically',
+          target: 60,
         ),
         reward: QuestReward(points: 30),
         progress: 12, // 進行中

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/ads/ads.dart';
 import '../../../core/iap/iap_models.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/iap/iap_service.dart';
@@ -238,8 +239,11 @@ class _PaywallBodyState extends ConsumerState<_PaywallBody> {
           const SizedBox(height: AppSpace.xl),
         ],
 
-        // 特典リスト（実装済みのみ / PremiumBenefits.active）。
-        _BenefitsCard(benefits: PremiumBenefits.active),
+        // 特典リスト（実装済みのみ / PremiumBenefits.active）。「広告削除」は実際に広告が
+        // 出る環境（freeTierAdsActive＝Android のみ）でだけ列挙する（iOS/Web は実態=広告なし）。
+        _BenefitsCard(
+          benefits: PremiumBenefits.active(showsAds: freeTierAdsActive),
+        ),
         const SizedBox(height: AppSpace.xl),
 
         // プラン選択（月額/年額）。

@@ -195,7 +195,15 @@ class PremiumBenefits {
 
   /// 表示する特典リスト（実装フラグが true のものだけを含む）。
   /// 数値（保管枠 20→200）は `StorageLimits` を参照しハードコードしない（SSOT）。
-  static List<PremiumBenefit> get active {
+  ///
+  /// [showsAds]: **その環境で無料プランに実際に広告が出るか**（＝「広告削除」を訴求してよいか）。
+  ///   本ファイルは Flutter 非依存の純粋ロジックのため、プラットフォーム判定
+  ///   （`core/ads` の `freeTierAdsActive`＝Android のみ true・iOS/Web は false）は
+  ///   広告モジュール（Flutter依存）を import せず、呼び出し側（ペイウォールUI）が
+  ///   解決して渡す（純粋性・信頼境界の保持）。実態が「広告なし」の環境（iOS/Web）で
+  ///   「広告を非表示に」と謳うと優良誤認（景表法）／App Store 3.1.2 リスクになるため、
+  ///   実態に一致させる。
+  static List<PremiumBenefit> active({required bool showsAds}) {
     final benefits = <PremiumBenefit>[
       // 保管枠の増加（freeStorageSlots → premiumStorageSlots）。
       const PremiumBenefit(
@@ -233,10 +241,10 @@ class PremiumBenefits {
       );
     }
 
-    // 広告削除: AdMob バナー広告を実装済（core/ads・無料プランのみ表示）。無料に広告が
-    //   出る（freeShowsAds=true）間だけ、プレミアム特典として「広告削除」を列挙する
-    //   （実装と一致・PRICING §2 / STORE_DATA_SAFETY §4-3）。
-    if (PremiumEntitlements.freeShowsAds) {
+    // 広告削除: AdMob バナー広告は Android の無料プランのみ表示（iOS v1.0/Web は広告なし）。
+    //   実際に広告が出る環境（showsAds=true）でだけ、プレミアム特典として「広告削除」を
+    //   列挙する（実態と一致・PRICING §2 / STORE_DATA_SAFETY §4-3 / 景表法・3.1.2 回避）。
+    if (showsAds) {
       benefits.add(
         const PremiumBenefit(
           kind: PremiumBenefitKind.adFree,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/ads/ads.dart';
 import '../../../../core/iap/iap_providers.dart';
 import '../../../../core/theme/tokens.dart';
 import '../../../../core/widgets/common_widgets.dart';
@@ -238,7 +239,11 @@ class HomePremiumCard extends ConsumerWidget {
                     Text('Moffyプレミアム', style: AppType.bodyStrong),
                     const SizedBox(height: AppSpace.xs),
                     Text(
-                      '広告オフで、たっぷり集める。',
+                      // 実際に広告が出る Android は「広告オフ」訴求、出ない iOS/Web は
+                      // 実態に合わせて保管枠中心の訴求にする（優良誤認・3.1.2 回避）。
+                      freeTierAdsActive
+                          ? '広告オフで、たっぷり集める。'
+                          : '保管枠アップで、たっぷり集める。',
                       style: AppType.caption,
                     ),
                   ],
