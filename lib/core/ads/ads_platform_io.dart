@@ -13,8 +13,11 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../observability/log.dart';
 import 'ad_config.dart';
 
-/// 広告が動作するプラットフォームか（AdMob は Android/iOS のみ）。
-bool get _adsSupported => Platform.isAndroid || Platform.isIOS;
+/// 広告を出すプラットフォームか。
+/// **iOS v1.0 は広告なし（CEO裁定 2026-07-15）**＝iOS では AdMob を初期化も表示もしない
+/// （ATT/トラッキング申告を避け審査を簡素化。iOS 広告は v1.1 で ATT 実装とともに検討）。
+/// AdMob 自体は Android/iOS 対応だが、ここで iOS を除外し Android のみに絞る。
+bool get _adsSupported => Platform.isAndroid;
 
 /// AdMob SDK を初期化（モバイルのみ）。失敗してもアプリは止めない（広告が出ないだけ）。
 Future<void> initAds() async {
