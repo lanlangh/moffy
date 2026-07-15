@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/ads/ads.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/theme/tokens.dart';
@@ -118,7 +119,8 @@ class _MenuBody extends StatelessWidget {
                 title: isPremium ? 'プレミアム（加入中）' : 'プレミアムにする',
                 subtitle: isPremium
                     ? '特典が解放されています'
-                    : '広告オフ・保管枠アップ',
+                    // 広告が出る Android のみ「広告オフ」を併記。iOS/Web は保管枠のみ訴求。
+                    : (freeTierAdsActive ? '広告オフ・保管枠アップ' : '保管枠アップ'),
                 onTap: () => context
                     .push(PaywallScreen.pathWithSource(PaywallSource.menu)),
               ),

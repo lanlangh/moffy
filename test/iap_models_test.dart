@@ -95,10 +95,14 @@ void main() {
   });
 
   group('PremiumBenefits.active（実装済み特典のみ列挙）', () {
-    final benefits = PremiumBenefits.active;
+    // 広告が出る環境（Android）と出ない環境（iOS/Web）の両方を明示的に検証する。
+    // 実際のプラットフォーム判定は core/ads の freeTierAdsActive（Flutter依存）が持ち、
+    // ここへ showsAds として渡される（iap_models は Flutter 非依存の純粋ロジックのまま）。
+    final benefitsWithAds = PremiumBenefits.active(showsAds: true);
+    final benefitsNoAds = PremiumBenefits.active(showsAds: false);
 
     test('保管枠特典を含み、説明に SSOT の値（20→200）が入る', () {
-      final storage = benefits.firstWhere(
+      final storage = benefitsWithAds.firstWhere(
         (b) => b.kind == PremiumBenefitKind.storage,
       );
       expect(
@@ -111,11 +115,22 @@ void main() {
       );
     });
 
+    test('保管枠は広告の有無に関わらず常に列挙される（実提供の特典）', () {
+      expect(
+        benefitsWithAds.any((b) => b.kind == PremiumBenefitKind.storage),
+        isTrue,
+      );
+      expect(
+        benefitsNoAds.any((b) => b.kind == PremiumBenefitKind.storage),
+        isTrue,
+      );
+    });
+
     test('限定Mofi/プレミアム卵は実装フラグ true のときだけ含まれる', () {
       final hasExclusive =
-          benefits.any((b) => b.kind == PremiumBenefitKind.exclusiveMofi);
+          benefitsWithAds.any((b) => b.kind == PremiumBenefitKind.exclusiveMofi);
       final hasPremiumEgg =
-          benefits.any((b) => b.kind == PremiumBenefitKind.premiumEgg);
+          benefitsWithAds.any((b) => b.kind == PremiumBenefitKind.premiumEgg);
       expect(hasExclusive, PremiumEntitlements.premiumUnlocksExclusiveMofi);
       expect(hasPremiumEgg, PremiumEntitlements.premiumUnlocksPremiumEgg);
     });
@@ -125,12 +140,6 @@ void main() {
       // （このテストが誤って未実装特典を宣伝する状態への回帰を防ぐ / 磨き込み②）。
       expect(PremiumEntitlements.premiumUnlocksPremiumEgg, isFalse);
       expect(PremiumEntitlements.premiumUnlocksExclusiveMofi, isFalse);
-      // v1.0 で実際に列挙される特典 = 保管枠 + 広告削除 のみ（実提供のもの）。
-      final kinds = PremiumBenefits.active.map((b) => b.kind).toSet();
-      expect(
-        kinds,
-        {PremiumBenefitKind.storage, PremiumBenefitKind.adFree},
-      );
     });
 
     test('詳細分析（v1.1送り）は宣伝しない＝特典に含めない', () {
@@ -139,10 +148,30 @@ void main() {
       expect(PremiumEntitlements.detailedAnalytics, isFalse);
     });
 
-    test('広告削除は freeShowsAds のときだけ列挙する（実装＝広告あり と一致）', () {
-      final hasAdFree =
-          benefits.any((b) => b.kind == PremiumBenefitKind.adFree);
-      expect(hasAdFree, PremiumEntitlements.freeShowsAds);
+    test('広告が出る環境（showsAds=true / Android）は広告削除を列挙する', () {
+      expect(
+        benefitsWithAds.any((b) => b.kind == PremiumBenefitKind.adFree),
+        isTrue,
+      );
+      // v1.0 で実際に列挙される特典 = 保管枠 + 広告削除 のみ（実提供のもの）。
+      expect(
+        benefitsWithAds.map((b) => b.kind).toSet(),
+        {PremiumBenefitKind.storage, PremiumBenefitKind.adFree},
+      );
+    });
+
+    test('広告が出ない環境（showsAds=false / iOS・Web）は広告削除を宣伝しない（実態一致）', () {
+      // iOS v1.0/Web は広告なし。実態が「広告なし」の環境で「広告を非表示に」と謳うと
+      // 優良誤認（景表法）／3.1.2 リスクのため、adFree を列挙しないことを固定する。
+      expect(
+        benefitsNoAds.any((b) => b.kind == PremiumBenefitKind.adFree),
+        isFalse,
+      );
+      // iOS/Web で実際に列挙される特典 = 保管枠のみ（広告削除を謳わない）。
+      expect(
+        benefitsNoAds.map((b) => b.kind).toSet(),
+        {PremiumBenefitKind.storage},
+      );
     });
   });
 

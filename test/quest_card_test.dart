@@ -14,7 +14,8 @@ void main() {
   Quest appUnder({required int used, required bool completed}) => Quest(
         id: 'q',
         kind: QuestKind.daily,
-        title: 'TikTokは20分まで',
+        // 特定アプリ名を名指ししない中立フィクスチャ（アサーションは target=20 の数値のみに依存）。
+        title: '対象アプリは20分まで',
         condition: const QuestCondition(
           type: QuestConditionType.appUnder,
           target: 20,

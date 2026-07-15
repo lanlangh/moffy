@@ -13,11 +13,16 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../observability/log.dart';
 import 'ad_config.dart';
 
-/// 広告を出すプラットフォームか。
-/// **iOS v1.0 は広告なし（CEO裁定 2026-07-15）**＝iOS では AdMob を初期化も表示もしない
+/// 無料プランで**実際に広告が表示される**プラットフォームか（UIの「広告オフ」訴求の出し分け用）。
+/// **iOS v1.0 は広告なし（CEO裁定 2026-07-15）**＝iOS では AdMob を初期化も表示もしないため false。
+/// AdMob 自体は Android/iOS 対応だが、ここで iOS を除外し Android のみ true にする
 /// （ATT/トラッキング申告を避け審査を簡素化。iOS 広告は v1.1 で ATT 実装とともに検討）。
-/// AdMob 自体は Android/iOS 対応だが、ここで iOS を除外し Android のみに絞る。
-bool get _adsSupported => Platform.isAndroid;
+/// Web/デスクトップは `ads_platform_stub.dart` 側が false を返す（AdMob 非対応）。
+bool get freeTierAdsActive => Platform.isAndroid;
+
+/// 広告を初期化/表示するプラットフォームか（内部ガード）。実際に広告を出す可否と同一のため
+/// [freeTierAdsActive] を単一情報源として参照する（同じ条件を二重定義しない）。
+bool get _adsSupported => freeTierAdsActive;
 
 /// AdMob SDK を初期化（モバイルのみ）。失敗してもアプリは止めない（広告が出ないだけ）。
 Future<void> initAds() async {
