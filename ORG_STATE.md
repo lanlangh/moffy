@@ -3,7 +3,17 @@
 > プロジェクトルートの単一の状態置き場。AI 8 部署がセッションを跨いで「いま何をしているか」を思い出すための場所。
 > `/app-dev-org:kickoff` が作成し、`/app-dev-org:weekly-brief` と各部署が更新する。
 
-## ▶ RESUME / 現在地（2026-07-14・/clear後はここから読む）
+## ▶ RESUME / 現在地（2026-07-15・/clear後はここから読む）
+- **▶ 最優先(2026-07-15更新・/clear直後はまずこの1件)＝iOS提出物ほぼ完成・残り「④プライバシー栄養ラベル＋⑥提出ビルド」**（✅スクショ傾き交互＋ASCへ5枚アップロード=完了）:
+  - **✅ iOS App Storeメタデータ投入済**(ASC API直接・app id`6785691850`・ja・DRY_RUN検証後PATCH)。スクリプト=`tools/asc/asc_set_metadata.mjs`(+API認証ヘルパ`asc_api.mjs`)、投入内容=`tools/asc/ios_appstore_metadata_final.md`。**APIキー=`Moffy/secrets/AuthKey_SVU9YZ67XQ.p8`**(ASC「Moffy CI」Adminチームキー・**.gitignore済で公開リポ非漏洩**)/Key ID`SVU9YZ67XQ`/Issuer`9752db09-58b4-45c6-a7f0-684c3adcc333`(=IAPと同)。実行=`node asc_set_metadata.mjs`(env: `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_P8_PATH`/`ASC_BUNDLE_ID=com.moffy.app`/`DRY_RUN=1|0`)。※このキーはASC全5アプリ共通で再利用可。
+  - **✅ iOS課金**=月額¥480/年額¥4800・RevenueCat配線済。**✅ iOS広告なし確定**=PR#45(`ads_platform_io`の`_adsSupported=Androidのみ`)＋#46(プレミアム文言を`freeTierAdsActive`でiOS/Webは「保管枠アップ」に出し分け・mockクエストのTikTok名指しを中立化)マージ済(main)。⚠️iOSで実際に広告SDKを走らせない対応は表示側のみ(Info.plistは現状テスト広告ID)＝提出前に要検討。
+  - **✅ iOSスクショ5枚完成**=`docs/store/screenshots/ios/ios_01_home〜05_quests.png`(全**1290×2796**=iPhone 14 Pro Max/6.7"相当)。**制作方式は`docs/store/ios_prompts/README.md`に全記載**(要約: `codex update`でv0.144.4+→`codex exec --skip-git-repo-check -s workspace-write -i "<元画面>" < docs/store/ios_prompts/<prompt>.txt`。Codex/GPTのImages 2.0コンピング編集で実UIをiPhoneフレームに統合生成。**私は画像を加工しない=全部GPT/サイズ合わせもGPT**。傾き=右辺奥/左3/4・Zen Maru袋文字＋橙キーワード＋サブコピー・古い文言はプロンプトの文言差し替えでクリーン化)。元画面=`docs/store/screenshots/_source/`。
+  - **⏳ 残タスク(この順で/clear後に)**:
+    1. ✅**スクショ傾き交互 完了(2026-07-15)**=#2たまご・#4色違いを"左傾き(左辺が奥/右3/4ビュー)"で再生成し右/左/右/左/右に。eggs/shinyプロンプトの傾き記述だけ反転→`codex exec`(gpt-5.6-sol・image_gen)→差し替え。#4は元#4とUI内容一致を目視確認(優良誤認なし)。元画像退避=scratchpad。
+    2. ✅**ASCへスクショ5枚アップロード 完了(2026-07-15)**=`tools/asc/asc_upload_screenshots.mjs`(認証は`asc_set_metadata`流用・env同じ)で5枚(1290×2796)を**ja localization→appScreenshotSet(displayType=`APP_IPHONE_67`)→reserve→uploadOperations PUT→PATCH uploaded=true+sourceFileChecksum(md5)→順序PATCH**。全枚assetDeliveryState=COMPLETE・エラー0(setId=a0bd5917…)。**⭐確定した2つの教訓**: (a)**displayType=`APP_IPHONE_67`が正**(ASC APIでは6.9"専用enum`APP_IPHONE_69`は未追加=指定するとエラー。67が必須6.9"枠を満たし1290×2796を受理)→**画像を1320×2868に作り直す必要なし**。 (b)**App Storeスクショは透過(アルファ)不可**=初回`IMAGE_ALPHA_NOT_ALLOWED`で拒否(codex出力=32bppArgb・元も#1〜#4がRGBA)→System.Drawingで白背景に不透過化しRGB(colorType2)へ無損失変換(全画素α=255なので見た目不変・#1目視確認済)してから再UL。再実行は`REPLACE=1`で既存削除→再UL。
+    3. **④プライバシー栄養ラベル**(ASC・入力のみ・**iOS広告なし=Ad ID/トラッキングを含めない**・`docs/legal/STORE_DATA_SAFETY.md`は広告ありAndroid向けで流用注意)。
+    4. **⑥提出ビルド**(`ios-build.yml` mode=testflight→ASCでバージョンにビルド/メタ/スクショ/ラベル紐付け→**最後の『審査に提出』はオーナーがクリック**。定型: 輸出コンプライアンス=いいえ/手動リリース/審査メモにScreen Time-Family Controls用途明記)。
+  - **法務ゲート(提出前)**: サポート/プラポリ/利用規約/特商法の4URLを実際に開いて公開確認＋特商法ページに連絡先明記＋アプリ内課金画面に3.1.2要素(価格/期間/自動更新/復元Restore/管理導線/規約リンク)を確認。
 - **▶ 現在地(2026-07-14・/clear後はまずこの1件)＝Android/iOS 2トラック並行**:
   - **【Android】v1.0 Google Play 審査提出済＝結果待ち**(製品版23/0.1.0・完全公開・日本のみ・実広告版)。承認→日本ストア自動公開／リジェクト→`rejection-rescue`。公開後は`observability`で監視・AdMob支払いプロファイル設定・v1.0.1で`in_app_review`追加・v1.1没入感リデザイン(GPTモック=北極星/`distinctive-ui`)。詳細は下の各バレット。
   - **【iOS(App Store)】提出作業中**。プラットフォームはFlutterで見た目Android同一(TestFlight実機確認OK)。
