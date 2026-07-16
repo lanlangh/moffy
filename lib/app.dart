@@ -5,6 +5,7 @@ import 'core/iap/iap_providers.dart';
 import 'core/observability/analytics_events.dart';
 import 'core/observability/observability_providers.dart';
 import 'core/router/app_router.dart';
+import 'core/sync/daily_submission.dart';
 import 'core/sync/sync_service.dart';
 import 'core/theme/app_theme.dart';
 
@@ -30,6 +31,10 @@ class _MoffyAppState extends ConsumerState<MoffyApp> {
     final router = ref.watch(appRouterProvider);
     // オンライン復帰時の自動同期をアプリ生存中ずっと有効化（S8 / ARCHITECTURE §1-5）。
     ref.watch(syncOnReconnectProvider);
+    // 前日分の利用生データ提出 → fn_finalize_day 確定を駆動（ARCHITECTURE §1-5 step1-3）。
+    // syncOnReconnectProvider が「キューを流す」のに対し、こちらが「キューに積む」。
+    // 両方揃って初めて削減ptが確定する（片方だけだとコアループが無言で死ぬ）。
+    ref.watch(dailySubmissionProvider);
     // IAP（RevenueCat）初期化を起動時に1度キック（未設定/失敗でも no-op で続行）。
     // CustomerInfo listener と初期プレミアム状態の取得を有効化する。
     ref.watch(iapConfiguredProvider);
