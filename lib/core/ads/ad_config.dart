@@ -26,11 +26,10 @@ abstract final class AdConfig {
   // 本番 AdMob のバナー広告ユニットID（Android・公開値 / 合同会社Lan の AdMob アプリ）。
   static const _prodBannerAndroid = 'ca-app-pub-5063966757462588/1615380283';
 
-  // 本番 AdMob のバナー広告ユニットID（iOS）。
-  // ⚠️TODO(オーナー): AdMob で iOS アプリ＋バナーユニットを作成し、実ユニットIDへ差し替える。
-  //   未作成の間はこの placeholder のため、useProdAds=true でも実広告は配信されない
-  //   （＝提出/内部確認はテスト広告のまま安全。実配信は実ID差し替え＋AdMob審査承認後）。
-  static const _prodBannerIos = 'ca-app-pub-5063966757462588/0000000000';
+  // 本番 AdMob のバナー広告ユニットID（iOS・公開値 / 合同会社Lan の AdMob iOS アプリ）。
+  //   実広告の実配信は AdMob 審査承認後（公開後）。それまでは useProdAds=true でも配信されない
+  //   （＝Apple審査中はバナー非表示で問題なし・Android と同じ運用）。
+  static const _prodBannerIos = 'ca-app-pub-5063966757462588/2390554686';
 
   /// 本番公開ビルドだけ true にして実広告を出す（`--dart-define=ADMOB_USE_PROD_ADS=true`）。
   /// 未指定（開発・プレビュー・内部テスト）は false＝テスト広告のまま（自クリック規約違反の防止）。
