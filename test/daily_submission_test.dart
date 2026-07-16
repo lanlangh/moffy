@@ -168,8 +168,11 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(repo.submitted, hasLength(1),
-        reason: 'app.dart が dailySubmissionProvider を watch していない');
+    expect(
+      repo.submitted,
+      hasLength(1),
+      reason: 'app.dart が dailySubmissionProvider を watch していない',
+    );
   });
 
   testWidgets('日を跨いでフォアグラウンド復帰すると次の日の分を提出する（#2）',
@@ -197,8 +200,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Provider の本体は再実行されないため、復帰トリガーが無いとここで 1 のまま落ちる。
-    expect(repo.submitted.map((d) => d.dateKey), ['2026-07-10', '2026-07-11'],
-        reason: 'app.dart の didChangeAppLifecycleState 経由の再駆動が無い');
+    expect(
+      repo.submitted.map((d) => d.dateKey),
+      ['2026-07-10', '2026-07-11'],
+      reason: 'app.dart の didChangeAppLifecycleState 経由の再駆動が無い',
+    );
   });
 }
 
