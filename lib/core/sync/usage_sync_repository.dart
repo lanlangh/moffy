@@ -7,14 +7,21 @@ import '../observability/log.dart';
 import '../providers/supabase_provider.dart';
 import 'finalize_models.dart';
 
-/// 利用生データの提出 → サーバー確定（fn_finalize_day）のデータ層（ARCHITECTURE §1-5 / S8）。
+/// 利用生データの提出 → サーバー確定のデータ層（ARCHITECTURE §1-5 / S8）。
 ///
-/// 信頼境界（§2-3）:
+/// 信頼境界（§2-3 / S4 / migration 0011）:
 ///   * 端末（Drift）が生データの SSOT。本リポジトリはそれを usage_daily へ提出するだけ。
 ///   * 確定（基準値算出・差分・倍率・480pt上限・台帳冪等加算）は **すべてサーバー RPC**
-///     `fn_finalize_day` の責務。クライアントは確定計算しない。
+///     `fn_finalize_ended_day` → `fn_finalize_day` の責務。クライアントは確定計算しない。
+///   * **対象日もサーバーが決める**（[pendingFinalizeDate]）。端末時計は信用しない
+///     （1日進んでいると「端末の昨日」＝「サーバーの今日」になり満額確定できる / Codex #1a）。
 abstract interface class UsageSyncRepository {
-  /// [draft] を usage_daily へ提出（upsert）し、fn_finalize_day で当日を確定する。
+  /// 提出・確定すべき日をサーバーに問い合わせる（migration 0011 / S4: 日付境界の正）。
+  ///
+  /// 実バックエンドが無い環境（モック）では null を返す。
+  Future<PendingFinalizeDate?> pendingFinalizeDate();
+
+  /// [draft] を usage_daily へ提出（upsert）し、`fn_finalize_ended_day` で確定する。
   ///
   /// 戻り値はサーバーの確定結果。失敗（ネットワーク/サーバー）は [Failure] を throw し、
   /// 呼び出し側（[SyncService]）がキュー再送で扱う（冪等なので再送安全 / S8）。
@@ -24,11 +31,27 @@ abstract interface class UsageSyncRepository {
 /// Supabase 本実装（信頼境界準拠）。
 ///
 /// 1. usage_daily へ upsert（本人 insert / 未確定 update のみ RLS 許可 / 0001）。
-/// 2. `fn_finalize_day(p_date)` を呼び、確定結果を [FinalizeDayResult] にパースする。
+/// 2. `fn_finalize_ended_day(p_date)` を呼び、確定結果を [FinalizeDayResult] にパースする。
+///    本体 `fn_finalize_day` は 0011 で authenticated から revoke 済み（当日確定・
+///    確定済み日の再計算を境界で塞ぐガード付きラッパー経由でのみ到達する）。
 class SupabaseUsageSyncRepository implements UsageSyncRepository {
   SupabaseUsageSyncRepository(this._client);
 
   final SupabaseClient _client;
+
+  @override
+  Future<PendingFinalizeDate?> pendingFinalizeDate() async {
+    try {
+      final res = await _client.rpc('fn_pending_finalize_date');
+      if (res is! Map) {
+        throw const ServerFailure('対象日の取得結果の形式が不正です');
+      }
+      return PendingFinalizeDate.fromJson(res.cast<String, Object?>());
+    } on PostgrestException catch (e, st) {
+      Log.e('fn_pending_finalize_date failed: ${e.code}', error: e, stack: st);
+      throw ServerFailure(_finalizeMessage(e));
+    }
+  }
 
   @override
   Future<FinalizeDayResult> submitAndFinalize(UsageDailyDraft draft) async {
@@ -39,16 +62,19 @@ class SupabaseUsageSyncRepository implements UsageSyncRepository {
 
     try {
       // 1. 生データ提出（本人分）。(user_id, usage_date) で upsert。
-      //    確定済み行は RLS（usage_update_own_unfinalized）で更新不可だが、
-      //    fn_finalize_day が冪等（already_finalized）なので二重確定は起きない。
+      //    確定済み行は RLS（usage_update_own_unfinalized）で更新不可＝ここで権限エラーに
+      //    なる。呼び出し側は事前に [pendingFinalizeDate] の already_finalized で
+      //    確定済み日を除外しているため、通常この経路には来ない（0011 / Codex #4）。
       await _client.from('usage_daily').upsert(
         {'user_id': uid, ...draft.toUsageRow()},
         onConflict: 'user_id,usage_date',
       );
 
-      // 2. サーバー確定（基準値・差分・倍率・上限・冪等加算はすべてサーバー）。
+      // 2. サーバー確定（対象日の検証・基準値・差分・倍率・上限・冪等加算はすべてサーバー）。
+      //    ガード付きラッパー（0011）: 当日は 'day_not_ended' で拒否され、確定済み日は
+      //    計算前に early return される。
       final res = await _client.rpc(
-        'fn_finalize_day',
+        'fn_finalize_ended_day',
         params: {'p_date': draft.dateKey},
       );
       if (res is! Map) {
@@ -56,7 +82,7 @@ class SupabaseUsageSyncRepository implements UsageSyncRepository {
       }
       return FinalizeDayResult.fromJson(res.cast<String, Object?>());
     } on PostgrestException catch (e, st) {
-      Log.e('fn_finalize_day failed: ${e.code}', error: e, stack: st);
+      Log.e('fn_finalize_ended_day failed: ${e.code}', error: e, stack: st);
       throw ServerFailure(_finalizeMessage(e));
     }
   }
@@ -76,6 +102,10 @@ class SupabaseUsageSyncRepository implements UsageSyncRepository {
 /// これにより S8 の競合解決は「ローカル暫定値を維持（減らさない）」側に倒れ、安全に動作する。
 class MockUsageSyncRepository implements UsageSyncRepository {
   const MockUsageSyncRepository();
+
+  /// 実DBが無いので対象日を決められない。null＝提出しない（呼び出し側が諦める）。
+  @override
+  Future<PendingFinalizeDate?> pendingFinalizeDate() async => null;
 
   @override
   Future<FinalizeDayResult> submitAndFinalize(UsageDailyDraft draft) async {

@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/env.dart';
 import '../constants/remote_config.dart';
@@ -9,52 +8,56 @@ import '../usage/usage_providers.dart';
 import 'connectivity_provider.dart';
 import 'finalize_models.dart';
 import 'sync_service.dart';
+import 'usage_sync_repository.dart';
 
 /// 「終了した日」の利用生データを提出し、サーバー確定を駆動する（ARCHITECTURE §1-5 step1）。
 ///
 /// 位置づけ: [SyncService.syncNow] が「キューを流す人」なのに対し、本サービスは
-/// **キューに積む人**。これが無いと `usage_daily` は永久に提出されず、
-/// `fn_finalize_day` が到達不能になり、削減ptが一切確定しない（コアループが死ぬ）。
+/// **キューに積む人**。これが無いと `usage_daily` は永久に提出されず、確定RPCが
+/// 到達不能になり、削減ptが一切確定しない（コアループが死ぬ）。
 ///
-/// なぜ「昨日」だけなのか（PRD §S4-2「当日分のみ確定」）:
-///   * 確定は「サーバー基準でその日が終了した分」を**翌日**に行う。当日を確定すると
-///     `fn_finalize_day` が `is_finalized` を立て、加算も冪等キー
-///     （uid×date×'reduction'）で締まるため、以降の利用が反映されない。
-///     削減量 = 基準値 - 当日利用分 は時間とともに**減るだけ**なので、当日の早い時刻に
-///     確定すると満額が入ってしまう（＝朝に確定して1日中使い放題）。
-///   * 同§「過去日付の遡及加点は不可」により、一昨日以前は対象にしない。
-///   * 当日は端末の暫定表示に留める（HomeRepository の provisionalPoints）。
+/// ## 対象日はサーバーが決める（PRD §S4-2 / S4: 日付境界の正はサーバー時刻 / 0011）
 ///
-/// なぜ1日1回なのか（S8 冪等性）:
-///   * 確定済みの行は RLS（`usage_update_own_unfinalized`）で更新できない。再提出すると
-///     権限エラーになりキューに残って再試行し続けるため、提出済みの暦日を端末に記録する。
+/// 端末時計で「昨日」を計算してはいけない。端末が1日進んでいると「端末の昨日」＝
+/// 「サーバーの今日」になり、当日確定が通ってしまう。削減量 = 基準値 - 当日利用分は
+/// 時間とともに**減るだけ**なので、朝の少ない利用時間で満額(480pt上限)を確定でき、
+/// その後は使い放題になる。よって [UsageSyncRepository.pendingFinalizeDate] で
+/// サーバーに対象日を問い合わせる（サーバー側も `fn_finalize_ended_day` が
+/// 当日を 'day_not_ended' で拒否する＝二重防御）。
+///
+/// ## 提出済み判定もサーバーが持つ
+///
+/// 端末に「提出済みフラグ」を持たない。ローカルフラグはサーバー状態と乖離し得るため
+/// （再インストールで消える → 確定済み日を再提出 → RLS `usage_update_own_unfinalized`
+/// で権限エラー → キューに残り再試行し続ける）。確定の事実は
+/// `usage_daily.is_finalized` が唯一の正本で、`already_finalized` として受け取る。
 class DailySubmissionService {
   DailySubmissionService(this._ref);
 
   final Ref _ref;
 
-  /// 最後に提出した「利用日」（yyyy-MM-dd）の保存キー。
-  /// オンボーディング完了フラグ・ウォームアップ初回起動日と同じローカル永続方針。
-  static const String _lastSubmittedKey = 'usage_last_submitted_day_v1';
+  /// 多重起動の抑止（起動トリガーと復帰トリガーが重なると両方が「未提出」と判断し、
+  /// 同じ日を並行提出してしまう）。
+  bool _inFlight = false;
 
-  /// 昨日（端末TZの暦日 / S11）の利用を、未提出なら提出して確定する。
+  /// サーバーが指す「確定すべき日」を提出して確定する。既に確定済みなら何もしない。
   ///
-  /// 前提が欠けている場合は静かに諦める（体験を止めない・次の起動/復帰で再試行）:
-  ///   * Supabase 未設定（オフライン専用モード）
-  ///   * オフライン（復帰時に [dailySubmissionProvider] が再駆動する）
-  ///   * 利用統計の権限なし / OS 取得失敗
-  Future<void> submitYesterdayIfNeeded({DateTime? now}) async {
+  /// 前提が欠けている場合は静かに諦める（体験を止めない・次の復帰/起動で再試行）:
+  ///   * Supabase 未設定（オフライン専用モード）/ モック実装（実DB無し）
+  ///   * オフライン
+  ///   * 利用統計の権限なし / OS 取得失敗 / 認証未確立
+  Future<void> submitPendingDay() async {
     if (!_ref.read(usageSubmissionEnabledProvider)) return;
     if (!_ref.read(isOnlineProvider)) return;
-
-    final base = now ?? DateTime.now();
-    final yesterday =
-        DateTime(base.year, base.month, base.day).subtract(const Duration(days: 1));
-    final dayKey = _dayKey(yesterday);
-
+    if (_inFlight) return;
+    _inFlight = true;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getString(_lastSubmittedKey) == dayKey) return;
+      final repo = _ref.read(usageSyncRepositoryProvider);
+
+      // 1. 対象日をサーバーに聞く（S4: 日付境界の正はサーバー時刻 + ユーザーTZ）。
+      final pending = await repo.pendingFinalizeDate();
+      if (pending == null) return; // 実DB無し（モック）＝提出しない。
+      if (pending.alreadyFinalized) return; // 既に確定済み＝何もしない。
 
       final usageProvider = _ref.read(usageProviderProvider);
       final permission = await usageProvider.checkPermission();
@@ -62,23 +65,23 @@ class DailySubmissionService {
 
       final targets = _ref.read(targetPackagesProvider);
       final params = await _ref.read(economyParamsProvider.future);
+      final target = pending.targetDate;
 
-      // 提出する生データ本体（昨日1日分）。
+      // 2. 提出する生データ本体（サーバーが指した1日分）。
       final usage = await usageProvider.fetchDailyUsage(
-        date: yesterday,
+        date: target,
         targetPackages: targets,
       );
 
-      // 昨日時点の暫定pt（S8 競合解決の比較基準 = サーバー確定値が下回っても
-      // 画面から減らさないための基準）。基準値は「昨日を含まない」直近 window 日（S11）。
+      // 3. 対象日時点の暫定pt（S8 競合解決の比較基準 = サーバー確定値が下回っても
+      //    画面から減らさないための基準）。基準値は対象日を含まない直近 window 日（S11）。
       final history = await usageProvider.fetchUsageRange(
-        startDate:
-            yesterday.subtract(Duration(days: params.baselineWindowDays)),
-        endDate: yesterday.subtract(const Duration(days: 1)),
+        startDate: target.subtract(Duration(days: params.baselineWindowDays)),
+        endDate: target.subtract(const Duration(days: 1)),
         targetPackages: targets,
       );
       final baseline = Baseline.compute(
-        forDate: yesterday,
+        forDate: target,
         history: history,
         params: params,
       );
@@ -96,26 +99,29 @@ class DailySubmissionService {
               params: params,
             );
 
+      // 4. キューへ積んで送信（オフライン中に積めるのが S8 の骨子）。
       final draft = UsageDailyDraft.fromDailyUsage(usage, localPoints: localPoints);
       final sync = _ref.read(syncServiceProvider);
       await sync.enqueueUsageSubmission(draft);
-      final outcome = await sync.syncNow();
+      await sync.syncNow();
 
-      // 送信できた時だけ「提出済み」を記録する（失敗時は記録せず次回再試行 / S8）。
-      if (outcome.succeeded > 0) {
-        await prefs.setString(_lastSubmittedKey, dayKey);
-        Log.d('usage submitted for $dayKey');
+      // 5. 確定できたかはサーバーに再確認する（[SyncOutcome] は成功“件数”しか返さず、
+      //    anomaly/未提出などの finalized=false も「送信成功」に数えるため信用できない）。
+      //    確定していれば画面（残高・卵・クエスト）へ再取得の合図を出す。
+      final after = await repo.pendingFinalizeDate();
+      if (after != null && after.alreadyFinalized) {
+        _ref.read(dayFinalizedTickProvider.notifier).state++;
+        Log.d('day finalized: ${draft.dateKey}');
+      } else {
+        Log.d('day not finalized yet: ${draft.dateKey}（次の復帰で再試行）');
       }
     } catch (e, st) {
-      // 提出失敗でアプリを止めない（次の起動 / オンライン復帰で再試行）。
-      Log.e('submitYesterdayIfNeeded failed', error: e, stack: st);
+      // 提出失敗でアプリを止めない（次の復帰 / 起動で再試行）。
+      Log.e('submitPendingDay failed', error: e, stack: st);
+    } finally {
+      _inFlight = false;
     }
   }
-
-  /// `p_date` / `usage_date` と同じ YYYY-MM-DD 表現（[UsageDailyDraft.dateKey] と一致）。
-  String _dayKey(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
-      '${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
 }
 
 /// 実バックエンドへ提出してよい環境か（ARCHITECTURE §1-3 / テストで override 可能）。
@@ -125,19 +131,30 @@ class DailySubmissionService {
 /// 本番DBへ書かない）。
 final usageSubmissionEnabledProvider = Provider<bool>((ref) => Env.useSupabase);
 
+/// サーバー確定が成功するたびに増える「確定イベント」の合図。
+///
+/// features 側（ホーム残高・たまご・クエスト）がこれを watch して再取得する。
+/// core が features を import すると層が逆転するため、core は合図だけを公開し、
+/// 何を再取得するかは features 側が決める（ARCHITECTURE §1-2）。
+final dayFinalizedTickProvider = StateProvider<int>((ref) => 0);
+
 /// DI（ARCHITECTURE §1-3）。テストで override 可能。
 final dailySubmissionServiceProvider =
     Provider<DailySubmissionService>((ref) => DailySubmissionService(ref));
 
-/// 起動時とオンライン復帰時に「昨日の提出 → サーバー確定」を駆動する（ARCHITECTURE §1-5）。
+/// 起動時とオンライン復帰時に「前日の提出 → サーバー確定」を駆動する（ARCHITECTURE §1-5）。
 ///
 /// アプリ起動時に `ref.watch(dailySubmissionProvider)` で常駐させる想定（app.dart）。
 /// [syncOnReconnectProvider] が「キューを流す」のに対し、こちらは「キューに積む」。
-/// 両方が揃って初めて 生データ提出 → fn_finalize_day → 確定pt が成立する。
+/// 両方が揃って初めて 生データ提出 → 確定RPC → 確定pt が成立する。
+///
+/// ⚠️ Provider の本体は**初回 watch の1回しか走らない**。プロセスが生きたまま日を跨ぐ
+/// （＝スマホでは普通に起きる）と起動トリガーは二度と来ないため、**フォアグラウンド復帰**
+/// でも駆動する必要がある。そちらは app.dart の [WidgetsBindingObserver] が担う。
 final dailySubmissionProvider = Provider<void>((ref) {
-  // 起動直後に1回（前日分の確定はアプリを開いた最初のタイミングで行う）。
+  // 起動直後に1回。
   // ignore: discarded_futures
-  ref.read(dailySubmissionServiceProvider).submitYesterdayIfNeeded();
+  ref.read(dailySubmissionServiceProvider).submitPendingDay();
 
   // オフラインで起動した場合に備え、復帰エッジでも再試行する。
   var wasOnline = ref.read(isOnlineProvider);
@@ -147,7 +164,7 @@ final dailySubmissionProvider = Provider<void>((ref) {
     if (cameOnline) {
       Log.d('reconnected: triggering daily usage submission');
       // ignore: discarded_futures
-      ref.read(dailySubmissionServiceProvider).submitYesterdayIfNeeded();
+      ref.read(dailySubmissionServiceProvider).submitPendingDay();
     }
   });
 });

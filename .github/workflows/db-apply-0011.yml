@@ -1,0 +1,44 @@
+name: DB Apply 0011 (server-authoritative finalize date)
+
+# 0011(対象日をサーバーが決める fn_pending_finalize_date + ガード付きラッパー
+# fn_finalize_ended_day / 本体 fn_finalize_day の直接実行権限を剥奪) を
+# ライブ DB(moffy-prod)に適用する。関数=create or replace / grant=再付与可 ＝ 冪等なので再実行可。
+# 接続は Secret SUPABASE_DB_URL。前提: 0001〜0010 は適用済み(本番)。手動実行のみ。
+#
+# ⚠️ 適用順: このマイグレーションは Dart 側の呼び出し先を fn_finalize_ended_day へ
+#   変更する PR とセット。**DB を先に適用**すること（先にアプリを出すと確定RPCが
+#   権限エラーになる）。DB適用後はアプリ未更新でも旧経路が revoke されるだけで、
+#   現状 fn_finalize_day を呼ぶ実クライアントは存在しない（未配線だったため無影響）。
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          psql --version
+
+      - name: Apply 0011 (pending date RPC + guarded finalize wrapper)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0011_server_authoritative_finalize_date.sql
+
+      - name: Verify (関数の存在 / 実行権限の付け替え)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          # 新関数が2つとも存在すること。
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select proname from pg_proc where proname in ('fn_pending_finalize_date','fn_finalize_ended_day') order by proname;"
+          # authenticated は ラッパーのみ実行可 / 本体は実行不可 であること。
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select has_function_privilege('authenticated','public.fn_finalize_ended_day(date)','execute') as wrapper_ok, has_function_privilege('authenticated','public.fn_finalize_day(date)','execute') as body_revoked_should_be_false, has_function_privilege('authenticated','public.fn_pending_finalize_date()','execute') as pending_ok;"

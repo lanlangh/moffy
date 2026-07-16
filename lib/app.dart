@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,13 +19,35 @@ class MoffyApp extends ConsumerStatefulWidget {
   ConsumerState<MoffyApp> createState() => _MoffyAppState();
 }
 
-class _MoffyAppState extends ConsumerState<MoffyApp> {
+class _MoffyAppState extends ConsumerState<MoffyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // ファネル入口: アプリ起動（セッション開始の代表点 / PRD §5-5）。
     // initState で1度だけ発火（build の再実行で重複させない）。
     ref.read(analyticsProvider).capture(AnalyticsEvents.appOpened);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 前日分の確定をフォアグラウンド復帰でも駆動する（ARCHITECTURE §1-5 / 必須）。
+    //
+    // dailySubmissionProvider の本体は**初回 watch の1回しか走らない**（Riverpod の
+    // Provider はキャッシュされ、Widget の再 build では再実行されない）。スマホは
+    // プロセスを何日も生かすため、起動トリガーだけだと「バックグラウンドで日を跨ぎ、
+    // 翌朝そのまま復帰」したユーザーの削減ptが永久に確定しない。
+    // 権限を後から付与した場合・オフライン起動後の復帰も、この経路で回収する。
+    // 多重実行は DailySubmissionService 側の single-flight が抑止する。
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ref.read(dailySubmissionServiceProvider).submitPendingDay());
+    }
   }
 
   @override

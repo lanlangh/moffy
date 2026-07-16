@@ -113,6 +113,42 @@ class UsageDailyDraft {
   }
 }
 
+/// `fn_pending_finalize_date`（migration 0011）の戻り jsonb のパース結果。
+///
+/// 信頼境界（PRD §S4-2 / S11）: **日付境界の正はサーバー時刻 + ユーザー登録TZ**。
+/// 端末時計は信用しない（1日進んでいると「端末の昨日」＝「サーバーの今日」になり、
+/// 当日の早い時刻に満額確定できてしまう）。よって提出対象日はサーバーに問い合わせる。
+class PendingFinalizeDate {
+  /// 今クライアントが提出・確定すべき日（= サーバー当日の前日 / 常にちょうど1日）。
+  final DateTime targetDate;
+
+  /// サーバー基準の当日（ユーザーTZ）。診断・ログ用。
+  final DateTime serverToday;
+
+  /// [targetDate] が既に確定済みか。true ならクライアントは何もしない
+  /// （確定済み行は RLS `usage_update_own_unfinalized` で更新不可＝再提出すると
+  /// 権限エラーになり、キューに残って再試行し続けるため事前に止める）。
+  final bool alreadyFinalized;
+
+  /// [targetDate] の生データ行が既に存在するか（未提出なら提出が必要）。
+  final bool hasUsageRow;
+
+  const PendingFinalizeDate({
+    required this.targetDate,
+    required this.serverToday,
+    required this.alreadyFinalized,
+    required this.hasUsageRow,
+  });
+
+  factory PendingFinalizeDate.fromJson(Map<String, Object?> j) =>
+      PendingFinalizeDate(
+        targetDate: DateTime.parse('${j['target_date']}'),
+        serverToday: DateTime.parse('${j['server_today']}'),
+        alreadyFinalized: j['already_finalized'] == true,
+        hasUsageRow: j['has_usage_row'] == true,
+      );
+}
+
 /// fn_finalize_day の戻り jsonb（migration 0002）のパース結果。
 ///
 /// 成功時（finalized=true）は確定値一式を持つ。確定できない日（未提出/異常値/未来日）は

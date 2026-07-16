@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/economy.dart';
 import '../../../core/constants/remote_config.dart';
 import '../../../core/sync/connectivity_provider.dart';
+import '../../../core/sync/daily_submission.dart';
 import '../../../core/sync/finalize_models.dart';
 import '../../../core/usage/usage_providers.dart';
 import '../../eggs/domain/egg_models.dart';
@@ -27,6 +28,11 @@ class HomeController extends AsyncNotifier<HomeState> {
     final params = await ref.watch(economyParamsProvider.future);
     final targets = ref.read(targetPackagesProvider);
     final isOnline = ref.watch(isOnlineProvider);
+
+    // 前日分のサーバー確定（DailySubmissionService）が成功したら再取得する。
+    // 確定は起動/復帰の裏で走るため、これが無いと「ptが入ったのに画面が古いまま」
+    // になり、次回起動か手動 pull-to-refresh まで獲得結果が見えない。
+    ref.watch(dayFinalizedTickProvider);
 
     // 育成中アクティブ卵は「たまごタブと同じ eggsController」を単一情報源にする。
     // これで枠移動/孵化にホームも自動追従し、「ホームだけ古い/幻の卵が残る」不整合を根治
