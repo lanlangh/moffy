@@ -14,11 +14,11 @@ import '../observability/log.dart';
 import 'ad_config.dart';
 
 /// 無料プランで**実際に広告が表示される**プラットフォームか（UIの「広告オフ」訴求の出し分け用）。
-/// **iOS v1.0 は広告なし（CEO裁定 2026-07-15）**＝iOS では AdMob を初期化も表示もしないため false。
-/// AdMob 自体は Android/iOS 対応だが、ここで iOS を除外し Android のみ true にする
-/// （ATT/トラッキング申告を避け審査を簡素化。iOS 広告は v1.1 で ATT 実装とともに検討）。
+/// **Android/iOS とも無料プランは AdMob バナー広告を表示**（オーナー裁定 2026-07-16・iOSも広告あり）。
+/// iOS は **ATT を求めず非パーソナライズ広告のみ**（IDFA をトラッキング目的で使わない）＝審査の
+/// トラッキング申告を避けつつ広告収益を得る。パーソナライズ（ATT）は将来 v1.1 で検討。
 /// Web/デスクトップは `ads_platform_stub.dart` 側が false を返す（AdMob 非対応）。
-bool get freeTierAdsActive => Platform.isAndroid;
+bool get freeTierAdsActive => Platform.isAndroid || Platform.isIOS;
 
 /// 広告を初期化/表示するプラットフォームか（内部ガード）。実際に広告を出す可否と同一のため
 /// [freeTierAdsActive] を単一情報源として参照する（同じ条件を二重定義しない）。
@@ -59,7 +59,9 @@ class _AdBannerViewState extends State<AdBannerView> {
     final ad = BannerAd(
       adUnitId: AdConfig.bannerUnitId,
       size: AdSize.banner,
-      request: const AdRequest(),
+      // iOS は ATT を求めないため非パーソナライズ広告を明示（IDFA をトラッキング目的で使わない）。
+      // Android は従来どおり（同意のある範囲でパーソナライズ）。
+      request: AdRequest(nonPersonalizedAds: Platform.isIOS ? true : null),
       listener: BannerAdListener(
         onAdLoaded: (_) {
           if (mounted) setState(() => _loaded = true);

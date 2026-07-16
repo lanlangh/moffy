@@ -13,6 +13,7 @@ import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../profile/domain/legal_links.dart';
 import 'paywall_controller.dart';
 
 /// ペイウォールへの導線元（AnalyticsProps.source の値 / カテゴリ文字列 = 表記ゆれ防止の SSOT）。
@@ -240,7 +241,7 @@ class _PaywallBodyState extends ConsumerState<_PaywallBody> {
         ],
 
         // 特典リスト（実装済みのみ / PremiumBenefits.active）。「広告削除」は実際に広告が
-        // 出る環境（freeTierAdsActive＝Android のみ）でだけ列挙する（iOS/Web は実態=広告なし）。
+        // 出る環境（freeTierAdsActive＝Android/iOS）でだけ列挙する（Web は実態=広告なし）。
         _BenefitsCard(
           benefits: PremiumBenefits.active(showsAds: freeTierAdsActive),
         ),
@@ -316,6 +317,11 @@ class _PaywallBodyState extends ConsumerState<_PaywallBody> {
             ),
           ],
         ),
+        const SizedBox(height: AppSpace.md),
+
+        // 法務リンク（Apple 3.1.2: 購入導線から利用規約/プライバシーへ到達可能に。
+        // 特商法は日本の必須表記。LegalLinks に集約した公開URLを外部ブラウザで開く）。
+        const _PaywallLegalLinks(),
         const SizedBox(height: AppSpace.xl),
       ],
     );
@@ -563,6 +569,42 @@ class _PlanCard extends StatelessWidget {
     // 日本円は「円」で表示（英略号 JPY の露出を避ける）。他通貨はコードにフォールバック。
     if (currency == 'JPY') return '$shown円';
     return '$shown $currency';
+  }
+}
+
+/// 法務リンク行（利用規約 / プライバシーポリシー / 特商法）。
+///
+/// Apple 3.1.2 は自動更新サブスクの購入導線から利用規約(EULA)・プライバシーポリシーへ
+/// 到達できることを要求する。URL は [LegalLinks]（SSOT・ストア掲載URLと一致）を使い、
+/// 外部ブラウザで開く（アプリ内 WebView を持たない方針）。
+class _PaywallLegalLinks extends StatelessWidget {
+  const _PaywallLegalLinks();
+
+  Future<void> _open(String url) =>
+      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppType.caption.copyWith(color: AppColors.textSecondary);
+    Widget link(String label, String url) => TextButton(
+          onPressed: () => _open(url),
+          style: TextButton.styleFrom(
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppSpace.xs, vertical: 0),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(label, style: style),
+        );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: AppSpace.sm,
+      children: [
+        link('利用規約', LegalLinks.termsOfService),
+        link('プライバシーポリシー', LegalLinks.privacyPolicy),
+        link('特定商取引法', LegalLinks.commercialTransactions),
+      ],
+    );
   }
 }
 

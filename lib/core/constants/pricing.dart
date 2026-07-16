@@ -136,13 +136,14 @@ class PremiumEntitlements {
 
   /// 無料プランが「広告あり」の設計か（=プレミアムは広告削除）。これは**プラン設計上の方針**
   /// （純粋・プラットフォーム非依存の定数）で、"その端末で実際に広告が出るか" とは別概念。
-  /// AdMob バナーは Android の無料プランのみ表示（**iOS v1.0/Web は広告なし**＝CEO裁定
-  /// 2026-07-15 / `core/ads/ads_platform_io.dart`）。現在は Google 公式テスト広告ID
-  /// （`core/ads/ad_config.dart`）で、本番収益化時に AdMob の実ユニット/アプリIDへ差し替える。
+  /// AdMob バナーは Android/iOS の無料プランで表示（**Web は広告なし**＝オーナー裁定
+  /// 2026-07-16 / `core/ads/ads_platform_io.dart`）。iOSは非パーソナライズ広告（ATTなし）。
+  /// 現在は Google 公式テスト広告ID（`core/ads/ad_config.dart`）で、本番収益化時に AdMob の
+  /// 実ユニット/アプリIDへ差し替える（iOSアプリ/ユニットは要オーナー作成＝_prodBannerIos）。
   ///
   /// ⚠️ UI/ペイウォールの「広告オフ」訴求は、この const を直接参照しないこと（常に true のため
-  ///   iOS/Web で実態と乖離＝優良誤認・景表法・3.1.2）。実際に広告が出るかは `core/ads` の
-  ///   `freeTierAdsActive`（Android のみ true）を使って出し分ける（実態フラグが唯一の判断源）。
+  ///   Web で実態と乖離＝優良誤認・景表法・3.1.2）。実際に広告が出るかは `core/ads` の
+  ///   `freeTierAdsActive`（Android/iOS で true・Web は false）を使って出し分ける（実態フラグが唯一の判断源）。
   static const bool freeShowsAds = true;
   static const bool premiumShowsAds = false;
 

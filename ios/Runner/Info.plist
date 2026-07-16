@@ -68,10 +68,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- AdMob アプリID（無料プランのバナー広告 / core/ads）。現在は Google 公式テストID。
-	     本番は AdMob で作成した実アプリIDへ差し替える（ユニットIDは core/ads/ad_config.dart）。 -->
+	<!-- AdMob（無料プランのバナー広告 / core/ads）。Android/iOS とも広告あり（オーナー裁定 2026-07-16）。
+	     iOS は非パーソナライズ広告のみ（ATT を求めず・IDFA をトラッキング目的で使わない）＝
+	     NSUserTrackingUsageDescription は意図的に置かない（トラッキングしないため）。
+	     GADApplicationIdentifier = 合同会社Lan の AdMob「iOS アプリ ID」（公開値・実値 2026-07-16）。
+	     バナーユニットIDは core/ads/ad_config.dart の _prodBannerIos。 -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-5063966757462588~7315578301</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
