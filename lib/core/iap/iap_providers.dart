@@ -88,9 +88,19 @@ final offeringsProvider = FutureProvider<IapOfferings>((ref) async {
 ///
 /// CustomerInfo の更新（購入・更新・解約・フォアグラウンド復帰）を購読する。
 /// 機能ガードには直接使わず、[isPremiumProvider] 経由で参照すること。
-final premiumStatusProvider = StreamProvider<PremiumStatus>((ref) {
+final premiumStatusProvider = StreamProvider<PremiumStatus>((ref) async* {
+  // CommonFunctionality on iOS deliberately traps if getCustomerInfo is called
+  // before Purchases.configure has installed its shared instance. Both this
+  // provider and iapConfiguredProvider can be watched during the first build,
+  // so make the ordering explicit instead of racing the two platform calls.
+  final configured = await ref.watch(iapConfiguredProvider.future);
+  if (!configured) {
+    yield PremiumStatus.mockFree;
+    return;
+  }
+
   final service = ref.watch(iapServiceProvider);
-  return service.premiumStatusStream();
+  yield* service.premiumStatusStream();
 });
 
 /// サーバー権威の premium 判定（不明=null）。合成プロバイダの共通参照点。
