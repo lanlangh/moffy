@@ -208,8 +208,18 @@ class RevenueCatIapService implements IapService {
     }
   }
 
+  /// 未初期化ガード（防御的多重化）。
+  ///
+  /// iOS の PurchasesHybridCommon は **configure 前の API 呼び出しを fatalError で即死**
+  /// させる（Dart の try/catch では捕捉不可・Android は例外で返るのと非対称）。
+  /// 起動時レースの根治は iap_providers 側の順序保証（premiumStatusProvider が
+  /// iapConfiguredProvider を await）だが、configure 失敗後に purchase/restore 等が
+  /// 呼ばれる残経路も同じ即死になるため、全ネイティブ呼び出しの入口で弾く。
+  bool get _notConfigured => !_configured;
+
   @override
   Future<IapOfferings> fetchOfferings() async {
+    if (_notConfigured) return const IapOfferings(plans: []);
     try {
       final offerings = await Purchases.getOfferings();
       // offering `default`（current が default 設定済みなら current でもよい）。
@@ -233,6 +243,7 @@ class RevenueCatIapService implements IapService {
 
   @override
   Future<PremiumStatus> fetchPremiumStatus() async {
+    if (_notConfigured) return PremiumStatus.free;
     try {
       final info = await Purchases.getCustomerInfo();
       return mapCustomerInfo(info);
@@ -244,6 +255,7 @@ class RevenueCatIapService implements IapService {
 
   @override
   Stream<PremiumStatus> premiumStatusStream() {
+    if (_notConfigured) return Stream<PremiumStatus>.value(PremiumStatus.free);
     final controller = StreamController<PremiumStatus>();
     void listener(CustomerInfo info) {
       controller.add(mapCustomerInfo(info));
@@ -260,6 +272,14 @@ class RevenueCatIapService implements IapService {
 
   @override
   Future<IapResult> purchase(PlanOffer plan) async {
+    if (_notConfigured) {
+      return const IapResult(
+        outcome: IapPurchaseOutcome.failed,
+        status: PremiumStatus.free,
+        message: '課金の初期化に失敗しました。通信環境を確認して、アプリを再起動してください。',
+        diagnosticCode: 'NOT-CONFIGURED',
+      );
+    }
     try {
       final offerings = await Purchases.getOfferings();
       final offering = offerings.all[RevenueCatIds.defaultOffering] ??
@@ -298,6 +318,14 @@ class RevenueCatIapService implements IapService {
 
   @override
   Future<IapResult> restore() async {
+    if (_notConfigured) {
+      return const IapResult(
+        outcome: IapPurchaseOutcome.failed,
+        status: PremiumStatus.free,
+        message: '課金の初期化に失敗しました。通信環境を確認して、アプリを再起動してください。',
+        diagnosticCode: 'NOT-CONFIGURED',
+      );
+    }
     try {
       final info = await Purchases.restorePurchases();
       final status = mapCustomerInfo(info);
@@ -321,6 +349,7 @@ class RevenueCatIapService implements IapService {
 
   @override
   Future<Uri?> managementUrl() async {
+    if (_notConfigured) return null;
     try {
       final info = await Purchases.getCustomerInfo();
       final url = info.managementURL;
