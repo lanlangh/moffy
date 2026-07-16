@@ -5,7 +5,7 @@
 ///
 /// これにより **Web ビルドは google_mobile_ads を一切 import せず**、Web プレビューが
 /// 壊れない。公開する API は `initAds()` / `AdBannerView` / `freeTierAdsActive`
-/// （無料プランで実際に広告が出るプラットフォームか＝Android のみ true・iOS/Web は false）。
+/// （無料プランで実際に広告が出るプラットフォームか＝Android/iOS で true・Web は false）。
 /// プレミアム判定によるオン/オフは [AdBanner]（ad_banner.dart）が担う。
 library;
 

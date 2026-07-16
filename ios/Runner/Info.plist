@@ -68,11 +68,20 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- iOS v1.0 は広告なし（CEO裁定 2026-07-15・core/ads/ads_platform_io.dart の _adsSupported=
-	     Platform.isAndroid で iOS は AdMob を初期化も表示もしない）。よって GADApplicationIdentifier /
-	     SKAdNetworkItems は意図的に置かない＝プライバシー栄養ラベルの「広告なし・トラッキングなし」と
-	     整合させ審査での不一致を避けるため。iOS で広告を出す場合は v1.1 で ATT（NSUserTrackingUsage
-	     Description）実装とともに本キー・実アプリIDを追加する。AdMob SDK 自体は Android と共通のため
-	     iOS バイナリにもリンクされるが、iOS では一切初期化されないため未使用（起動時クラッシュはしない）。 -->
+	<!-- AdMob（無料プランのバナー広告 / core/ads）。Android/iOS とも広告あり（オーナー裁定 2026-07-16）。
+	     iOS は非パーソナライズ広告のみ（ATT を求めず・IDFA をトラッキング目的で使わない）＝
+	     NSUserTrackingUsageDescription は意図的に置かない（トラッキングしないため）。
+	     GADApplicationIdentifier は AdMob の「iOS アプリ ID」。
+	     ⚠️TODO(オーナー): 現在は Google 公式テスト App ID。AdMob で iOS アプリを作成し実 App ID
+	     （ca-app-pub-XXXX~XXXX）へ差し替える（バナーユニットは core/ads/ad_config.dart の _prodBannerIos）。 -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
 </dict>
 </plist>

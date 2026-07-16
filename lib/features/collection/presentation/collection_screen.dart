@@ -174,7 +174,7 @@ class _AchievementHeader extends StatelessWidget {
 /// 図鑑のプレミアム導線（非プレミアムのみ・非naggy / 磨き込み②）。
 ///
 /// 図鑑＝収集の文脈に自然に置く細身バナー。訴求は **v1.0 で実提供している特典だけ**。
-/// 「広告オフ」は実際に広告が出る環境（Android）でのみ・出ない iOS/Web は保管枠訴求に
+/// 「広告オフ」は実際に広告が出る環境（Android/iOS）でのみ・出ない Web は保管枠訴求に
 /// 切り替える（`freeTierAdsActive` で出し分け／実態と一致）。プレミアム卵/限定Mofi
 /// （＝レアが早く集まる系）は未実装のため謳わない（景表法・3.1.2 回避）。加入者には出さない。
 class _CollectionPremiumHint extends ConsumerWidget {

@@ -1,44 +1,42 @@
 # iOS App Privacy（プライバシー栄養ラベル）回答シート — Moffy v1.0
 
-App Store Connect ＞ アプリ ＞ 「App のプライバシー」で入力する内容。**実装と現行の提出ビルド（`ios-build.yml`）で実際に収集する情報のみ**を宣言する（過少申告=リジェクト直結／過剰申告=不正確）。作成 2026-07-15。
+App Store Connect ＞ アプリ ＞ 「App のプライバシー」で入力する内容。**実装と提出ビルドで実際に収集する情報のみ**を宣言する（過少申告=リジェクト直結／過剰申告=不正確）。更新 2026-07-16（**オーナー裁定：iOSも広告あり／非パーソナライズ**）。
 
 ## 前提（このビルドが実際に何を収集するか）
-- **Supabase（匿名認証・確定集計値の保存）= 稼働**（`--dart-define=SUPABASE_*` 注入）。
-- **RevenueCat（購読状態）= 稼働**（iOS公開キーは `env.dart` に既定値で焼き込み）。
-- **Sentry（クラッシュ）/ PostHog（行動分析）= 無効（Noop）**：`ios-build.yml` は `SENTRY_DSN`/`POSTHOG_API_KEY` を注入しない → `Env.hasSentry/hasPostHog=false`。**＝クラッシュ/行動分析データは収集しない。**
-- **広告なし・トラッキングなし**：iOSは `ads_platform_io` でAdMobを初期化しない。`NSUserTrackingUsageDescription` なし＝ATTプロンプトを出さない。**Ad ID(IDFA)は不使用。**
-- **スクリーンタイム**：対象アプリは不透明トークン（どのアプリか識別不可）。**生の利用時間は端末内のみ**。サーバーへ出るのは「削減量・ポイント等の集計値」のみ（匿名IDに紐づく）。
+- **Supabase（匿名認証・確定集計値の保存）= 稼働**。
+- **RevenueCat（購読状態）= 稼働**（iOS公開キーは `env.dart` 既定値）。
+- **Google AdMob（無料プランのバナー広告）= 稼働**。**iOSは非パーソナライズ広告のみ**＝`AdRequest(nonPersonalizedAds: true)`・**ATTを求めず（`NSUserTrackingUsageDescription` なし）・IDFAをトラッキング目的で使わない**。⇒栄養ラベルの**「トラッキング＝なし」**を維持。
+- **Sentry / PostHog = 無効（Noop）**：`ios-build.yml` は鍵を注入しない → クラッシュ/行動分析は**収集しない**。
+- **スクリーンタイム**：対象アプリは不透明トークン（識別不可）。生の利用時間は端末内のみ。サーバーへ出るのは削減量・ポイント等の集計値（匿名IDに紐づく）。
 
 ## Apple の質問への回答
 
-### 「トラッキングに使用されるデータ」
-**なし**（Do NOT enable App Tracking / no data used to track）。iOSは広告なし・IDFA不使用・第三者トラッキングなし。
+### 「トラッキングに使用されるデータ」＝ **なし**
+iOSは**非パーソナライズ広告**でATT不要・IDFA不使用のため、トラッキングには該当しない（App Tracking は有効化しない）。
 
-### 「あなたと紐付けられたデータ（Data Linked to You）」
-以下3種。いずれも用途=**アプリの機能（App Functionality）**、トラッキング=いいえ。
-
+### 「あなたと紐付けられたデータ（Data Linked to You）」＝ 3種（用途=アプリの機能・トラッキング=いいえ）
 | データ種別（Apple区分） | 具体 | 用途 |
 |---|---|---|
-| **Identifiers → User ID** | Supabase の匿名ユーザーID（初回起動で自動発行） | アプリの機能（アカウント・進行のクラウド保存/復元） |
-| **Purchases → Purchase History** | 購読の購入/更新/解約状態（RevenueCat経由・product_id/期限）。※カード番号等の決済情報は収集しない | アプリの機能（プレミアム判定） |
-| **Usage Data → Other Usage Data** | スクリーンタイムの削減量・ゲーム内ポイント/進行の集計値（匿名IDに紐づけてクラウド保存） | アプリの機能（育成ゲームのコアループ） |
+| **Identifiers → User ID** | Supabase 匿名ユーザーID | アプリの機能 |
+| **Purchases → Purchase History** | 購読の購入/更新/解約状態（RevenueCat。カード情報は不収集） | アプリの機能 |
+| **Usage Data → Other Usage Data** | スクリーンタイム削減量・ポイント/進行の集計値 | アプリの機能 |
 
-### 「あなたと紐付けられていないデータ（Data Not Linked to You）」
-**なし**（Sentry/PostHog無効のため）。
+### 「あなたと紐付けられていないデータ（Data Not Linked to You）」＝ AdMob広告SDKが収集する分
+**⚠️正確な項目は Google 公式の「AdMob iOS プライバシー（App Privacy details）」の最新表に合わせて申告すること**（Googleが SDK の収集項目を随時更新するため）。一般に**非パーソナライズ**設定の AdMob が収集し得るのは以下（いずれも **Not Linked・トラッキング=いいえ**、用途は主に「第三者広告」）：
+| データ種別 | 用途 |
+|---|---|
+| **Identifiers → Device ID**（IDFAではなく端末識別情報） | 第三者広告 |
+| **Usage Data → Advertising Data / Product Interaction** | 第三者広告・分析 |
+| **Diagnostics → Crash Data / Performance Data / Other Diagnostic Data** | アプリの機能 |
+| **Location → Coarse Location**（おおよその位置・AdMobが取得する場合） | 第三者広告 |
+
+> 参照（オーナー確認）：AdMob ヘルプ「App Store のプライバシーに関する質問への回答方法（iOS）」の SDK 収集データ一覧。ここに載る項目を上表に反映する。**非パーソナライズのため「トラッキングに使用」は付けない。**
 
 ### 収集しないもの（明示）
-連絡先情報（メール等）※アカウント連携はv1.0無効／位置情報／連絡先／写真・メッセージ等のコンテンツ／**Ad Data・Device ID(IDFA)**／**Crash Data・Performance Data（Sentry無効）**／**Product Interaction等の分析（PostHog無効）**／健康・金融（決済情報）。
+連絡先情報（メール等・アカウント連携v1.0無効）／写真・メッセージ等のコンテンツ／**クラッシュ/分析（Sentry・PostHogはNoop＝アプリ本体としては不収集。※AdMob由来の診断は上表で申告）**／健康・金融（決済情報）。
 
----
+## プレミアム特典との整合
+iOSも無料プランは広告あり＝**プレミアム特典に「広告を非表示に」が復活**（`freeTierAdsActive` が iOS で true になったため、`freeShowsAds` 連動でペイウォール文言も自動で「広告オフ」を表示）。ASC説明文に広告オフ訴求を戻すか要検討（現説明文は広告非言及）。
 
-## ⚠️ 入力前の整合チェック（重要）
-1. **プライバシーポリシー（Notion）は Sentry/PostHog を「利用中」と記載**しているが、現ビルドは無効。栄養ラベルは実収集に合わせて上記のとおり**クラッシュ/分析を宣言しない**（ラベルはポリシーの部分集合＝Appleは許容）。将来キーを注入したら、ラベルに Crash Data / Product Interaction を追加する（下記「代替」）。
-2. **プライバシーポリシーのiOS追記**：現ポリシーは利用時間取得を「Android(UsageStatsManager)」中心に記述し、**iOSのFamilyControls/不透明トークン経路が未記載**。iOS提出に合わせ「iOSはユーザーが選んだアプリを不透明トークンで扱い、どのアプリかは識別しない」旨を追記推奨（審査の実装乖離・2.3.10リスク低減）。
-3. **広告記述**：ポリシー§2/§8は「広告なし」。**iOSは正**。ただし同一URLをAndroid（AdMobあり）でも使うため、両OS差（Android=広告/広告ID、iOS=広告なし）を明記して整合させること（Android側の乖離解消）。
-
-## 代替：観測性（Sentry/PostHog）をiOSでも有効化する場合
-`ios-build.yml` の archive 前 `flutter build ios` に `--dart-define=SENTRY_DSN=… --dart-define=POSTHOG_API_KEY=…`（GitHub Secret）を追加。その場合ラベルに追加：
-- **Diagnostics → Crash Data / Performance Data**（Not Linked・App Functionality）＝Sentry
-- **Usage Data → Product Interaction**（Linked・Analytics）＝PostHog（匿名IDにidentifyするためLinked）
-
-利点＝公開ポリシーの記載と一致＋公開初日からクラッシュ監視。判断はオーナー（キー保有・観測性を初日から回すか）。
+## v1.1 オプション（収益最大化）
+ATTを実装して**パーソナライズ広告**にすると eCPM が上がる。その場合は本ラベルに **「トラッキングに使用されるデータ」＝ Device ID / Advertising Data** を追加し、`NSUserTrackingUsageDescription` とATTフローを実装する。v1.0は非パーソナライズで審査を軽く通す方針。

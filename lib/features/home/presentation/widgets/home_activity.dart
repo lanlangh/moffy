@@ -239,7 +239,7 @@ class HomePremiumCard extends ConsumerWidget {
                     Text('Moffyプレミアム', style: AppType.bodyStrong),
                     const SizedBox(height: AppSpace.xs),
                     Text(
-                      // 実際に広告が出る Android は「広告オフ」訴求、出ない iOS/Web は
+                      // 実際に広告が出る Android/iOS は「広告オフ」訴求、出ない Web は
                       // 実態に合わせて保管枠中心の訴求にする（優良誤認・3.1.2 回避）。
                       freeTierAdsActive
                           ? '広告オフで、たっぷり集める。'

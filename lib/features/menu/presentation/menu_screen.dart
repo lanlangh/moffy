@@ -119,7 +119,7 @@ class _MenuBody extends StatelessWidget {
                 title: isPremium ? 'プレミアム（加入中）' : 'プレミアムにする',
                 subtitle: isPremium
                     ? '特典が解放されています'
-                    // 広告が出る Android のみ「広告オフ」を併記。iOS/Web は保管枠のみ訴求。
+                    // 広告が出る Android/iOS で「広告オフ」を併記。Web は保管枠のみ訴求。
                     : (freeTierAdsActive ? '広告オフ・保管枠アップ' : '保管枠アップ'),
                 onTap: () => context
                     .push(PaywallScreen.pathWithSource(PaywallSource.menu)),

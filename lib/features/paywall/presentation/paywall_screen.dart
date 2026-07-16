@@ -241,7 +241,7 @@ class _PaywallBodyState extends ConsumerState<_PaywallBody> {
         ],
 
         // 特典リスト（実装済みのみ / PremiumBenefits.active）。「広告削除」は実際に広告が
-        // 出る環境（freeTierAdsActive＝Android のみ）でだけ列挙する（iOS/Web は実態=広告なし）。
+        // 出る環境（freeTierAdsActive＝Android/iOS）でだけ列挙する（Web は実態=広告なし）。
         _BenefitsCard(
           benefits: PremiumBenefits.active(showsAds: freeTierAdsActive),
         ),
