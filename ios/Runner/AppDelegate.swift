@@ -1,4 +1,5 @@
 import Flutter
+import Network
 import UIKit
 
 @main
@@ -11,6 +12,14 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // ⚠️ iOS 26 / Xcode 26 クラッシュ回避（RevenueCat 公式 known-issue・Apple 側バグ）。
+    //   Xcode 26 でビルドしたアプリが iOS 26 実機で、URLSessionConfiguration を使う SDK
+    //   （RevenueCat 等）の最初のネットワーク呼び出し時に EXC_BREAKPOINT で即クラッシュする。
+    //   Network フレームワークの TLS を起動最初期に「温める」ことで回避できる。RevenueCat の
+    //   Purchases.configure / getCustomerInfo（＝Dart から Flutter 起動後に呼ばれる）より前の
+    //   この地点で必ず実行する。Apple の恒久修正が入るまでの回避策。
+    //   参考: revenuecat.com/docs/known-store-issues/xcode-26/app-crash-urlsessionconfiguration
+    _ = nw_tls_create_options()
     // UIScene 環境では plugin / channel 登録は didInitializeImplicitFlutterEngine で行う。
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
