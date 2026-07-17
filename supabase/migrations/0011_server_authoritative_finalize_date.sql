@@ -228,6 +228,20 @@ revoke execute on function public.fn_finalize_day(date) from authenticated;
 revoke update on public.profiles from authenticated;
 grant update (display_name) on public.profiles to authenticated;
 
+-- ★#1(第3次レビュー): 既に改ざんされている timezone を正規化する。
+--   ACL を閉じるのは「これから」の更新だけ。**0011 適用より前**に REST API から
+--   timezone='Pacific/Kiritimati' 等へ変更済みの行は残り、RPC はその値を読み続けるため
+--   「東京19時以降は Kiritimati では翌日 → v_target = 進行中の日本の当日」となり、
+--   ACL を閉じた後も当日確定が**恒久的に**可能になる（p_date = v_target の完全一致判定も
+--   通ってしまう）。
+--   本アプリは日本のみ配信で timezone を書く実装が存在しない ＝ 'Asia/Tokyo' 以外は
+--   すべて不正値。よってここで正規化する（NULL も既定値へ寄せて不変条件を明確にする）。
+--   ⚠️ 将来 TZ 変更 UI を入れるなら、この正規化は外し、代わりに「経済用TZは次の安全な
+--     境界まで変更を保留する」サーバー側の仕組みが必要（残存リスク欄を参照）。
+update public.profiles
+   set timezone = 'Asia/Tokyo'
+ where timezone is distinct from 'Asia/Tokyo';
+
 
 -- ----------------------------------------------------------------------------
 -- 4. クライアントの usage_daily 直接書込権限を剥奪する

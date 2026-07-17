@@ -85,6 +85,13 @@ jobs:
               raise warning '[FAIL] authenticated が profiles.timezone を更新できる（TZ変更で当日確定が可能になる）';
               v_fail := v_fail + 1;
             end if;
+
+            -- ★ ACL を閉じるだけでは不十分。適用**前**に改ざんされた既存値が残っていると
+            --   攻撃が恒久化するため、正規化されたことを実データで確認する。
+            if exists (select 1 from public.profiles where timezone is distinct from 'Asia/Tokyo') then
+              raise warning '[FAIL] timezone が Asia/Tokyo でない profiles 行が残っている（0011 の正規化漏れ＝当日確定が継続可能）';
+              v_fail := v_fail + 1;
+            end if;
             if has_table_privilege('authenticated','public.usage_daily'::regclass,'INSERT') then
               raise warning '[FAIL] authenticated が usage_daily に INSERT できる（提出経路の一本化が破れている）';
               v_fail := v_fail + 1;

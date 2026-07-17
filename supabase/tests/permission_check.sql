@@ -86,6 +86,60 @@ begin
 end $$;
 
 -- ============================================================
+-- §3-A-2: 確定経路の中核RPCは「引数シグネチャ」まで一致すること（0011）
+--   §3-A は proname だけで照合し、存在確認も「取得行数 = 期待キー数」の比較なので、
+--   期待する関数が消え **同名・別引数の関数が1つ残っている**場合でも通過してしまう
+--   （Codex 第3次レビュー #2）。経済の要である確定経路だけはシグネチャを固定する。
+--   ※ db-apply-0011.yml も同じ検査をするが、恒常的な DB Verify にも同じ厳密さが必要。
+-- ============================================================
+do $$
+declare
+  fail_count int := 0;
+begin
+  if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is null then
+    raise warning '[§3-A-2 FAIL] fn_submit_and_finalize_day(date,integer,jsonb,text) が存在しない';
+    fail_count := fail_count + 1;
+  end if;
+  if to_regprocedure('public.fn_pending_finalize_date()') is null then
+    raise warning '[§3-A-2 FAIL] fn_pending_finalize_date() が存在しない';
+    fail_count := fail_count + 1;
+  end if;
+  if to_regprocedure('public.fn_finalize_day(date)') is null then
+    raise warning '[§3-A-2 FAIL] fn_finalize_day(date) が存在しない';
+    fail_count := fail_count + 1;
+  end if;
+  -- 旧ラッパー（p_date < 当日 なら任意の過去日を通し、遡及加点を許した設計）は撤去済みであること。
+  if to_regprocedure('public.fn_finalize_ended_day(date)') is not null then
+    raise warning '[§3-A-2 FAIL] 旧ラッパー fn_finalize_ended_day(date) が残っている（遡及加点の経路）';
+    fail_count := fail_count + 1;
+  end if;
+
+  if fail_count > 0 then
+    raise exception '§3-A-2 中核RPCのシグネチャ検証 失敗（% 件）', fail_count;
+  end if;
+  raise notice '=== §3-A-2 中核RPCのシグネチャ PASS ===';
+end $$;
+
+-- ============================================================
+-- §3-A-3: 経済日付の根拠（profiles.timezone）が正規化されていること（0011 / #1）
+--   ACL を閉じても、0011 適用**前**に改ざんされた既存値は残る。RPC はその値を読んで
+--   対象日を計算するため、'Asia/Tokyo' 以外が1行でもあると当日確定が継続可能になる。
+--   本アプリは日本のみ配信で timezone を書く実装が無い ＝ 他の値は不正。
+-- ============================================================
+do $$
+declare
+  v_bad int;
+begin
+  select count(*) into v_bad
+    from public.profiles
+   where timezone is distinct from 'Asia/Tokyo';
+  if v_bad > 0 then
+    raise exception '§3-A-3 FAIL: timezone が Asia/Tokyo でない profiles 行が % 件ある（0011 の正規化漏れ）', v_bad;
+  end if;
+  raise notice '=== §3-A-3 経済日付TZの正規化 PASS ===';
+end $$;
+
+-- ============================================================
 -- §3-B: 列レベル GRANT ホワイトリスト（authenticated）
 --   正: 許可されているべき列 / 負: 課金通貨・確定フラグ等は不可
 -- ============================================================
