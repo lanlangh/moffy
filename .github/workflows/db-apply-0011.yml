@@ -41,8 +41,39 @@ jobs:
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          psql "$DB_URL" -c "select is_finalized, is_anomaly, count(*), min(usage_date), max(usage_date) from public.usage_daily group by 1,2 order by 1,2;"
+          echo "### usage_daily の内訳（is_finalized=false の行は 0012 で基準値から除外される）"
+          psql "$DB_URL" -c "select is_finalized, is_anomaly, count(*), min(usage_date), max(usage_date), min(total_minutes), max(total_minutes) from public.usage_daily group by 1,2 order by 1,2;"
+          echo "### ⚠️ 明らかに不正な行（1日=1440分を超える申告）。is_finalized=true でこれが出たら"
+          echo "###    旧経路で注入・確定された可能性がある。0012 では除外できないので人間が判断すること。"
+          psql "$DB_URL" -c "select is_finalized, count(*), max(total_minutes) from public.usage_daily where total_minutes > 1440 group by 1 order by 1;"
+          echo "### profiles の timezone 分布（Asia/Tokyo 以外は 0011 が正規化する）"
           psql "$DB_URL" -c "select timezone, count(*) from public.profiles group by 1 order by 2 desc;"
+
+      # 表示だけでは人間が見落とすので、**自動で止まる**ゲートにする。
+      #   fn_finalize_day は total_minutes > daily_minutes_max を anomaly と判定して
+      #   **確定しない**（0005:832-838）。よって「is_finalized=true かつ 上限超」の行は
+      #   正規のRPCでは作れず、直接操作の痕跡である。しかも確定済みなので 0012 の
+      #   fail-closed フィルタでも除外できない ＝ 自動では救えない唯一のケース。
+      #   ここで止めて人間の判断（バックアップ・突合・cutover）を仰ぐ。
+      - name: Gate (RPCでは作れない確定済み行があれば適用を止める)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_bad int;
+            v_max int := public.cfg_int('daily_minutes_max', 1440);
+          begin
+            select count(*) into v_bad
+              from public.usage_daily
+             where is_finalized = true and total_minutes > v_max;
+            if v_bad > 0 then
+              raise exception '適用中止: is_finalized=true かつ % 分超 の usage_daily 行が % 件ある。正規RPCでは作れない値＝直接操作の痕跡で、0012 でも除外できない。バックアップを取り point_ledger / baselines / APIログと突合してから判断すること。', v_max, v_bad;
+            end if;
+            raise notice '=== 適用前ゲート PASS（RPCでは作れない確定済み行なし）===';
+          end $$;
+          SQL
 
       - name: Apply 0011 (確定経路の一本化)
         env:

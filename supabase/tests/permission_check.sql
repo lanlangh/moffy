@@ -2,9 +2,10 @@
 -- 経済セキュリティ・エピックのライブ最終証明（信頼境界の検証）。
 -- BACKEND_SETUP.md §3 の RPC 権限グリッド ＋ 列レベル GRANT（G-2/G-3/H4-1/M4-1/C-1/C-3）を
 -- 実 DB に対して自己検証する。期待と異なれば RAISE EXCEPTION で失敗させる（CI ゲート化）。
--- migration 0001〜0011 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
+-- migration 0001〜0012 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
 -- ⚠️ 0011 で確定の入口が fn_submit_and_finalize_day 一本になり、fn_finalize_day 本体・
---    profiles.timezone・usage_daily への直接書込は剥奪された。期待値もそれに合わせてある。
+--    profiles.timezone/INSERT・usage_daily への直接書込は剥奪された。0012 で基準値の
+--    母集団が確定済み日だけに絞られた。期待値もそれに合わせてある。
 
 \echo '================ permission_check.sql 開始 ================'
 
@@ -151,15 +152,20 @@ end $$;
 -- ============================================================
 do $$
 declare
-  v_src text;
+  v_src  text;
+  v_body text;
 begin
+  -- proname ではなく完全シグネチャで引く（同名・別引数の関数を掴まないように）。
   select p.prosrc into v_src
-    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'public' and p.proname = 'fn_finalize_day';
+    from pg_proc p
+   where p.oid = to_regprocedure('public.fn_finalize_day(date)');
   if v_src is null then
-    raise exception '§3-A-4 FAIL: fn_finalize_day が存在しない';
+    raise exception '§3-A-4 FAIL: fn_finalize_day(date) が存在しない';
   end if;
-  if v_src not like '%and is_finalized = true%' then
+  -- 行コメント(--)を除去してから検査する。0012 は説明コメントにも同じ語句を書いている
+  -- ため、コメントだけで PASS する偽陽性を防ぐ（＝WHERE 条件の本体を検査する）。
+  v_body := regexp_replace(v_src, '--[^\n]*', '', 'g');
+  if v_body not like '%and is_finalized = true%' then
     raise exception '§3-A-4 FAIL: fn_finalize_day の基準値クエリに is_finalized=true が無い（0012 未適用＝未確定の注入行が基準値に効く）';
   end if;
   raise notice '=== §3-A-4 基準値の母集団=確定済み日のみ PASS ===';
