@@ -1,0 +1,177 @@
+name: DB Apply 0011 (server-authoritative submit+finalize)
+
+# 0011 をライブ DB(moffy-prod)に適用する。
+#   * fn_pending_finalize_date  … 対象日をサーバーが返す（照会）
+#   * fn_submit_and_finalize_day … 提出＋確定の統合RPC（唯一の入口 / 権限境界）
+#   * 本体 fn_finalize_day / profiles.timezone / usage_daily 直接書込 の権限を剥奪
+#   * 旧ラッパー fn_finalize_ended_day を撤去
+# 関数=create or replace / grant=再付与可 / drop if exists ＝ 冪等なので再実行可。
+# 接続は Secret SUPABASE_DB_URL。前提: 0001〜0010 は適用済み(本番)。手動実行のみ。
+#
+# ⚠️ 適用順: このマイグレーションは Dart 側の呼び出し先を fn_submit_and_finalize_day へ
+#   変更する PR とセット。**DB を先に適用**すること（先にアプリを出すと確定RPCが
+#   「関数が無い」で失敗する）。DB を先に適用してもアプリ未更新の実害は無い
+#   （現行アプリは確定RPCを一度も呼んでいない＝未配線だったため）。
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          psql --version
+
+      # 適用前の点検: usage_daily に何が入っているかを可視化する（0012 の判断材料）。
+      #   提出経路は未配線だった＝クライアントは usage_daily に一度も書いていないため
+      #   実質空のはずだが、authenticated は REST を直接呼べたので「空」は仮説にすぎない。
+      #   is_finalized=false の行は 0012 で基準値から除外される（削除はしない）。
+      #   is_finalized=true の旧行があれば、正当/不正を列だけでは判別できないため要確認。
+      - name: Inspect usage_daily before apply (件数の可視化のみ・失敗させない)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          echo "### usage_daily の内訳（is_finalized=false の行は 0012 で基準値から除外される）"
+          psql "$DB_URL" -c "select is_finalized, is_anomaly, count(*), min(usage_date), max(usage_date), min(total_minutes), max(total_minutes) from public.usage_daily group by 1,2 order by 1,2;"
+          echo "### ⚠️ 明らかに不正な行（1日=1440分を超える申告）。is_finalized=true でこれが出たら"
+          echo "###    旧経路で注入・確定された可能性がある。0012 では除外できないので人間が判断すること。"
+          psql "$DB_URL" -c "select is_finalized, count(*), max(total_minutes) from public.usage_daily where total_minutes > 1440 group by 1 order by 1;"
+          echo "### profiles の timezone 分布（Asia/Tokyo 以外は 0011 が正規化する）"
+          psql "$DB_URL" -c "select timezone, count(*) from public.profiles group by 1 order by 2 desc;"
+
+      # 表示だけでは人間が見落とすので、**自動で止まる**ゲートにする。
+      #   fn_finalize_day は total_minutes > daily_minutes_max を anomaly と判定して
+      #   **確定しない**（0005:832-838）。よって「is_finalized=true かつ 上限超」の行は
+      #   正規のRPCでは作れず、直接操作の痕跡である。しかも確定済みなので 0012 の
+      #   fail-closed フィルタでも除外できない ＝ 自動では救えない唯一のケース。
+      #   ここで止めて人間の判断（バックアップ・突合・cutover）を仰ぐ。
+      - name: Gate (RPCでは作れない確定済み行があれば適用を止める)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_bad int;
+            v_max int := public.cfg_int('daily_minutes_max', 1440);
+          begin
+            select count(*) into v_bad
+              from public.usage_daily
+             where is_finalized = true and total_minutes > v_max;
+            if v_bad > 0 then
+              raise exception '適用中止: is_finalized=true かつ % 分超 の usage_daily 行が % 件ある。正規RPCでは作れない値＝直接操作の痕跡で、0012 でも除外できない。バックアップを取り point_ledger / baselines / APIログと突合してから判断すること。', v_max, v_bad;
+            end if;
+            raise notice '=== 適用前ゲート PASS（RPCでは作れない確定済み行なし）===';
+          end $$;
+          SQL
+
+      - name: Apply 0011 (確定経路の一本化)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0011_server_authoritative_finalize_date.sql
+
+      - name: Apply 0012 (基準値を確定済み日だけに / 0011 の後に適用)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0012_baseline_finalized_only.sql
+
+      # ⚠️ ここは必ず「失敗したら落ちる」形にすること。
+      #   単なる `select ...` は値を表示するだけで、false でも 0 行でも exit 0 になり、
+      #   関数や権限が誤っていてもワークフローが緑になる（Codex 第2次レビュー #7）。
+      #   raise exception を使い、期待に反したら psql を非0終了させる。
+      - name: Verify (関数の存在 / 権限グリッド / 過剰剥奪の検出)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_fail int := 0;
+          begin
+            -- --- 新関数が存在すること ---
+            if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is null then
+              raise warning '[FAIL] fn_submit_and_finalize_day が存在しない';
+              v_fail := v_fail + 1;
+            end if;
+            if to_regprocedure('public.fn_pending_finalize_date()') is null then
+              raise warning '[FAIL] fn_pending_finalize_date が存在しない';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 旧ラッパーが撤去されていること（任意の過去日を許す穴 / #1）---
+            if to_regprocedure('public.fn_finalize_ended_day(date)') is not null then
+              raise warning '[FAIL] 旧ラッパー fn_finalize_ended_day が残っている';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 実行権限: 入口2つは可 / 本体は不可 ---
+            if not has_function_privilege('authenticated','public.fn_submit_and_finalize_day(date,integer,jsonb,text)','execute') then
+              raise warning '[FAIL] authenticated が fn_submit_and_finalize_day を実行できない（提出経路が死ぬ）';
+              v_fail := v_fail + 1;
+            end if;
+            if not has_function_privilege('authenticated','public.fn_pending_finalize_date()','execute') then
+              raise warning '[FAIL] authenticated が fn_pending_finalize_date を実行できない';
+              v_fail := v_fail + 1;
+            end if;
+            if has_function_privilege('authenticated','public.fn_finalize_day(date)','execute') then
+              raise warning '[FAIL] authenticated が本体 fn_finalize_day を直接実行できる（ガード迂回＝当日確定/遡及加点）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 書込権限の剥奪（#2 / #4）---
+            if has_column_privilege('authenticated','public.profiles'::regclass,'timezone','UPDATE') then
+              raise warning '[FAIL] authenticated が profiles.timezone を更新できる（TZ変更で当日確定が可能になる）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- ★ ACL を閉じるだけでは不十分。適用**前**に改ざんされた既存値が残っていると
+            --   攻撃が恒久化するため、正規化されたことを実データで確認する。
+            if exists (select 1 from public.profiles where timezone is distinct from 'Asia/Tokyo') then
+              raise warning '[FAIL] timezone が Asia/Tokyo でない profiles 行が残っている（0011 の正規化漏れ＝当日確定が継続可能）';
+              v_fail := v_fail + 1;
+            end if;
+            if has_table_privilege('authenticated','public.usage_daily'::regclass,'INSERT') then
+              raise warning '[FAIL] authenticated が usage_daily に INSERT できる（提出経路の一本化が破れている）';
+              v_fail := v_fail + 1;
+            end if;
+            if has_table_privilege('authenticated','public.usage_daily'::regclass,'UPDATE') then
+              raise warning '[FAIL] authenticated が usage_daily に UPDATE できる（提出経路の一本化が破れている）';
+              v_fail := v_fail + 1;
+            end if;
+            -- profiles の INSERT も剥奪されていること（欠損プロフィールに任意TZ付きで
+            -- INSERT できると、UPDATE を塞いでも同じ穴が空く）。
+            if has_table_privilege('authenticated','public.profiles'::regclass,'INSERT') then
+              raise warning '[FAIL] authenticated が profiles に INSERT できる（任意timezoneで行を作れる）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- 0012: 基準値クエリが確定済み日だけを母集団にしていること（ソース検査）。
+            if (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname='public' and p.proname='fn_finalize_day')
+               not like '%and is_finalized = true%' then
+              raise warning '[FAIL] fn_finalize_day の基準値クエリに is_finalized=true が無い（0012 未適用＝注入行が基準値に効く）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 過剰剥奪の検出（revoke update on profiles で display_name まで消していないか）---
+            if not has_column_privilege('authenticated','public.profiles'::regclass,'display_name','UPDATE') then
+              raise warning '[FAIL] profiles.display_name の更新権限まで剥奪されている（ニックネーム変更が壊れる）';
+              v_fail := v_fail + 1;
+            end if;
+
+            if v_fail > 0 then
+              raise exception '0011 適用検証 失敗（% 件）', v_fail;
+            end if;
+            raise notice '=== 0011 適用検証 PASS ===';
+          end $$;
+          SQL

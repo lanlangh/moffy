@@ -169,6 +169,7 @@ from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
   and p.proname in (
+    'fn_submit_and_finalize_day','fn_pending_finalize_date',
     'fn_finalize_day','fn_hatch_egg','fn_grant_quest_reward',
     'fn_evaluate_quest','fn_sync_quests',
     'fn_spend_currency','fn_delete_account','fn_claim_warmup',
@@ -182,7 +183,9 @@ order by p.proname;
 
 | 関数 | authenticated execute | anon execute | security definer |
 |---|---|---|---|
-| `fn_finalize_day` | **true** | false | **true** |
+| `fn_submit_and_finalize_day` (0011 / 提出＋確定の唯一の入口) | **true** | false | **true** |
+| `fn_pending_finalize_date` (0011 / 対象日の照会) | **true** | false | **true** |
+| `fn_finalize_day` (0011 で **revoke** / 上記RPC からのみ到達) | **false** | false | **true** |
 | `fn_hatch_egg` | **true** | false | **true** |
 | `fn_grant_quest_reward` | **true** | false | **true** |
 | `fn_evaluate_quest` (公開RPC / C-1) | **true** | false | **true** |
