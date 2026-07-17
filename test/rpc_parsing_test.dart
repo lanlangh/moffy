@@ -137,14 +137,23 @@ void main() {
       final draft = UsageDailyDraft.fromDailyUsage(usage, localPoints: 35);
 
       expect(draft.dateKey, '2026-06-22');
-      final row = draft.toUsageRow();
-      expect(row['usage_date'], '2026-06-22');
-      expect(row['total_minutes'], 60);
-      expect(row['source_mode'], 'exact-minutes');
-      // 信頼境界 (H4-1/M4-1 / migration 0004 G-4): is_anomaly / is_finalized は
-      // サーバー専管列のため DB 提出行 (toUsageRow) には含めない。
-      expect(row.containsKey('is_anomaly'), isFalse);
-      expect(row.containsKey('is_finalized'), isFalse);
+      final params = draft.toRpcParams();
+      expect(params['p_date'], '2026-06-22');
+      expect(params['p_total_minutes'], 60);
+      expect(params['p_source_mode'], 'exact-minutes');
+      expect(params['p_per_app_minutes'], {
+        'com.instagram.android': 40,
+        'com.x': 20,
+      });
+      // 信頼境界 (H4-1/M4-1 / 0004 G-4 / 0011): is_anomaly / is_finalized はサーバー
+      // 専管なので RPC 引数に含めない。user_id も渡さない（サーバーが auth.uid() で
+      // 解決する＝他人の行を書けない）。ここが増えると信頼境界が壊れるので固定する。
+      expect(params.keys.toSet(), {
+        'p_date',
+        'p_total_minutes',
+        'p_per_app_minutes',
+        'p_source_mode',
+      });
 
       // payload 往復で local_points（S8競合解決の比較基準）も保持される。
       final restored = UsageDailyDraft.fromPayload(draft.toPayload());
@@ -164,8 +173,8 @@ void main() {
       final draft = UsageDailyDraft.fromDailyUsage(usage);
       // 端末ローカルの楽観pt計算用ヒントとしては保持する。
       expect(draft.isAnomaly, isTrue);
-      // ただし DB 提出行には含めない (異常判定の権威はサーバー fn_finalize_day)。
-      expect(draft.toUsageRow().containsKey('is_anomaly'), isFalse);
+      // ただし RPC 引数には含めない (異常判定の権威はサーバー fn_finalize_day)。
+      expect(draft.toRpcParams().containsKey('is_anomaly'), isFalse);
       // sync_queue ローカル復元 (toPayload/fromPayload) では従来どおり保持される。
       expect(draft.toPayload()['is_anomaly'], isTrue);
       expect(UsageDailyDraft.fromPayload(draft.toPayload()).isAnomaly, isTrue);

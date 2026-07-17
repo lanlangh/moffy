@@ -31,8 +31,8 @@ class UsageDailyDraft {
   /// S4 異常値の端末側ヒント（1440分超）。**ローカルの楽観pt計算専用**。
   ///
   /// 信頼境界（H4-1/M4-1 / migration 0004 G-4）: usage_daily.is_anomaly は
-  /// サーバー専管列（クライアントは列GRANTで書込不可）になったため、この値は
-  /// DB へは送らない（[toUsageRow] に含めない）。異常判定の権威は
+  /// サーバー専管列（0011 でクライアントの直接書込自体を剥奪）なので、この値は
+  /// サーバーへ送らない（[toRpcParams] に含めない）。異常判定の権威は
   /// fn_finalize_day（サーバー / total_minutes > app_config.daily_minutes_max）にある。
   /// 端末はこの値を [PointCalculator] の楽観表示と sync_queue ローカル復元にのみ使う。
   final bool isAnomaly;
@@ -72,17 +72,23 @@ class UsageDailyDraft {
     return '$y-$m-$d';
   }
 
-  /// usage_daily への upsert 行（本人 user_id は呼び出し側で付与）。
+  /// `fn_submit_and_finalize_day`（migration 0011）へ渡す引数。
   ///
-  /// 信頼境界（H4-1/M4-1 / migration 0004 G-4）: クライアントが書けるのは
-  /// 生データ列（usage_date / total_minutes / per_app_minutes / source_mode）のみ。
-  /// is_finalized / is_anomaly は列GRANTでサーバー専管（送ると権限エラー）。
-  /// id / created_at / updated_at は DB の default / トリガで自動充填される。
-  Map<String, Object?> toUsageRow() => {
-        'usage_date': dateKey,
-        'total_minutes': totalMinutes,
-        'per_app_minutes': perAppMinutes,
-        'source_mode': mode.wire,
+  /// 信頼境界（H4-1/M4-1 / 0004 G-4 / 0011）: クライアントが渡せるのは**生データのみ**。
+  ///   * `is_finalized` / `is_anomaly` はサーバー専管（渡さない・渡せない）。
+  ///   * `user_id` も渡さない（サーバーが `auth.uid()` で解決する＝なりすまし不可）。
+  ///   * `p_date` は「どの日のつもりで集めたか」の申告にすぎず、**対象日の権威はサーバー**
+  ///     （サーバー当日の前日と一致しなければ 'wrong_finalize_date' で拒否される / Codex #1）。
+  ///
+  /// 直接 upsert しない理由（Codex #4）: 0004 の列GRANTは INSERT=5列 / UPDATE=3列と非対称で、
+  /// PostgREST の merge-upsert は全入力列について `DO UPDATE SET col = EXCLUDED.col` を
+  /// 生成する。PostgreSQL は競合の有無に関係なく文の実行前に全列のUPDATE権限を要求するため、
+  /// user_id / usage_date の権限不足で **必ず 42501** になる。書込はサーバー(definer)が行う。
+  Map<String, Object?> toRpcParams() => {
+        'p_date': dateKey,
+        'p_total_minutes': totalMinutes,
+        'p_per_app_minutes': perAppMinutes,
+        'p_source_mode': mode.wire,
       };
 
   /// sync_queue（[SyncOperation.payload]）へ積む形へ直列化する。

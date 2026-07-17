@@ -5,6 +5,7 @@ import '../../../core/error/failure.dart';
 import '../../../core/observability/analytics_events.dart';
 import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
+import '../../../core/sync/day_finalized_tick.dart';
 import '../data/quest_repository.dart';
 import '../domain/quest_models.dart';
 
@@ -18,6 +19,13 @@ class QuestsController extends AsyncNotifier<QuestsState> {
 
   Future<QuestsState> _load() async {
     final params = await ref.watch(economyParamsProvider.future);
+
+    // 前日分のサーバー確定で進捗が変わる（reduce_total / points_earn / streak_keep は
+    // usage_daily の is_finalized・point_ledger・streaks から再算出されるため）。
+    // watch していないとキャッシュを返し続け、「ptは入ったのにクエストが未達のまま」に
+    // なる（Codex 第2次レビュー #6）。
+    ref.watch(dayFinalizedTickProvider);
+
     final repo = ref.read(questRepositoryProvider);
     return repo.loadQuests(params);
   }

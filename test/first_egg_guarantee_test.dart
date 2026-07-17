@@ -4,6 +4,7 @@ import 'package:moffy/core/constants/economy.dart';
 import 'package:moffy/core/observability/analytics.dart';
 import 'package:moffy/core/observability/analytics_events.dart';
 import 'package:moffy/core/observability/observability_providers.dart';
+import 'package:moffy/core/sync/day_finalized_tick.dart';
 import 'package:moffy/core/sync/finalize_models.dart';
 import 'package:moffy/features/eggs/data/egg_repository.dart';
 import 'package:moffy/features/eggs/domain/egg_models.dart';
@@ -43,6 +44,29 @@ void main() {
     // 保証は1回、ロードは「初回の空 + 付与後の再読込」の2回。
     expect(fake.ensureCalls, 1);
     expect(fake.loadCalls, 2);
+  });
+
+  test('サーバー確定の合図が来たら卵を再取得する（確定ptの成長を画面に出す）', () async {
+    final fake = _FakeEggRepository(startEmpty: false);
+    final container = containerWith(fake);
+
+    await container.read(eggsControllerProvider.future);
+    expect(fake.loadCalls, 1);
+
+    // 前日分のサーバー確定（fn_finalize_day → fn_apply_growth）で卵が育った合図。
+    container.read(dayFinalizedTickProvider.notifier).state++;
+    await container.read(eggsControllerProvider.future);
+
+    // ref.watch は「購読」であって「再実行」ではない。EggsController._load が
+    // dayFinalizedTickProvider を watch していないと、tick が増えてもキャッシュを
+    // 返し続けて loadCalls は 1 のまま落ちる（＝「ptは入ったのに卵が育っていない」）。
+    // ホームは本コントローラを卵の単一情報源にしているため、ホーム側だけが tick を
+    // watch していても卵の値は更新されない（Codex 第2次レビュー #6）。
+    expect(
+      fake.loadCalls,
+      2,
+      reason: 'EggsController._load が dayFinalizedTickProvider を watch していない',
+    );
   });
 
   test('既に卵があるときは ensureFirstEgg を呼ばず、再読込もしない', () async {

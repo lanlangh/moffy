@@ -6,6 +6,7 @@ import 'package:moffy/app.dart';
 import 'package:moffy/core/router/app_router.dart';
 import 'package:moffy/core/sync/connectivity_provider.dart';
 import 'package:moffy/core/sync/daily_submission.dart';
+import 'package:moffy/core/sync/day_finalized_tick.dart';
 import 'package:moffy/core/sync/finalize_models.dart';
 import 'package:moffy/core/sync/usage_sync_repository.dart';
 import 'package:moffy/core/usage/usage_models.dart';
@@ -57,8 +58,7 @@ void main() {
     expect(usage.fetchedDates, contains(serverTarget));
   });
 
-  test('サーバーが確定済みと言えば何もしない（RLS再提出の無限リトライを防ぐ / #4）',
-      () async {
+  test('サーバーが確定済みと言えば何もしない（無駄な往復とOS取得を省く）', () async {
     final usage = _FakeUsageProvider();
     final repo = _FakeUsageSyncRepository(
       targetDate: serverTarget,
@@ -139,13 +139,31 @@ void main() {
     expect(repo.submitted, isEmpty);
   });
 
-  test('確定に成功したら画面へ再取得の合図を出す（#6）', () async {
+  test('確定に成功したら画面へ再取得の合図を出す', () async {
     final usage = _FakeUsageProvider();
     final repo = _FakeUsageSyncRepository(targetDate: serverTarget);
     final container = containerWith(usage, repo);
 
     expect(container.read(dayFinalizedTickProvider), 0);
     await container.read(dailySubmissionServiceProvider).submitPendingDay();
+    // 合図の発火元は SyncService（確定RPCの戻り値を知る唯一の場所）。
+    // ここが 0 なら sync_service.dart の tick++ が消えている。
+    expect(container.read(dayFinalizedTickProvider), 1);
+  });
+
+  test('確定判定のためにサーバーへ再照会しない（日跨ぎで別日を誤判定する / #5B）',
+      () async {
+    final usage = _FakeUsageProvider();
+    final repo = _FakeUsageSyncRepository(targetDate: serverTarget);
+    final container = containerWith(usage, repo);
+
+    await container.read(dailySubmissionServiceProvider).submitPendingDay();
+
+    // 対象日の問い合わせは「提出前の1回」だけ。送信後にもう一度
+    // pendingFinalizeDate() を呼ぶと、23:59 に日を跨いだ場合その答えは**翌日**に
+    // ついてのものになり、対象日の確定を見逃す／別日の確定を今回の成功と誤認する。
+    // 確定の可否は submitAndFinalize の戻り値（サーバーの確定結果）が唯一の正本。
+    expect(repo.pendingCalls, 1);
     expect(container.read(dayFinalizedTickProvider), 1);
   });
 
@@ -283,10 +301,14 @@ class _FakeUsageSyncRepository implements UsageSyncRepository {
   final bool pendingNull;
   final bool throwOnce;
   final List<UsageDailyDraft> submitted = [];
+
+  /// 対象日の照会回数（#5B: 送信後の再照会をしていないことの検証用）。
+  int pendingCalls = 0;
   bool _thrown = false;
 
   @override
   Future<PendingFinalizeDate?> pendingFinalizeDate() async {
+    pendingCalls++;
     if (pendingNull) return null;
     return PendingFinalizeDate(
       targetDate: targetDate,

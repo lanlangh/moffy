@@ -1,14 +1,17 @@
-name: DB Apply 0011 (server-authoritative finalize date)
+name: DB Apply 0011 (server-authoritative submit+finalize)
 
-# 0011(対象日をサーバーが決める fn_pending_finalize_date + ガード付きラッパー
-# fn_finalize_ended_day / 本体 fn_finalize_day の直接実行権限を剥奪) を
-# ライブ DB(moffy-prod)に適用する。関数=create or replace / grant=再付与可 ＝ 冪等なので再実行可。
+# 0011 をライブ DB(moffy-prod)に適用する。
+#   * fn_pending_finalize_date  … 対象日をサーバーが返す（照会）
+#   * fn_submit_and_finalize_day … 提出＋確定の統合RPC（唯一の入口 / 権限境界）
+#   * 本体 fn_finalize_day / profiles.timezone / usage_daily 直接書込 の権限を剥奪
+#   * 旧ラッパー fn_finalize_ended_day を撤去
+# 関数=create or replace / grant=再付与可 / drop if exists ＝ 冪等なので再実行可。
 # 接続は Secret SUPABASE_DB_URL。前提: 0001〜0010 は適用済み(本番)。手動実行のみ。
 #
-# ⚠️ 適用順: このマイグレーションは Dart 側の呼び出し先を fn_finalize_ended_day へ
+# ⚠️ 適用順: このマイグレーションは Dart 側の呼び出し先を fn_submit_and_finalize_day へ
 #   変更する PR とセット。**DB を先に適用**すること（先にアプリを出すと確定RPCが
-#   権限エラーになる）。DB適用後はアプリ未更新でも旧経路が revoke されるだけで、
-#   現状 fn_finalize_day を呼ぶ実クライアントは存在しない（未配線だったため無影響）。
+#   「関数が無い」で失敗する）。DB を先に適用してもアプリ未更新の実害は無い
+#   （現行アプリは確定RPCを一度も呼んでいない＝未配線だったため）。
 on:
   workflow_dispatch:
 
@@ -29,16 +32,77 @@ jobs:
           fi
           psql --version
 
-      - name: Apply 0011 (pending date RPC + guarded finalize wrapper)
+      - name: Apply 0011
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0011_server_authoritative_finalize_date.sql
 
-      - name: Verify (関数の存在 / 実行権限の付け替え)
+      # ⚠️ ここは必ず「失敗したら落ちる」形にすること。
+      #   単なる `select ...` は値を表示するだけで、false でも 0 行でも exit 0 になり、
+      #   関数や権限が誤っていてもワークフローが緑になる（Codex 第2次レビュー #7）。
+      #   raise exception を使い、期待に反したら psql を非0終了させる。
+      - name: Verify (関数の存在 / 権限グリッド / 過剰剥奪の検出)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          # 新関数が2つとも存在すること。
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select proname from pg_proc where proname in ('fn_pending_finalize_date','fn_finalize_ended_day') order by proname;"
-          # authenticated は ラッパーのみ実行可 / 本体は実行不可 であること。
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "select has_function_privilege('authenticated','public.fn_finalize_ended_day(date)','execute') as wrapper_ok, has_function_privilege('authenticated','public.fn_finalize_day(date)','execute') as body_revoked_should_be_false, has_function_privilege('authenticated','public.fn_pending_finalize_date()','execute') as pending_ok;"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_fail int := 0;
+          begin
+            -- --- 新関数が存在すること ---
+            if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is null then
+              raise warning '[FAIL] fn_submit_and_finalize_day が存在しない';
+              v_fail := v_fail + 1;
+            end if;
+            if to_regprocedure('public.fn_pending_finalize_date()') is null then
+              raise warning '[FAIL] fn_pending_finalize_date が存在しない';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 旧ラッパーが撤去されていること（任意の過去日を許す穴 / #1）---
+            if to_regprocedure('public.fn_finalize_ended_day(date)') is not null then
+              raise warning '[FAIL] 旧ラッパー fn_finalize_ended_day が残っている';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 実行権限: 入口2つは可 / 本体は不可 ---
+            if not has_function_privilege('authenticated','public.fn_submit_and_finalize_day(date,integer,jsonb,text)','execute') then
+              raise warning '[FAIL] authenticated が fn_submit_and_finalize_day を実行できない（提出経路が死ぬ）';
+              v_fail := v_fail + 1;
+            end if;
+            if not has_function_privilege('authenticated','public.fn_pending_finalize_date()','execute') then
+              raise warning '[FAIL] authenticated が fn_pending_finalize_date を実行できない';
+              v_fail := v_fail + 1;
+            end if;
+            if has_function_privilege('authenticated','public.fn_finalize_day(date)','execute') then
+              raise warning '[FAIL] authenticated が本体 fn_finalize_day を直接実行できる（ガード迂回＝当日確定/遡及加点）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 書込権限の剥奪（#2 / #4）---
+            if has_column_privilege('authenticated','public.profiles'::regclass,'timezone','UPDATE') then
+              raise warning '[FAIL] authenticated が profiles.timezone を更新できる（TZ変更で当日確定が可能になる）';
+              v_fail := v_fail + 1;
+            end if;
+            if has_table_privilege('authenticated','public.usage_daily'::regclass,'INSERT') then
+              raise warning '[FAIL] authenticated が usage_daily に INSERT できる（提出経路の一本化が破れている）';
+              v_fail := v_fail + 1;
+            end if;
+            if has_table_privilege('authenticated','public.usage_daily'::regclass,'UPDATE') then
+              raise warning '[FAIL] authenticated が usage_daily に UPDATE できる（提出経路の一本化が破れている）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- --- 過剰剥奪の検出（revoke update on profiles で display_name まで消していないか）---
+            if not has_column_privilege('authenticated','public.profiles'::regclass,'display_name','UPDATE') then
+              raise warning '[FAIL] profiles.display_name の更新権限まで剥奪されている（ニックネーム変更が壊れる）';
+              v_fail := v_fail + 1;
+            end if;
+
+            if v_fail > 0 then
+              raise exception '0011 適用検証 失敗（% 件）', v_fail;
+            end if;
+            raise notice '=== 0011 適用検証 PASS ===';
+          end $$;
+          SQL

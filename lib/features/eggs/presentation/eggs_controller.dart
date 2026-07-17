@@ -4,6 +4,7 @@ import '../../../core/constants/remote_config.dart';
 import '../../../core/observability/analytics_events.dart';
 import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
+import '../../../core/sync/day_finalized_tick.dart';
 import '../data/egg_repository.dart';
 import '../domain/egg_models.dart';
 
@@ -18,6 +19,13 @@ class EggsController extends AsyncNotifier<EggsState> {
 
   Future<EggsState> _load() async {
     final params = await ref.watch(economyParamsProvider.future);
+
+    // 前日分のサーバー確定で卵が育つ（fn_finalize_day → fn_apply_growth が確定ptを
+    // アクティブ卵へ反映する）。watch していないとキャッシュを返し続け、「ptは入ったのに
+    // 卵が育っていない」になる。ホームは本コントローラを単一情報源にしているため、
+    // ホーム側だけが tick を watch しても卵の値は更新されない（Codex 第2次レビュー #6）。
+    ref.watch(dayFinalizedTickProvider);
+
     final repo = ref.read(eggRepositoryProvider);
     var state = await repo.loadEggs(params);
 

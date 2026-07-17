@@ -2,7 +2,9 @@
 -- 経済セキュリティ・エピックのライブ最終証明（信頼境界の検証）。
 -- BACKEND_SETUP.md §3 の RPC 権限グリッド ＋ 列レベル GRANT（G-2/G-3/H4-1/M4-1/C-1/C-3）を
 -- 実 DB に対して自己検証する。期待と異なれば RAISE EXCEPTION で失敗させる（CI ゲート化）。
--- migration 0001〜0009 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
+-- migration 0001〜0011 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
+-- ⚠️ 0011 で確定の入口が fn_submit_and_finalize_day 一本になり、fn_finalize_day 本体・
+--    profiles.timezone・usage_daily への直接書込は剥奪された。期待値もそれに合わせてある。
 
 \echo '================ permission_check.sql 開始 ================'
 
@@ -14,7 +16,13 @@ declare
   r record;
   -- 期待: proname -> (auth_can, anon_can)
   expected jsonb := jsonb_build_object(
-    'fn_finalize_day',           jsonb_build_array(true,  false),
+    -- 0011: 本体 fn_finalize_day は authenticated から revoke 済み。クライアントが呼べる
+    --   確定の入口は fn_submit_and_finalize_day のみ（対象日=前日の強制・行ロック・
+    --   definer 書込を1トランザクションで行うガード）。本体を直接呼べると当日確定・
+    --   任意の過去日への遡及加点が通ってしまうため、ここが false であることは経済の要。
+    'fn_finalize_day',           jsonb_build_array(false, false),
+    'fn_submit_and_finalize_day', jsonb_build_array(true,  false),
+    'fn_pending_finalize_date',  jsonb_build_array(true,  false),
     'fn_hatch_egg',              jsonb_build_array(true,  false),
     'fn_grant_quest_reward',     jsonb_build_array(true,  false),
     'fn_evaluate_quest',         jsonb_build_array(true,  false),
@@ -101,15 +109,22 @@ declare
     array['eggs','rarity','UPDATE','false'],               -- G-3
     array['user_quests','is_completed','UPDATE','false'],  -- C-1 報酬偽造防止
     array['user_quests','reward_granted','UPDATE','false'],-- C-1
+    -- 0011 #2: timezone は「経済日付（どの日を確定するか）」の計算根拠＝セキュリティ境界。
+    --   クライアントが書けると、東京20時に Pacific/Kiritimati へ変えてサーバーを翌日扱いに
+    --   させ、「まだ進行中の日」を確定できる（= 当日確定 = 満額取って使い放題）。
+    array['profiles','timezone','UPDATE','false'],
+    -- 0011 #4: usage_daily への直接書込は全面剥奪。提出は fn_submit_and_finalize_day
+    --   （definer）経由のみ。列GRANTの非対称（INSERT=5列/UPDATE=3列）で PostgREST の
+    --   merge-upsert が必ず 42501 になる問題も、書込をサーバーへ寄せることで解消する。
+    array['usage_daily','total_minutes','INSERT','false'],
+    array['usage_daily','source_mode','INSERT','false'],
+    array['usage_daily','total_minutes','UPDATE','false'],
+    array['usage_daily','per_app_minutes','UPDATE','false'],
     -- == 正（true であるべき）== 正規の書込み列 ==
     array['profiles','display_name','UPDATE','true'],
-    array['profiles','timezone','UPDATE','true'],
     array['eggs','slot_index','UPDATE','true'],
     array['eggs','location','UPDATE','true'],
     array['eggs','is_active','UPDATE','true'],
-    array['usage_daily','total_minutes','INSERT','true'],
-    array['usage_daily','source_mode','INSERT','true'],
-    array['usage_daily','total_minutes','UPDATE','true'],
     array['user_quests','progress','UPDATE','true']
   ];
   c text[];
@@ -131,6 +146,18 @@ begin
     fail_count := fail_count + 1;
   end if;
 
+  -- 0011 #4: usage_daily へのクライアント直接書込は剥奪済みであるべき（テーブル権限）。
+  --   提出経路は fn_submit_and_finalize_day（definer）のみ。直接書込が残っていると
+  --   「確定前に生データだけ差し替える」抜け道になる。
+  if has_table_privilege('authenticated', 'public.usage_daily'::regclass, 'INSERT') then
+    raise warning '[§3-B FAIL] authenticated が usage_daily に INSERT 可（0011 提出経路の一本化が破れている）';
+    fail_count := fail_count + 1;
+  end if;
+  if has_table_privilege('authenticated', 'public.usage_daily'::regclass, 'UPDATE') then
+    raise warning '[§3-B FAIL] authenticated が usage_daily に UPDATE 可（0011 提出経路の一本化が破れている）';
+    fail_count := fail_count + 1;
+  end if;
+
   if fail_count > 0 then
     raise exception '§3-B 列レベルGRANT検証 失敗（% 件）', fail_count;
   end if;
@@ -139,8 +166,12 @@ end $$;
 
 -- ============================================================
 -- §3-C: ランタイム実証（A-5 / H4-1）
---   authenticated ロールで is_finalized 付き INSERT を試み、列権限拒否で失敗することを確認。
---   ※ 真の合否判定は §3-B（has_column_privilege）。本ブロックは実挙動のデモ（best-effort）。
+--   authenticated ロールで is_finalized 付き INSERT を試み、権限拒否で失敗することを確認。
+--   ※ 0011 以降、usage_daily は INSERT 自体が剥奪されたため、拒否はテーブル権限レベルで
+--     起きる（0010 までは is_finalized の列権限で起きていた）。どちらでも 42501 で拒否
+--     されることに変わりはなく、本ブロックの合否は変わらない。
+--   ※ 真の合否判定は §3-B（has_column_privilege / has_table_privilege）。
+--     本ブロックは実挙動のデモ（best-effort）。
 -- ============================================================
 do $$
 declare

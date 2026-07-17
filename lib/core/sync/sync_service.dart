@@ -5,6 +5,7 @@ import '../observability/log.dart';
 import '../observability/observability_providers.dart';
 import 'conflict_resolver.dart';
 import 'connectivity_provider.dart';
+import 'day_finalized_tick.dart';
 import 'finalize_models.dart';
 import 'sync_models.dart';
 import 'sync_queue.dart';
@@ -128,6 +129,14 @@ class SyncService {
       'streak=${result.streakAfter} stage=${result.stage} '
       'resolved=${resolution.resolvedValue}',
     );
+
+    // 画面（残高・卵・クエスト）へ再取得の合図。ここが唯一の発火点＝確定RPCの戻り値を
+    // 知っているのはこのメソッドだけだから。呼び出し側（DailySubmissionService）が
+    // サーバーへ再照会して判定してはいけない（送信中に日を跨ぐと翌日について答えるため
+    // / Codex 第2次レビュー #5B）。
+    //   * already_finalized（他端末が確定済み / 再送）でも finalized=true で合図する。
+    //     サーバー状態は確定済み＝画面が古い可能性があるため、再取得させるのが正しい。
+    _ref.read(dayFinalizedTickProvider.notifier).state++;
   }
 
   /// 利用生データ提出操作をキューへ積む（ARCHITECTURE §1-5: オフライン中も積める / S8）。

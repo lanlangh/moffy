@@ -22,15 +22,21 @@ import 'usage_sync_repository.dart';
 /// 「サーバーの今日」になり、当日確定が通ってしまう。削減量 = 基準値 - 当日利用分は
 /// 時間とともに**減るだけ**なので、朝の少ない利用時間で満額(480pt上限)を確定でき、
 /// その後は使い放題になる。よって [UsageSyncRepository.pendingFinalizeDate] で
-/// サーバーに対象日を問い合わせる（サーバー側も `fn_finalize_ended_day` が
-/// 当日を 'day_not_ended' で拒否する＝二重防御）。
+/// サーバーに対象日を問い合わせる。
+///
+/// ⚠️ ただしこの問い合わせは「どの日の OS 利用データを集めるか」を知るための**照会**で
+/// あって、権限境界ではない。境界はサーバーの `fn_submit_and_finalize_day` が持ち、
+/// 申告された日がサーバーの計算した対象日（＝前日）と一致しなければ
+/// 'wrong_finalize_date' で拒否する。よって照会と本送信の間に日を跨いでも安全
+/// （次回の起動/復帰で正しい日を取り直す / Codex 第2次レビュー #1・#5）。
 ///
 /// ## 提出済み判定もサーバーが持つ
 ///
 /// 端末に「提出済みフラグ」を持たない。ローカルフラグはサーバー状態と乖離し得るため
-/// （再インストールで消える → 確定済み日を再提出 → RLS `usage_update_own_unfinalized`
-/// で権限エラー → キューに残り再試行し続ける）。確定の事実は
+/// （再インストールで消える → 確定済み日を再提出）。確定の事実は
 /// `usage_daily.is_finalized` が唯一の正本で、`already_finalized` として受け取る。
+/// 確定済み日を再提出しても RPC は行ロック下で早期 return するだけ（エラーにしない）
+/// なので、キューに毒オペレーションが residue として残り続けることはない。
 class DailySubmissionService {
   DailySubmissionService(this._ref);
 
@@ -100,21 +106,15 @@ class DailySubmissionService {
             );
 
       // 4. キューへ積んで送信（オフライン中に積めるのが S8 の骨子）。
+      //    確定できたかの判定と画面への合図（[dayFinalizedTickProvider]）は
+      //    [SyncService] が行う＝確定RPCの戻り値を唯一知っている場所だから。
+      //    ここで再照会してはいけない（送信中に日を跨ぐと、再照会は**翌日**について
+      //    答えるため、対象日の確定を見逃す/別日の確定を今回の成功と誤認する
+      //    / Codex 第2次レビュー #5B）。
       final draft = UsageDailyDraft.fromDailyUsage(usage, localPoints: localPoints);
       final sync = _ref.read(syncServiceProvider);
       await sync.enqueueUsageSubmission(draft);
       await sync.syncNow();
-
-      // 5. 確定できたかはサーバーに再確認する（[SyncOutcome] は成功“件数”しか返さず、
-      //    anomaly/未提出などの finalized=false も「送信成功」に数えるため信用できない）。
-      //    確定していれば画面（残高・卵・クエスト）へ再取得の合図を出す。
-      final after = await repo.pendingFinalizeDate();
-      if (after != null && after.alreadyFinalized) {
-        _ref.read(dayFinalizedTickProvider.notifier).state++;
-        Log.d('day finalized: ${draft.dateKey}');
-      } else {
-        Log.d('day not finalized yet: ${draft.dateKey}（次の復帰で再試行）');
-      }
     } catch (e, st) {
       // 提出失敗でアプリを止めない（次の復帰 / 起動で再試行）。
       Log.e('submitPendingDay failed', error: e, stack: st);
@@ -130,13 +130,6 @@ class DailySubmissionService {
 /// [Env.hasSupabase] ではなく [Env.useSupabase] で判定する（プレビューの操作を
 /// 本番DBへ書かない）。
 final usageSubmissionEnabledProvider = Provider<bool>((ref) => Env.useSupabase);
-
-/// サーバー確定が成功するたびに増える「確定イベント」の合図。
-///
-/// features 側（ホーム残高・たまご・クエスト）がこれを watch して再取得する。
-/// core が features を import すると層が逆転するため、core は合図だけを公開し、
-/// 何を再取得するかは features 側が決める（ARCHITECTURE §1-2）。
-final dayFinalizedTickProvider = StateProvider<int>((ref) => 0);
 
 /// DI（ARCHITECTURE §1-3）。テストで override 可能。
 final dailySubmissionServiceProvider =

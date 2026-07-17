@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/economy.dart';
 import '../../../core/constants/remote_config.dart';
 import '../../../core/sync/connectivity_provider.dart';
-import '../../../core/sync/daily_submission.dart';
+import '../../../core/sync/day_finalized_tick.dart';
 import '../../../core/sync/finalize_models.dart';
 import '../../../core/usage/usage_providers.dart';
 import '../../eggs/domain/egg_models.dart';
