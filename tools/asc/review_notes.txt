@@ -1,0 +1,55 @@
+【Family Controls / Screen Time の用途について】
+
+本アプリは、ユーザー自身が「減らしたい」と選んだアプリの利用削減量を、
+キャラクター育成ゲームのポイントに換算する、デジタルウェルビーイング目的のアプリです。
+
+・対象アプリはユーザーがOS標準の FamilyActivityPicker で自分で選択します。
+・DeviceActivityMonitor 拡張は「設定した時間しきい値に到達したか」のみを
+  App Group に記録します。
+・iOS の仕様上、選択されたアプリは不透明トークンとして扱われ、開発者側からは
+  どのアプリかを識別できません。アプリ名や個別の内訳をサーバーへ送信することは
+  一切ありません。
+・サーバーへ送るのは日次の合計利用分数のみで、ポイント確定計算に使用します。
+
+【サインインについて】
+アカウント登録・ログイン画面はありません。初回起動時に匿名アカウントが自動作成される
+ため、デモアカウントは不要です。
+
+【審査時の動作について】
+初回起動から7日間は基準値（過去の平均利用時間）を算出する準備期間のため、
+削減ポイントの代わりに固定のボーナスポイントが付与され、最初の卵が孵ります。
+短時間のレビューでも、この付与によりゲームの主要な流れをご確認いただけます。
+
+【広告について】
+無料プランでは AdMob のバナー広告を表示しますが、非パーソナライズ広告のみで、
+ATT（トラッキング許可）は求めず、IDFA をトラッキング目的で使用しません。
+公開前のため AdMob の配信承認が下りておらず、審査時点ではバナーが表示されない
+場合があります。
+
+----------------------------------------------------------------------
+
+[Family Controls / Screen Time usage]
+
+This app converts the reduction in usage of apps that the user themselves selects
+into points for a pet-raising game. It is a digital wellbeing app.
+
+- The user selects target apps via the OS-standard FamilyActivityPicker.
+- The DeviceActivityMonitor extension only records whether a configured time
+  threshold was reached, storing it in an App Group.
+- Per iOS design, selected apps are opaque tokens; we cannot identify which apps
+  they are. No app names or per-app breakdowns are ever sent to our server.
+- Only the daily total minutes are sent, used solely to finalize points.
+
+[Sign-in]
+There is no account registration or login screen. An anonymous account is created
+automatically on first launch, so no demo account is required.
+
+[Note for review]
+For the first 7 days, the app establishes a baseline of past usage, so fixed bonus
+points are granted instead of reduction points, which hatches the first egg. This
+lets you verify the core game loop within a short review session.
+
+[Ads]
+The free tier shows AdMob banners, non-personalized only. We do not request ATT and
+do not use IDFA for tracking. As the app is not yet published, AdMob has not approved
+serving, so banners may not appear during review.
