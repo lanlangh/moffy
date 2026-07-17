@@ -12,8 +12,13 @@
     - **提出+確定を1本のdefiner RPC `fn_submit_and_finalize_day(date,integer,jsonb,text)` に統合**(migration **0011**)。対象日はサーバー権威(当日-1と不一致なら`wrong_finalize_date`)/行ロックで原子的/definerが書くので列GRANTの非対称を回避。`fn_finalize_day`本体・`profiles.timezone`更新・`profiles`INSERT・`usage_daily`直接書込は**すべてrevoke**。既存の改ざんtimezoneはEXCLUSIVEロック下の1Txで`Asia/Tokyo`へ正規化。
     - **migration 0012 = 基準値の母集団を`is_finalized=true`に限定(fail-closed)**。旧実装は未確定行を平均に入れており、高いtotal_minutesの過去日を**1行注入するだけ**で基準値が上がり日次480pt上限まで加点できた(欠損日は除外仕様なので窓内に1行あればその値が平均になる)。0005の`quest_condition_met`が既に採用しているC-2 fail-closedと同じ原則で、**本体だけが漏れていた＝設計の内部矛盾**だった。0012は0005の関数223行を**スクリプトで機械抽出**して1箇所だけ置換(手写し禁止・差分検証済)。⚠️0005末尾の`grant execute to authenticated`は**意図的に引き継がない**(0011のガードが無効化されるため)。
     - **⚠️0011と0012は必ず対で・この順で適用**。0011のみ=注入行が基準値に効く脆弱性が残る/0012のみ=確定経路が停止。
-  - **⏳次の手順(この順)**: ①**DB適用**=`db-apply-0011.yml`を手動実行(0011→0012を同一ジョブで適用。適用前ゲートが「RPCでは作れない確定済み行」を検出したら止まる＝人間の判断が必要) ②`db-verify.yml`で権限グリッド再検証 ③PRマージ ④**R4を修正**(下記)してからiOSビルド ⑤プライバシーラベル入力(下記⭐)＋「審査に提出」。
-  - **【R4・未対応】iOS提出ビルドがGoogleの「テスト広告」で出る＝iOS広告収益ゼロ**。`ios-build.yml`が`ADMOB_USE_PROD_ADS`を注入しないため`ad_config.dart:41`が`_testBannerIos`を選ぶ(Androidの`build-aab.yml:69`は注入している)。**ラベルへの影響なし**(テスト広告でもSDKの送信は同じ)。ビルド前に要修正。
+  - **✅完了(2026-07-17)**: PR#55を**mainへスカッシュマージ済(`8a2198f`)**。**本番DBへ0011→0012を適用済**(`db-apply-0011.yml` run 29554329313 = success / 「0011 適用検証 PASS」)。**`db-permission-check.yml`で権限グリッド全ブロックPASS**(§3-A/§3-A-2/§3-A-3/§3-A-4/§3-B/§3-C)。
+    - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
+  - **⏳次の手順(この順)**: ①**iOSビルド**=`ios-build.yml`を`mode=testflight`+**`prod_ads=true`**で実行(既定falseのままだとテスト広告IPAになる) ②ASCで新ビルドを1.0に紐付け ③プライバシーラベル入力(下記⭐)＋「審査に提出」(オーナーのUI操作)。
+  - **⚠️Android v1.0.1**: 審査結果が出たら、この修正(mainに入済)を取り込んで即リリースする。DBは適用済なので**アプリを出すだけ**でAndroidも直る。
+  - **【R4・誤報だった。訂正済み】** 監査が「`ios-build.yml`は`ADMOB_USE_PROD_ADS`を注入しない＝iOS広告収益ゼロ」と報告し私も一度そう伝えたが、**誤り**。`fa7a00e`(2026-07-16)で`prod_ads`入力と`--dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }}`は**既に入っていた**(`ios-build.yml:26-29, 110`)。コード修正は不要。
+    - **⚠️ただし実務上の注意＝`prod_ads`の既定値は`false`**。**提出/公開用ビルドは`prod_ads=true`を明示して実行すること**(既定のまま走らせるとテスト広告のIPAができる)。Androidの`build-aab.yml`も同じ設計。
+    - 📌教訓: 監査エージェントの指摘を自分で検証したつもりが、**その検証(grep)自体が古い状態を見ていた**。file:lineの主張は必ず`git show <HEAD>:<path>`で突き合わせること。
   - **【R1・是正済】広告方針の裁定は3世代あり混乱の元だった。正は「Android/iOSとも広告あり(2026-07-16裁定)」**＝`Info.plist:71-77`に実AdMob ID。下記の古い「iOS広告なし(PR#45)」記述は**失効**なので信じないこと。
 
 - **⭐プライバシー栄養ラベル「データ収集」= 実装監査で確定(2026-07-16・68エージェント監査＋敵対的検証)**。オーナーがASC UIで入力する。
