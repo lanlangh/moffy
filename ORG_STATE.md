@@ -14,7 +14,9 @@
     - **⚠️0011と0012は必ず対で・この順で適用**。0011のみ=注入行が基準値に効く脆弱性が残る/0012のみ=確定経路が停止。
   - **✅完了(2026-07-17)**: PR#55を**mainへスカッシュマージ済(`8a2198f`)**。**本番DBへ0011→0012を適用済**(`db-apply-0011.yml` run 29554329313 = success / 「0011 適用検証 PASS」)。**`db-permission-check.yml`で権限グリッド全ブロックPASS**(§3-A/§3-A-2/§3-A-3/§3-A-4/§3-B/§3-C)。
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
-  - **⏳次の手順(この順)**: ①**iOSビルド**=`ios-build.yml`を`mode=testflight`+**`prod_ads=true`**で実行(既定falseのままだとテスト広告IPAになる) ②ASCで新ビルドを1.0に紐付け ③プライバシーラベル入力(下記⭐)＋「審査に提出」(オーナーのUI操作)。
+  - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
+    - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
+  - **⏳残＝オーナーのUI操作2つだけ**: ①**プライバシーラベルの「公開」**(データ収集10項目の入力は2026-07-17に完了・下記⭐で検算済) ②**「審査に提出」**(輸出コンプラ=いいえ/手動リリース/審査メモ=Screen Time用途説明)。
   - **⚠️Android v1.0.1**: 審査結果が出たら、この修正(mainに入済)を取り込んで即リリースする。DBは適用済なので**アプリを出すだけ**でAndroidも直る。
   - **【R4・誤報だった。訂正済み】** 監査が「`ios-build.yml`は`ADMOB_USE_PROD_ADS`を注入しない＝iOS広告収益ゼロ」と報告し私も一度そう伝えたが、**誤り**。`fa7a00e`(2026-07-16)で`prod_ads`入力と`--dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }}`は**既に入っていた**(`ios-build.yml:26-29, 110`)。コード修正は不要。
     - **⚠️ただし実務上の注意＝`prod_ads`の既定値は`false`**。**提出/公開用ビルドは`prod_ads=true`を明示して実行すること**(既定のまま走らせるとテスト広告のIPAができる)。Androidの`build-aab.yml`も同じ設計。
