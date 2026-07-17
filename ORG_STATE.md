@@ -3,8 +3,28 @@
 > プロジェクトルートの単一の状態置き場。AI 8 部署がセッションを跨いで「いま何をしているか」を思い出すための場所。
 > `/app-dev-org:kickoff` が作成し、`/app-dev-org:weekly-brief` と各部署が更新する。
 
-## ▶ RESUME / 現在地（2026-07-15・/clear後はここから読む）
-- **▶ 最優先(2026-07-16更新・/clear直後はまずこの1件)＝iOS審査提出まであと2手(オーナーのApple UI操作のみ)＝①プライバシー栄養ラベル入力(進行中・下記⭐表で案内)②「審査に提出」。それ以外は全て完了**: ✅起動クラッシュ解決＆実機起動確認(オーナー「開いた」)/✅build21(修正版)を1.0に紐付け/✅価格=無料(¥0・UI確認済)/✅配信=日本のみ(UI『1件配信可能/174不可』で確認済)/✅サブスク月年=READY_TO_SUBMIT/✅スクショ5枚COMPLETE/✅年齢4+/✅メタデータ・法務4URL。修正版=PR#50マージ済testflightビルド。
+## ▶ RESUME / 現在地（2026-07-16更新・/clear後はここから読む）
+
+- **🔴 最優先(2026-07-16)＝iOS提出は「今日出さなくてよい」とオーナー裁定。理由=中核ループの重大バグを発見し修正中**。
+  - **【発見】削減→ポイント確定のコアループが未配線だった（iOS/Android共通）**。`SyncService.enqueueUsageSubmission` の**呼び出し元がアプリ全体で0件**＝`usage_daily`が永久に未提出→`fn_finalize_day`が到達不能→**削減ptが一切確定しない**。最初の7日はウォームアップ付与(`fn_claim_warmup`)が働くため**正常に見え**、実機テストをすり抜けた。壊れるのは8日目以降＝最初の卵が孵ったあとユーザーは永久にptが付かなくなる。**Android v1.0(審査提出済)も同じコード**→承認されても v1.0.1 で即修正が必要。
+  - **【修正】branch `fix/usage-sync-wiring`（未マージ・CI緑）**。Codex第三者レビューを**6ラウンド**回して最終 **APPROVED**(2026-07-16)。
+    - 配線: `DailySubmissionService`(core/sync/daily_submission.dart)を新設し、起動時＋**フォアグラウンド復帰時**(app.dartのWidgetsBindingObserver)に「サーバーが指す前日」を提出。
+    - **提出+確定を1本のdefiner RPC `fn_submit_and_finalize_day(date,integer,jsonb,text)` に統合**(migration **0011**)。対象日はサーバー権威(当日-1と不一致なら`wrong_finalize_date`)/行ロックで原子的/definerが書くので列GRANTの非対称を回避。`fn_finalize_day`本体・`profiles.timezone`更新・`profiles`INSERT・`usage_daily`直接書込は**すべてrevoke**。既存の改ざんtimezoneはEXCLUSIVEロック下の1Txで`Asia/Tokyo`へ正規化。
+    - **migration 0012 = 基準値の母集団を`is_finalized=true`に限定(fail-closed)**。旧実装は未確定行を平均に入れており、高いtotal_minutesの過去日を**1行注入するだけ**で基準値が上がり日次480pt上限まで加点できた(欠損日は除外仕様なので窓内に1行あればその値が平均になる)。0005の`quest_condition_met`が既に採用しているC-2 fail-closedと同じ原則で、**本体だけが漏れていた＝設計の内部矛盾**だった。0012は0005の関数223行を**スクリプトで機械抽出**して1箇所だけ置換(手写し禁止・差分検証済)。⚠️0005末尾の`grant execute to authenticated`は**意図的に引き継がない**(0011のガードが無効化されるため)。
+    - **⚠️0011と0012は必ず対で・この順で適用**。0011のみ=注入行が基準値に効く脆弱性が残る/0012のみ=確定経路が停止。
+  - **⏳次の手順(この順)**: ①**DB適用**=`db-apply-0011.yml`を手動実行(0011→0012を同一ジョブで適用。適用前ゲートが「RPCでは作れない確定済み行」を検出したら止まる＝人間の判断が必要) ②`db-verify.yml`で権限グリッド再検証 ③PRマージ ④**R4を修正**(下記)してからiOSビルド ⑤プライバシーラベル入力(下記⭐)＋「審査に提出」。
+  - **【R4・未対応】iOS提出ビルドがGoogleの「テスト広告」で出る＝iOS広告収益ゼロ**。`ios-build.yml`が`ADMOB_USE_PROD_ADS`を注入しないため`ad_config.dart:41`が`_testBannerIos`を選ぶ(Androidの`build-aab.yml:69`は注入している)。**ラベルへの影響なし**(テスト広告でもSDKの送信は同じ)。ビルド前に要修正。
+  - **【R1・是正済】広告方針の裁定は3世代あり混乱の元だった。正は「Android/iOSとも広告あり(2026-07-16裁定)」**＝`Info.plist:71-77`に実AdMob ID。下記の古い「iOS広告なし(PR#45)」記述は**失効**なので信じないこと。
+
+- **⭐プライバシー栄養ラベル「データ収集」= 実装監査で確定(2026-07-16・68エージェント監査＋敵対的検証)**。オーナーがASC UIで入力する。
+  - **チェックする10項目**: ユーザID/デバイスID/購入/広告データ/**製品の操作**/**クラッシュデータ**/**パフォーマンスデータ**/**おおよその場所**/**ゲームプレイコンテンツ**/その他の使用状況データ。
+  - **漏れの真因**=「Sentry/PostHogを止めているから診断系は不要」という整理が**AdMobという別経路を見落としていた**。iOS releaseビルドは`ios-build.yml`が`SUPABASE_URL/ANON_KEY`しか`--dart-define`しないため**Sentry・PostHogはNoop(送信ゼロ)**だが、**RevenueCatは`env.dart:49`に実キー直書きで有効**、**AdMobはネイティブSDKで有効**。Appleは「入れた他社SDKが集めるものも自分の収集として申告せよ」。
+  - **チェックしない**: メールアドレス/名前/詳細な位置情報/写真/健康 等(アカウント連携無効＋`Info.plist`に位置情報・HealthKitの許可文ゼロ＝OSが物理的に渡さない)。「その他の診断データ」は**入れない**(Googleの公式開示表に無い・後から追加しても無害)。
+  - **🔑次画面の鉄則=「トラッキングに使用」は全項目「いいえ」**。`app_tracking_transparency`パッケージが無く`NSUserTrackingUsageDescription`も無い＝**ATTダイアログを出せない**ため、1つでも「はい」にすると実装と矛盾して即リジェクト(5.1.2)。「ユーザIDに紐づける」は ユーザID/デバイスID/購入/製品の操作/ゲームプレイコンテンツ/その他の使用状況データ＝**はい**、広告データ/クラッシュ/パフォーマンス/おおよその場所＝いいえ。※デバイスIDが「はい」なのはRevenueCatが端末ID(IDFV)と匿名ユーザーIDを一緒に送るため(AdMob分は紐づかない)。
+  - **📌教訓**: 「Fakeを使ったテストは本物の権限を持たない」ため、`.upsert`が実DBで必ず42501になるバグを**原理的に検出できなかった**。Codexが2ラウンド連続で「正しく見えるが実際には動かない」を指摘＝**書いた本人は検品しないの鉄則が効いた**。
+
+- **(以下は2026-07-15時点の記述。上の🔴が最新なので、矛盾したら上を優先)**
+- **▶ 旧・最優先(2026-07-16更新)＝iOS審査提出まであと2手(オーナーのApple UI操作のみ)＝①プライバシー栄養ラベル入力(進行中・下記⭐表で案内)②「審査に提出」。それ以外は全て完了**: ✅起動クラッシュ解決＆実機起動確認(オーナー「開いた」)/✅build21(修正版)を1.0に紐付け/✅価格=無料(¥0・UI確認済)/✅配信=日本のみ(UI『1件配信可能/174不可』で確認済)/✅サブスク月年=READY_TO_SUBMIT/✅スクショ5枚COMPLETE/✅年齢4+/✅メタデータ・法務4URL。修正版=PR#50マージ済testflightビルド。
   - **✅ASC監査&API修正(2026-07-16・私がASC APIで実施)**: ①**build21(クラッシュ修正版)を1.0に紐付け**(それまで未選択)②**contentRightsDeclaration=DOES_NOT_USE_THIRD_PARTY_CONTENT**設定(未設定だった)③**releaseType=MANUAL**(手動リリース・従来AFTER_APPROVALだった)④**説明文のプレミアム特典に「広告を非表示に」追加**(旧・広告なし時代の取り残し是正・iOSも広告ありに整合)⑤**年齢レーティング=4+設定**(全22項目・全て該当なし/advertising=trueのみ実態反映＝Android G相当。⚠️新アンケートは`healthOrWellnessTopics/advertising/parentalControls/messagingAndChat/userGeneratedContent/ageAssurance/unrestrictedWebAccess/gambling/lootBox`が**BOOLEAN**、`contests/violence系/sexual系/alcohol/mature/profanity/medical/horror/guns/gamblingSimulated`が**enum(NONE)**・型混在に注意)。**✅監査で問題なし確認**: 名前/サブ/キーワード97字/プロモ/support+法務URL・スクショ5枚COMPLETE・whatsNew=null(初版で不要)・privacyPolicyUrl。
   - **✅価格=無料(Free)確定**: `appPriceSchedule`をJPN基準・¥0価格ポイントで作成→**UIの「現在の価格」で日本¥0.00・全175地域0を目視確認済**。
   - **✅配信国=日本のみ確定**: `/v2/appAvailabilities`(全175地域列挙・JPN=true/他false・inline id`\${...}`必須)でPOST→**UIの「アプリの配信状況」で『1件配信可能/配信不可174個』=日本限定を目視確認済**。※API読取(`territoryAvailabilities`)は不安定で0に見えるがUIが正。availableInNewTerritories=false。
