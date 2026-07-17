@@ -72,13 +72,19 @@ function fail(m, r) {
   const open = (existing.json?.data ?? []).filter(
     (s) => !['COMPLETE', 'CANCELING', 'CANCELED'].includes(s.attributes?.state),
   );
+  // ⚠️ state だけで「提出済み」を判定してはいけない。READY_FOR_REVIEW は
+  //   「箱を作っただけでまだ送信していない」状態で、提出済みではない（実際にこれを
+  //   提出済みと誤判定して何もせず終了するバグを踏んだ）。送信済みかどうかの
+  //   唯一確実な印は submittedDate が入っていること。
+  const submitted = open.filter((s) => s.attributes?.submittedDate);
+  if (submitted.length) {
+    const s = submitted[0];
+    console.log(`⚠️  既に提出済みの reviewSubmission がある: id=${s.id} state=${s.attributes.state} submitted=${s.attributes.submittedDate}`);
+    console.log('   二重提出しない。何もせず終了。');
+    process.exit(0);
+  }
   if (open.length) {
     const s = open[0];
-    if (s.attributes.state === 'READY_FOR_REVIEW' || s.attributes.state === 'IN_REVIEW' || s.attributes.state === 'WAITING_FOR_REVIEW') {
-      console.log(`⚠️  既に提出済みの reviewSubmission がある: id=${s.id} state=${s.attributes.state}`);
-      console.log('   二重提出しない。何もせず終了。');
-      process.exit(0);
-    }
     console.log(`既存の未送信 reviewSubmission を再利用: id=${s.id} state=${s.attributes.state}`);
     var subId = s.id;
   } else {

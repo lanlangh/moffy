@@ -65,6 +65,10 @@ const warn = (m) => { warns.push(m); console.log('  ⚠️  ' + m); };
   else bad(`state=${state}（提出できる状態ではない）`);
   if (a.releaseType === 'MANUAL') ok('releaseType=MANUAL（手動リリース）');
   else bad(`releaseType=${a.releaseType}（MANUAL を推奨＝承認後に自動公開されてしまう）`);
+  // 著作権は初回提出の必須項目。null のまま提出すると ENTITY_STATE_INVALID で弾かれる
+  // （API はどの項目が原因かを教えてくれないので、ここで潰す）。
+  if (!a.copyright?.trim()) bad('著作権(copyright)が未入力＝提出できない');
+  else ok(`copyright=${JSON.stringify(a.copyright)}`);
 
   // ---- ビルド ----
   console.log('\n=== ビルド ===');
@@ -133,6 +137,16 @@ const warn = (m) => { warns.push(m); console.log('  ⚠️  ' + m); };
     const ar = await get(`/v1/appInfos/${inf.id}/ageRatingDeclaration`);
     if (ar.status === 200 && ar.json?.data) ok('年齢レーティング宣言あり');
     else warn('年齢レーティング宣言が取得できない（UIで確認）');
+
+    // カテゴリ（プライマリは全アプリ必須。未設定だと ENTITY_STATE_INVALID で提出が弾かれる）。
+    const cat = await get(`/v1/appInfos/${inf.id}?include=primaryCategory,secondaryCategory`);
+    const included = cat.json?.included ?? [];
+    const primaryId = cat.json?.data?.relationships?.primaryCategory?.data?.id;
+    if (!primaryId) bad('プライマリカテゴリが未設定＝提出できない');
+    else ok(`プライマリカテゴリ=${primaryId}`);
+    const secondaryId = cat.json?.data?.relationships?.secondaryCategory?.data?.id;
+    if (secondaryId) ok(`セカンダリカテゴリ=${secondaryId}`);
+    if (included.length) console.log(`     (include: ${included.map((c) => c.id).join(', ')})`);
   }
 
   // ---- 審査情報 ----

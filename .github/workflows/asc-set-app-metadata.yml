@@ -1,0 +1,31 @@
+name: ASC Set App Metadata (カテゴリ / 著作権)
+
+# 提出必須なのに未設定だった項目を設定する。どちらも個人情報ではない。
+on:
+  workflow_dispatch:
+    inputs:
+      version_string: { description: "対象バージョン", required: true, default: "1.0", type: string }
+      primary_category: { description: "プライマリカテゴリID（例: HEALTH_AND_FITNESS）", required: true, default: "HEALTH_AND_FITNESS", type: string }
+      copyright: { description: "著作権表記", required: true, default: "2026 合同会社Lan", type: string }
+
+jobs:
+  set:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode ASC API key (.p8)
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+      - name: Set metadata
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          node tools/asc/asc_set_app_metadata.mjs "$RUNNER_TEMP/asc/key.p8" "$ASC_KEY_ID" "$ASC_ISSUER_ID" \
+            com.moffy.app "${{ inputs.version_string }}" "${{ inputs.primary_category }}" "${{ inputs.copyright }}"
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
