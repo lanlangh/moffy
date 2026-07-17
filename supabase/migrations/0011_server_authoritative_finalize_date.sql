@@ -225,6 +225,21 @@ revoke execute on function public.fn_finalize_day(date) from authenticated;
 --   0004 では display_name と同列に扱っていたが、0011 で日付境界の根拠になったため分離する。
 --   アプリは timezone を書いていない（lib/**/*.dart に書込 0 件）ので機能影響はない。
 --   0006 handle_new_user が既定値 'Asia/Tokyo' で profiles を自動作成する。
+-- ⚠️ 以下の3操作（REVOKE → GRANT → 正規化 UPDATE）は **1トランザクション + テーブルロック**
+--    で行う必要がある（Codex 第4次レビュー #1）。
+--    GRANT/REVOKE は対象テーブルをロックしないため、**REVOKE 前に権限検査を通過した
+--    実行中の UPDATE** が、正規化の**後**にコミットして改ざん値を復活させられる:
+--      1. 攻撃者の UPDATE が開始し権限検査を通過（この時点ではまだ timezone 権限がある）
+--      2. 本マイグレーションが REVOKE
+--      3. 本マイグレーションが正規化（Asia/Tokyo へ戻す）
+--      4. 攻撃者の UPDATE がコミット → 改ざん値が復活し、以後も読まれ続ける
+--    db-apply-0011.yml は `psql -f` を --single-transaction 無しで実行する＝文ごとに別
+--    トランザクションになるため、ここは明示的に begin/commit で囲む。
+--    SHARE ROW EXCLUSIVE は UPDATE が取る ROW EXCLUSIVE と競合するので、既存 writer の
+--    終了を待ち、以後の writer をコミットまで止める（SELECT=ACCESS SHARE は妨げない）。
+begin;
+lock table public.profiles in share row exclusive mode;
+
 revoke update on public.profiles from authenticated;
 grant update (display_name) on public.profiles to authenticated;
 
@@ -241,6 +256,8 @@ grant update (display_name) on public.profiles to authenticated;
 update public.profiles
    set timezone = 'Asia/Tokyo'
  where timezone is distinct from 'Asia/Tokyo';
+
+commit;
 
 
 -- ----------------------------------------------------------------------------
