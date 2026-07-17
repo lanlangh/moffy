@@ -23,7 +23,7 @@ jobs:
           fi
           echo "psql version:"; psql --version
 
-      - name: Apply migrations (0001 -> 0005, 0007 -> 0011)
+      - name: Apply migrations (0001 -> 0005, 0007 -> 0012)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
@@ -45,6 +45,10 @@ jobs:
           #   行ロック・definer書込・timezone/usage_daily の直接書込剥奪)。
           #   permission_check の §3-A/§3-B は 0011 適用後の権限グリッドを期待する。
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0011_server_authoritative_finalize_date.sql
+          # 0012(基準値の母集団を確定済み日だけに絞る = fail-closed)。**0011 の後**に適用する
+          #   （0012 は fn_finalize_day を create or replace するが、0005 末尾にあった
+          #    authenticated への grant は引き継がず revoke したままにする）。
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0012_baseline_finalized_only.sql
 
       - name: Run distribution check (§4 抽選分布 / drop_tables 合計=1.0)
         env:

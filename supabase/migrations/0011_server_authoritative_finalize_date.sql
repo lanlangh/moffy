@@ -219,7 +219,7 @@ revoke execute on function public.fn_finalize_day(date) from authenticated;
 
 
 -- ----------------------------------------------------------------------------
--- 3. ★#2: profiles.timezone のクライアント更新を禁止する
+-- 3. ★#2: profiles.timezone のクライアント書込を禁止する（UPDATE / INSERT 両方）
 -- ----------------------------------------------------------------------------
 --   timezone は「経済日付（どの日を確定するか）」の計算に使う = セキュリティ境界。
 --   0004 では display_name と同列に扱っていたが、0011 で日付境界の根拠になったため分離する。
@@ -235,13 +235,32 @@ revoke execute on function public.fn_finalize_day(date) from authenticated;
 --      4. 攻撃者の UPDATE がコミット → 改ざん値が復活し、以後も読まれ続ける
 --    db-apply-0011.yml は `psql -f` を --single-transaction 無しで実行する＝文ごとに別
 --    トランザクションになるため、ここは明示的に begin/commit で囲む。
---    SHARE ROW EXCLUSIVE は UPDATE が取る ROW EXCLUSIVE と競合するので、既存 writer の
---    終了を待ち、以後の writer をコミットまで止める（SELECT=ACCESS SHARE は妨げない）。
+--    ロックモードは **EXCLUSIVE**（Codex 第5次レビュー #3）。SHARE ROW EXCLUSIVE では
+--    デッドロックする実経路がある:
+--      1. fn_spend_currency (0002:781) が `select ... from profiles ... for update` を実行
+--         ＝テーブルに ROW SHARE ＋ 対象行に行ロック。
+--      2. 本マイグレーションが SHARE ROW EXCLUSIVE を取得（ROW SHARE とは競合しないので通る）。
+--      3. 本マイグレーションの正規化 UPDATE が、その行の行ロック解放を待つ。
+--      4. fn_spend_currency の UPDATE が ROW EXCLUSIVE への昇格を待つ（2 とブロック）。
+--      ⇒ 循環待ち。PostgreSQL が検出して**どちらかを abort** する＝マイグレーションが
+--        失敗し得る（無限停止ではないが不安定）。
+--    EXCLUSIVE は ROW SHARE と ROW EXCLUSIVE の**双方**に競合するため、この昇格
+--    デッドロックが起きない。通常の SELECT（ACCESS SHARE）は引き続き通る。
+--    lock_timeout: 既定 0 は無期限待機。長いTxが居るとマイグレーションが張り付くため、
+--    10秒で失敗させて再実行する運用に倒す（本ファイルは冪等なので再実行安全）。
 begin;
-lock table public.profiles in share row exclusive mode;
+set local lock_timeout = '10s';
+lock table public.profiles in exclusive mode;
 
 revoke update on public.profiles from authenticated;
 grant update (display_name) on public.profiles to authenticated;
+
+-- ★ INSERT も剥奪する（Codex 第5次レビュー #1）。0001 の profiles_insert_own RLS は残る
+--   ため、プロフィール行が欠損しているユーザーは**任意の timezone 付きで INSERT** でき、
+--   UPDATE を塞いでも同じ穴が空く。0006 handle_new_user（definer トリガ）が行を作るので
+--   クライアント INSERT は不要（lib/**/*.dart に profiles への INSERT/UPDATE は 0 件＝
+--   SELECT のみ）。テーブル権限が無ければ RLS ポリシーが残っていても書けない。
+revoke insert on public.profiles from authenticated;
 
 -- ★#1(第3次レビュー): 既に改ざんされている timezone を正規化する。
 --   ACL を閉じるのは「これから」の更新だけ。**0011 適用より前**に REST API から
@@ -276,6 +295,17 @@ revoke insert, update on public.usage_daily from authenticated;
 --     total_minutes を過少申告して削減を偽装できる。緩和は 480pt/日上限のみ。本ファイルは
 --     「日付境界」「確定の一度きり」「書込経路の一本化」を保証するが、申告値そのものの
 --     真正性は担保しない（サーバーは OS 実利用時間を独立検証できない）。
+--   * **本ファイルの REVOKE は「適用の瞬間」を守らない**（Codex 第5次レビュー #5）。
+--     GRANT/REVOKE は対象テーブルをロックしないため、権限検査を通過済みの
+--     usage_daily への INSERT が REVOKE 後にコミットし得る。また適用**前**に注入された
+--     行は残る。profiles は EXCLUSIVE ロック＋正規化で守ったが、usage_daily は正規化の
+--     対象（正当な行と不正な行を列で区別する手段）が無いのでロックしても効果が薄い。
+--     ⇒ 本質的な防御は **0012**（基準値の母集団を is_finalized=true に限定）。未確定の
+--       注入行は削除せず安全に無視される。0011 単体では不完全なので**必ず 0012 と対で
+--       適用する**こと。
+--   * fn_finalize_day の EXECUTE REVOKE も、既に開始済みの呼び出しはキャンセルしない。
+--     敵対的な同時実行まで完全に保証するなら、適用時に API を短時間 quiesce するか
+--     既存セッションを drain する運用が必要（v1.0 は未公開のため実施しない）。
 --   * timezone が Asia/Tokyo 固定になる（日本のみ配信のため v1.0 では許容）。将来、
 --     海外配信や TZ 変更 UI を入れる場合は「経済用TZは次の安全な境界まで変更を保留する」
 --     サーバー側の仕組み（申請 → 翌日反映）が必要。クライアント直接更新に戻してはならない。

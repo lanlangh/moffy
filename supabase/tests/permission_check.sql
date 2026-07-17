@@ -140,6 +140,32 @@ begin
 end $$;
 
 -- ============================================================
+-- §3-A-4: 基準値の母集団は「確定済み日」だけであること（0012 / fail-closed）
+--   fn_finalize_day の基準値クエリが is_anomaly=false しか要求していないと、直接 INSERT
+--   された未確定行（既定 is_finalized=false / is_anomaly=false）が平均に入る。欠損日は
+--   除外される仕様なので、窓内に高い total_minutes の行を1つ注入するだけで基準値が上がり、
+--   削減量が水増しされて日次上限まで加点できてしまう。
+--   0011 で直接書込は剥奪したが、REVOKE はテーブルをロックせず、適用前の行も残るため
+--   ACL だけでは塞ぎきれない。本質的な防御はこのフィルタ（0005 quest_condition_met の
+--   C-2 fail-closed と同じ原則）。
+-- ============================================================
+do $$
+declare
+  v_src text;
+begin
+  select p.prosrc into v_src
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'fn_finalize_day';
+  if v_src is null then
+    raise exception '§3-A-4 FAIL: fn_finalize_day が存在しない';
+  end if;
+  if v_src not like '%and is_finalized = true%' then
+    raise exception '§3-A-4 FAIL: fn_finalize_day の基準値クエリに is_finalized=true が無い（0012 未適用＝未確定の注入行が基準値に効く）';
+  end if;
+  raise notice '=== §3-A-4 基準値の母集団=確定済み日のみ PASS ===';
+end $$;
+
+-- ============================================================
 -- §3-B: 列レベル GRANT ホワイトリスト（authenticated）
 --   正: 許可されているべき列 / 負: 課金通貨・確定フラグ等は不可
 -- ============================================================
@@ -209,6 +235,15 @@ begin
   end if;
   if has_table_privilege('authenticated', 'public.usage_daily'::regclass, 'UPDATE') then
     raise warning '[§3-B FAIL] authenticated が usage_daily に UPDATE 可（0011 提出経路の一本化が破れている）';
+    fail_count := fail_count + 1;
+  end if;
+
+  -- 0011 #1(5次): profiles への INSERT も剥奪済みであるべき。0001 の profiles_insert_own
+  --   RLS が残るため、プロフィール行が欠損しているユーザーは任意の timezone 付きで
+  --   INSERT でき、UPDATE を塞いでも同じ穴が空く。行生成は 0006 handle_new_user
+  --   (definer トリガ) の責務。
+  if has_table_privilege('authenticated', 'public.profiles'::regclass, 'INSERT') then
+    raise warning '[§3-B FAIL] authenticated が profiles に INSERT 可（任意timezoneで行を作れる＝当日確定の穴）';
     fail_count := fail_count + 1;
   end if;
 

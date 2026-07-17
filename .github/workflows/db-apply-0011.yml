@@ -32,10 +32,27 @@ jobs:
           fi
           psql --version
 
-      - name: Apply 0011
+      # 適用前の点検: usage_daily に何が入っているかを可視化する（0012 の判断材料）。
+      #   提出経路は未配線だった＝クライアントは usage_daily に一度も書いていないため
+      #   実質空のはずだが、authenticated は REST を直接呼べたので「空」は仮説にすぎない。
+      #   is_finalized=false の行は 0012 で基準値から除外される（削除はしない）。
+      #   is_finalized=true の旧行があれば、正当/不正を列だけでは判別できないため要確認。
+      - name: Inspect usage_daily before apply (件数の可視化のみ・失敗させない)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -c "select is_finalized, is_anomaly, count(*), min(usage_date), max(usage_date) from public.usage_daily group by 1,2 order by 1,2;"
+          psql "$DB_URL" -c "select timezone, count(*) from public.profiles group by 1 order by 2 desc;"
+
+      - name: Apply 0011 (確定経路の一本化)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0011_server_authoritative_finalize_date.sql
+
+      - name: Apply 0012 (基準値を確定済み日だけに / 0011 の後に適用)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0012_baseline_finalized_only.sql
 
       # ⚠️ ここは必ず「失敗したら落ちる」形にすること。
       #   単なる `select ...` は値を表示するだけで、false でも 0 行でも exit 0 になり、
@@ -98,6 +115,20 @@ jobs:
             end if;
             if has_table_privilege('authenticated','public.usage_daily'::regclass,'UPDATE') then
               raise warning '[FAIL] authenticated が usage_daily に UPDATE できる（提出経路の一本化が破れている）';
+              v_fail := v_fail + 1;
+            end if;
+            -- profiles の INSERT も剥奪されていること（欠損プロフィールに任意TZ付きで
+            -- INSERT できると、UPDATE を塞いでも同じ穴が空く）。
+            if has_table_privilege('authenticated','public.profiles'::regclass,'INSERT') then
+              raise warning '[FAIL] authenticated が profiles に INSERT できる（任意timezoneで行を作れる）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- 0012: 基準値クエリが確定済み日だけを母集団にしていること（ソース検査）。
+            if (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname='public' and p.proname='fn_finalize_day')
+               not like '%and is_finalized = true%' then
+              raise warning '[FAIL] fn_finalize_day の基準値クエリに is_finalized=true が無い（0012 未適用＝注入行が基準値に効く）';
               v_fail := v_fail + 1;
             end if;
 
