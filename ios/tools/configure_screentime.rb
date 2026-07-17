@@ -95,7 +95,12 @@ else
     bs['SKIP_INSTALL'] = 'YES'
     bs['CODE_SIGN_STYLE'] = 'Automatic'
     bs['DEVELOPMENT_TEAM'] = 'JKPUV48L3V' # 自動署名に必要（拡張ターゲット）
-    bs['TARGETED_DEVICE_FAMILY'] = '1,2'
+    # iPhone 専用（2026-07-17 裁定）。本体 Runner も '1'。
+    #   Flutter の iOS テンプレート既定は '1,2'(iPhone+iPad) だが、Moffy は設計もテストも
+    #   iPhone 前提で、iPad 用スクショも無い＝iPad 対応を謳うと提出できず、仮に出しても
+    #   引き伸ばしUIでリジェクトリスク(4.0/2.4.1)がある。拡張の値が本体とズレると
+    #   アップロード時の検証で弾かれ得るため、ここも本体に合わせる。
+    bs['TARGETED_DEVICE_FAMILY'] = '1'
     bs['CURRENT_PROJECT_VERSION'] = '$(FLUTTER_BUILD_NUMBER)'
     bs['MARKETING_VERSION'] = '$(FLUTTER_BUILD_NAME)'
     bs['LD_RUNPATH_SEARCH_PATHS'] = [
