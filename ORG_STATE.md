@@ -16,7 +16,17 @@
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
   - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
-  - **⏳残＝オーナーのUI操作2つだけ**: ①**プライバシーラベルの「公開」**(データ収集10項目の入力は2026-07-17に完了・下記⭐で検算済) ②**「審査に提出」**(輸出コンプラ=いいえ/手動リリース/審査メモ=Screen Time用途説明)。
+  - **🎉 2026-07-17 iOS v1.0 審査提出完了＝結果待ち**。`appStoreVersion state=WAITING_FOR_REVIEW` / build 23 / 手動リリース。承認されたら**オーナーが「公開」を押すまで世に出ない**。
+    - **提出は API 経由**(`asc-submit.yml`)。プライバシーラベルはオーナーが公開済(10項目・トラッキング全て「いいえ」＝プレビューに「トラッキングに使用されるデータ」枠が出ないことで検算済)。
+    - **⏳リジェクト時は `rejection-rescue` スキル**。Screen Time/Family Controls は往復を想定(審査メモで先回り説明済＝`tools/asc/review_notes.txt`)。
+  - **📌提出直前に見つけた不備（プリフライトが無ければ全部見落としていた）**:
+    1. **審査情報の連絡先が未入力**→オーナーが入力(個人情報のため私は触らない)。
+    2. **iPad対応が既定値のまま**(`TARGETED_DEVICE_FAMILY="1,2"`)なのに iPad スクショ0枚＝提出不可。**iPhone専用に変更**(オーナー裁定)。`project.pbxproj`3箇所＋**`ios/tools/configure_screentime.rb:98`(CIが拡張へ設定する値)**も直す必要があった(ここを見落とすとビルド時に拡張だけ"1,2"に戻り本体とズレる)。→ build 23 で再ビルド。
+    3. **プライマリカテゴリ未設定**＋**copyright=null**＝どちらも必須で、提出APIが `ENTITY_STATE_INVALID`(「associated errors を見よ」としか言わない)で拒否。診断スクリプトで全属性を洗って特定。**カテゴリ=健康＆フィットネス**(オーナー裁定)＝Family Controls権限との整合を優先し「なぜゲームがこの権限を?」の追及を避ける。ASO.md はゲーム訴求だが権限の説明可能性を優先。
+    4. **デモアカウント必須のまま**(匿名認証でログイン画面が無いので不要)＋審査メモ空→API で是正。
+  - **🆕 ASC 運用ツール(`tools/asc/` + 各ワークフロー)**: `asc-preflight`(提出前の不備検査・**提出のたびに必ず回す**)/`asc-attach-build`(ビルド番号を明示して紐付け)/`asc-set-review-detail`(審査メモ・デモ要否。連絡先は触らない)/`asc-set-app-metadata`(カテゴリ・著作権)/`asc-submit`(二重提出ガード付き)/`asc-diagnose`(提出拒否の原因調査)。すべて**書いたら読み直して検証**する。
+  - **⚠️ 未対応（公開前に）**: **特商法ページの動作環境が「Android（…）。iOS版は提供開始時に追記します。」のまま**＝iOS公開までにNotion本文を直す(原本=`docs/legal/tokushoho.md`・Notionは私が編集不可)。
+  - **📱 広告について**: build 23 は `prod_ads=true`＝実広告ユニット。**AdMobはストア公開後に承認するまで配信しない**ので、審査中〜公開直後はバナー非表示が正常(`ad_config.dart:30-31`に既述)。公開1日後も出なければ AdMob の「承認状況」と app-ads.txt を確認する。
   - **⚠️Android v1.0.1**: 審査結果が出たら、この修正(mainに入済)を取り込んで即リリースする。DBは適用済なので**アプリを出すだけ**でAndroidも直る。
   - **【R4・誤報だった。訂正済み】** 監査が「`ios-build.yml`は`ADMOB_USE_PROD_ADS`を注入しない＝iOS広告収益ゼロ」と報告し私も一度そう伝えたが、**誤り**。`fa7a00e`(2026-07-16)で`prod_ads`入力と`--dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }}`は**既に入っていた**(`ios-build.yml:26-29, 110`)。コード修正は不要。
     - **⚠️ただし実務上の注意＝`prod_ads`の既定値は`false`**。**提出/公開用ビルドは`prod_ads=true`を明示して実行すること**(既定のまま走らせるとテスト広告のIPAができる)。Androidの`build-aab.yml`も同じ設計。
