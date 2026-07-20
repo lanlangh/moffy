@@ -1,0 +1,60 @@
+name: Core Loop Smoke (実サーバーで提出→確定を検証)
+
+# アプリと同じ経路（PostgREST + anon key + 匿名JWT）で実際に RPC を投げ、
+# コアループが本当に確定するかを検証する。
+#
+# なぜ必要か: 本日の修正は「関数は正しいが誰も呼ばない」「実DBでは列権限で必ず 42501」
+# という、**Fake を使った単体テストでは原理的に検出できない**バグを2回続けて踏んだ。
+# 単体テストと権限グリッドだけでは「実際に動く」ことを証明できない。
+#
+# ⚠️ 本番DBに**一時的なテストユーザーを1件作る**。最後に必ず削除する（if: always()）。
+#    削除は auth.users の DELETE で、profiles / usage_daily 等へ CASCADE する。
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run smoke test
+        id: smoke
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -o pipefail
+          node tools/smoke/core_loop_smoke.mjs "$SUPABASE_URL" "$SUPABASE_ANON_KEY" 2>&1 | tee smoke.log
+          # 後片付け用に、作ったテストユーザーのIDを取り出す（失敗しても拾えるよう別ステップで使う）
+          echo "uid=$(grep -oE 'TEST_USER_ID=[0-9a-f-]+' smoke.log | head -1 | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Extract test user id (失敗時も拾う)
+        id: uid
+        if: always()
+        run: |
+          if [ -f smoke.log ]; then
+            echo "uid=$(grep -oE 'TEST_USER_ID=[0-9a-f-]+' smoke.log | head -1 | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ⚠️ 成否によらず必ず消す。残すと本番の profiles / usage_daily が汚れ、
+      #    しかも usage_daily の行は他ユーザーの基準値には影響しないが衛生上よくない。
+      - name: Cleanup test user (必ず実行)
+        if: always()
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          UID_VAL="${{ steps.uid.outputs.uid }}"
+          if [ -z "$UID_VAL" ]; then
+            echo "テストユーザーは作られていない（掃除不要）"
+            exit 0
+          fi
+          echo "削除するテストユーザー: $UID_VAL"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "delete from auth.users where id = '$UID_VAL';"
+          # 消えたことを確認する（消し漏れを検知）
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -t -c "select count(*) from auth.users where id = '$UID_VAL';" | grep -qE '^\s*0\s*$' \
+            && echo "✅ テストユーザー削除を確認" \
+            || { echo "::error::テストユーザーが消えていない: $UID_VAL"; exit 1; }
+          psql "$DB_URL" -t -c "select count(*) from public.usage_daily where user_id = '$UID_VAL';" | grep -qE '^\s*0\s*$' \
+            && echo "✅ usage_daily の残骸なし" \
+            || echo "::warning::usage_daily に残骸あり（CASCADE 未設定の可能性）"
