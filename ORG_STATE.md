@@ -10,6 +10,10 @@
   - **✅公開中のv1.0は本日のDB変更(0011/0012)では壊れない**＝到達性を公開版コミット(`a6bb63b`)で検証済: `enqueueUsageSubmission`の呼び出し元0件→キュー常に空→`syncNow()`は`ops.isEmpty`で即return→upsert/RPCに到達しない。`profiles`書込も0件。**権限剥奪した操作をそもそも呼べない**。
   - **🎉 コアループが実際に動くことを本番サーバーで初めて実証(2026-07-20)**: `core-loop-smoke.yml`(新設)で、アプリと同じ経路(PostgREST+anon key+匿名JWT)で全項目PASS。①匿名サインイン②`fn_pending_finalize_date`が昨日を返す③`fn_submit_and_finalize_day`が`finalized:true`④**`usage_daily`に`total_minutes=42/is_finalized=true`が書かれた**(今朝は0行＝1行も書けていなかった)⑤再送は`already_finalized`⑥当日確定は`wrong_finalize_date`で拒否。テストユーザーは`if:always()`で削除・確認済。
     - **📌このスモークテストは今後も回すこと**。Fakeを使った単体テストは本物の権限を持たないため、42501(列権限)や「誰も呼ばない」型のバグを**原理的に検出できない**（今日2回踏んだ）。
+  - **✅実害ゼロを確認**: Play Console の製品版トラックが **インストール数 0件**（1か国/地域=日本のみ）。コアループのバグで影響を受けたユーザーは**いない**。
+  - **📝Play Console の「2件の対応策(推奨)」は対応不要と判断(2026-07-20)**。どちらも必須ではなくリリースをブロックしない:
+    1. **エッジツーエッジ(Android 15/SDK 35)**＝**既に対応済み**。全画面が`body: SafeArea(...)`、下部ナビも`_MoffyBottomNav`内に`SafeArea`があり、広告バナーはその上。この警告はSDK35対象アプリへ**一律自動配信される一般的注意喚起**で、実装を見て出しているわけではない。
+    2. **R8最適化**＝**意図的に無効**(`android/app/build.gradle.kts:60-63` `isMinifyEnabled=false`/`isShrinkResources=false`・コメント「初回/MVPは圧縮なし(R8/proguard起因の不具合を避ける)」)。R8はリフレクションを使うSDK(RevenueCat/Supabase/Sentry)を壊しやすく、**公開直前に有効化すべきでない**。v1.1以降にkeepルールを整備してから検討。
 
 
 - **🔴 最優先(2026-07-16)＝iOS提出は「今日出さなくてよい」とオーナー裁定。理由=中核ループの重大バグを発見し修正中**。
