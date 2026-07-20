@@ -2,7 +2,7 @@ name: moffy
 description: "Moffy - SNS利用時間を削減してかわいいMofiを育てる収集ゲーム"
 publish_to: "none"
 # version は <semver>+<buildNumber>。CIで buildNumber を付け替える運用。
-version: 0.1.0+1
+version: 1.0.1+1
 
 environment:
   # Dart 3 系 / Flutter 3.22 以降を前提（後日SDK導入時にこの範囲で固定）
