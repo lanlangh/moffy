@@ -6,7 +6,9 @@
 ## ▶ RESUME / 現在地（2026-07-20更新・/clear後はここから読む）
 
 - **🔴🔴 最優先(2026-07-20)＝Android v1.0 が Google Play で「既に公開中」で、コアループのバグ入りのまま**。IARC Live Rating Notice(7/20)で発覚し、公開ページで確認(インストール可・最終更新2026/07/13・DL数0+)。公開中は `versionCode=23 / versionName=0.1.0`。
-  - **✅修正AAB完成＝あとはオーナーがPlay Consoleにアップするだけ**: `build-aab.yml` run#**24** success(`prod_ads=true`)＝`versionCode=24`(>23で要件OK) / `versionName=1.0.1`。artifact名=`moffy-release-aab`。
+  - **🎉🎉 2026-07-20 Android v1.0.1 公開完了**。Play Console 製品版トラック「有効・最新リリース: **24 (1.0.1)**・1か国/地域・インストール数 0件」。バグ入りの23が修正版24に置換済。
+  - **✅公開後スモークで本番動作を再確認(2026-07-20)**: `core-loop-smoke.yml` 全項目PASS。`usage_daily`に`total_minutes=42/is_finalized=true`が書けることを公開後の本番でも実証。「動いているはず」ではなく「動いている」。
+  - (経緯)修正AAB: `build-aab.yml` run#**24** success(`prod_ads=true`)＝`versionCode=24` / `versionName=1.0.1`。
   - **✅公開中のv1.0は本日のDB変更(0011/0012)では壊れない**＝到達性を公開版コミット(`a6bb63b`)で検証済: `enqueueUsageSubmission`の呼び出し元0件→キュー常に空→`syncNow()`は`ops.isEmpty`で即return→upsert/RPCに到達しない。`profiles`書込も0件。**権限剥奪した操作をそもそも呼べない**。
   - **🎉 コアループが実際に動くことを本番サーバーで初めて実証(2026-07-20)**: `core-loop-smoke.yml`(新設)で、アプリと同じ経路(PostgREST+anon key+匿名JWT)で全項目PASS。①匿名サインイン②`fn_pending_finalize_date`が昨日を返す③`fn_submit_and_finalize_day`が`finalized:true`④**`usage_daily`に`total_minutes=42/is_finalized=true`が書かれた**(今朝は0行＝1行も書けていなかった)⑤再送は`already_finalized`⑥当日確定は`wrong_finalize_date`で拒否。テストユーザーは`if:always()`で削除・確認済。
     - **📌このスモークテストは今後も回すこと**。Fakeを使った単体テストは本物の権限を持たないため、42501(列権限)や「誰も呼ばない」型のバグを**原理的に検出できない**（今日2回踏んだ）。
