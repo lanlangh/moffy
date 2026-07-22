@@ -27,7 +27,11 @@
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
   - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
-  - **🎉 2026-07-17 iOS v1.0 審査提出完了＝結果待ち**。`appStoreVersion state=WAITING_FOR_REVIEW` / build 23 / 手動リリース。承認されたら**オーナーが「公開」を押すまで世に出ない**。
+  - **📱 iOS: 2026-07-20時点「1.0 審査中」**（build 23 / 手動リリース）。ASCに2つのメッセージ:
+  - **①「一部のみ編集可能」＝審査中の通常案内**。無視でよい（審査は正常進行）。
+  - **②「年齢制限指定: ソーシャルメディアに関する回答を更新してください（期限2026-09-07）」**＝Appleが新設した質問。**今は答えない**（答えるには審査取り下げが必要な可能性が高く、進行中の審査を止めてしまう）。**現審査が終わってから**回答する。回答内容=**「該当なし」**。根拠: Moffyの唯一の外向き機能は孵化カードのOS標準シェア(`hatch_share_service.dart:49`)のみで、投稿/フィード/フォロー/DM/ランキングは実装ゼロ。ASC年齢レーティングも socialMedia=null / userGeneratedContent=false / messagingAndChat=false で申告済み。**⚠️ この宿題は現審査の結果が出たら必ず対応する（9/7期限）**。
+
+- **🎉 2026-07-17 iOS v1.0 審査提出完了＝結果待ち**。`appStoreVersion state=WAITING_FOR_REVIEW` / build 23 / 手動リリース。承認されたら**オーナーが「公開」を押すまで世に出ない**。
     - **提出は API 経由**(`asc-submit.yml`)。プライバシーラベルはオーナーが公開済(10項目・トラッキング全て「いいえ」＝プレビューに「トラッキングに使用されるデータ」枠が出ないことで検算済)。
     - **⏳リジェクト時は `rejection-rescue` スキル**。Screen Time/Family Controls は往復を想定(審査メモで先回り説明済＝`tools/asc/review_notes.txt`)。
   - **📌提出直前に見つけた不備（プリフライトが無ければ全部見落としていた）**:
