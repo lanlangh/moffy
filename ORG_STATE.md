@@ -29,7 +29,12 @@
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
   - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
-  - **🔴 iOS: 2026-07-22 リジェクト → 真因確定・下ごしらえ完了・あとはオーナーのUI再提出のみ**。
+  - **🎉 iOS: 2026-07-23 サブスク込みで再提出完了＝WAITING_FOR_REVIEW（審査待ち）**。reviewSubmission 755e8857 に **4件（本体1.0＋Moffy Premiumグループ＋月額＋年額）** が揃って提出済（前回は本体1件のみで2.1(a)リジェクトだった）。同じbuild 23。この提出にASO/AIEO差替＋ソーシャルメディア回答も同梱されリリースされる。
+  - **📌再提出でハマった点と解法（次回のため）**: 初回提出をAPI(`asc_submit.mjs`)で行った際、**サブスクをAPIでは提出itemに紐づけられない**(reviewSubmissionItemsにsubscription関連が無い)ことに気づかず本体だけ提出→2.1(a)。リジェクト後、本体は却下submissionに紐づいたまま「already submitted」でAPIから外せず、新下書きにも「not in valid state」で追加できず膠着。**解法=ASCのUIで「解決センター→却下submissionの本体項目を削除」→本体がDEVELOPER_REJECTEDで解放→APIで下書きに追加→UIで「審査へ提出」**。**教訓: 課金あり初回iOS提出は最初からUIで行う**（UIならサブスクが自動同梱される。APIの`asc_submit`は課金アプリには使わない）。
+  - **⏳次**: 審査結果待ち(build 23 / 手動リリース)。承認されたらオーナーが「このバージョンをリリース」。落ちたら`rejection-rescue`。
+  - **(以下は経緯)**
+
+- **🔴 iOS: 2026-07-22 リジェクト → 真因確定・下ごしらえ完了・あとはオーナーのUI再提出のみ**。
   - **真因（証拠で確定）= Guideline 2.1(a) App Completeness「missing associated In-App-Purchase elements」**。サブスク2つ(monthly/yearly)は完璧(READY_TO_SUBMIT/ローカライズ有/価格5件/審査用スクショCOMPLETE)なのに、**私がAPI提出時にアプリ本体だけを提出item化しサブスクを同梱しなかった**のが原因。**コード修正・新ビルド不要（build 23 のまま）。**
   - **📌重要な学び**: **サブスク(auto-renewable)はASC APIの`reviewSubmissionItems`に関連付けできない**（`subscription`/`inAppPurchase`いずれのキーもUNKNOWN relationship）。＝**課金ありアプリの初回/再提出は必ずUIで行う**（UIならREADY_TO_SUBMITのサブスクが自動同梱）。`asc_submit.mjs`はバージョンしか出せず不完全。
   - **✅私がAPIで完了（リジェクトで編集可能になったウィンドウを活用）**:
