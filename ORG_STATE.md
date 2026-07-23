@@ -29,10 +29,14 @@
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
   - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
-  - **🔴 iOS: 2026-07-22 リジェクト（REJECTED / reviewSubmission=UNRESOLVED_ISSUES）**。build 23 / version 1.0。
-  - **⚠️ リジェクト理由の本文は ASC API では取得不可**（Guideline番号・審査官コメントは「解決センター(Resolution Center)」にのみ存在。Appleの仕様）。`asc-rejection.yml` で state=REJECTED は確認済みだが理由文は取れない。**オーナーが解決センターの全文を貼る/スクショする必要がある**。
-  - 審査連絡先・審査メモ（Screen Time用途説明）は正しく登録済み＝これらが原因ではない。
-  - **⏳次**: オーナーがリジェクト文を共有 → `rejection-rescue` スキルで真因診断→修正→審査チームへの返信文→再提出。Screen Time/Family Controls は用途確認で往復しがちなので、その線の可能性が高い（審査メモで先回り済みだが不十分だった可能性）。
+  - **🔴 iOS: 2026-07-22 リジェクト → 真因確定・下ごしらえ完了・あとはオーナーのUI再提出のみ**。
+  - **真因（証拠で確定）= Guideline 2.1(a) App Completeness「missing associated In-App-Purchase elements」**。サブスク2つ(monthly/yearly)は完璧(READY_TO_SUBMIT/ローカライズ有/価格5件/審査用スクショCOMPLETE)なのに、**私がAPI提出時にアプリ本体だけを提出item化しサブスクを同梱しなかった**のが原因。**コード修正・新ビルド不要（build 23 のまま）。**
+  - **📌重要な学び**: **サブスク(auto-renewable)はASC APIの`reviewSubmissionItems`に関連付けできない**（`subscription`/`inAppPurchase`いずれのキーもUNKNOWN relationship）。＝**課金ありアプリの初回/再提出は必ずUIで行う**（UIならREADY_TO_SUBMITのサブスクが自動同梱）。`asc_submit.mjs`はバージョンしか出せず不完全。
+  - **✅私がAPIで完了（リジェクトで編集可能になったウィンドウを活用）**:
+    - ①ASO/AIEO差替=キーワード97字(ポモドーロ等除去→色違い/夜スマホ/ごほうび/我慢)＋説明文1950字(FAQ節新設/こんな方に乗り換え訴求にマージ)。`tools/asc/ios_store_keywords.txt`/`ios_store_description.txt`が原本。検証済。
+    - ②年齢レーティングの新質問=`socialMedia: null→false`(ソーシャルメディア機能なし)に回答済。9/7期限の宿題を解消。
+  - **⚠️残骸**: 私のテストで作った空の`reviewSubmission`(id=755e8857 / READY_FOR_REVIEW / items=0)がAPIで取消不可(cancel=409/delete=403)。UI提出を塞ぐ可能性は低い見込みだが、UIで「提出が進行中」等が出たら要注意。
+  - **⏳残り＝オーナーのUI操作1つ**: ASCの**バージョン1.0ページ**で、アプリ内課金/サブスク欄に**monthly/yearlyの2つを審査に含める**ようにして**「審査に提出」**。これで2.1(a)解消＋上記①②も同時にリリースされる（同じbuild 23）。
 
 - **📱 iOS: 2026-07-20時点「1.0 審査中」**（build 23 / 手動リリース）。ASCに2つのメッセージ:
   - **①「一部のみ編集可能」＝審査中の通常案内**。無視でよい（審査は正常進行）。
