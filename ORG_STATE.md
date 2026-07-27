@@ -29,7 +29,14 @@
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
   - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
-  - **🎉 iOS: 2026-07-23 サブスク込みで再提出完了＝WAITING_FOR_REVIEW（審査待ち）**。reviewSubmission 755e8857 に **4件（本体1.0＋Moffy Premiumグループ＋月額＋年額）** が揃って提出済（前回は本体1件のみで2.1(a)リジェクトだった）。同じbuild 23。この提出にASO/AIEO差替＋ソーシャルメディア回答も同梱されリリースされる。
+  - **🔴🔴 iOS: 2026-07-24 再リジェクト＝Guideline 2.5.1（Family Controls 配信用エンタイトルメント未承認）**。**Appleの承認待ちが発生する数日〜数週間のブロッカー**。
+  - **真因**: Screen Time API(FamilyControls/DeviceActivity)を使うアプリは、App Store配信前に**「Family Controls配信用エンタイトルメント」をAppleにフォーム申請して承認**が必要。`.entitlements`に`com.apple.developer.family-controls`が入っている(本体+MoffyMonitor拡張とも)だけでは不十分＝**配信用の人手承認**が別途要る。TestFlightは開発用で通っても製品版審査でここで落ちる。
+  - **⏳オーナーがやること**: 申請フォーム `https://developer.apple.com/contact/request/family-controls-distribution` から **bundle ID ごと**に申請。対象=`com.moffy.app`＋拡張`com.moffy.app.MoffyMonitor`。用途説明の英文は `tools/asc/family_controls_request.md` に用意済(そのまま貼付可・「制限/ブロックはせず自分の削減を計測するデジタルウェルビーイング」を明記)。承認は数営業日〜数週間。
+  - **承認後(私)**: `ios-build.yml`で再ビルド(build 24)→1.0に紐付け→UIで「審査へ提出」(サブスク同梱・前回のやり方)。
+  - **📌反省**: 提出前チェックで「コードのentitlementは正しいか」は見たが「**配信用の承認を取ったか**」を確認していなかった。Screen Timeアプリの提出前必須項目。次回は最初に申請する。
+  - **⚠️Androidは無関係で公開済**(UsageStatsManagerはユーザーが設定で許可＝Google側の特別承認不要)。iOSだけの遅延で、事業全体は止まっていない。
+
+- **🎉 iOS: 2026-07-23 サブスク込みで再提出完了＝WAITING_FOR_REVIEW（審査待ち）**。reviewSubmission 755e8857 に **4件（本体1.0＋Moffy Premiumグループ＋月額＋年額）** が揃って提出済（前回は本体1件のみで2.1(a)リジェクトだった）。同じbuild 23。この提出にASO/AIEO差替＋ソーシャルメディア回答も同梱されリリースされる。
   - **📌再提出でハマった点と解法（次回のため）**: 初回提出をAPI(`asc_submit.mjs`)で行った際、**サブスクをAPIでは提出itemに紐づけられない**(reviewSubmissionItemsにsubscription関連が無い)ことに気づかず本体だけ提出→2.1(a)。リジェクト後、本体は却下submissionに紐づいたまま「already submitted」でAPIから外せず、新下書きにも「not in valid state」で追加できず膠着。**解法=ASCのUIで「解決センター→却下submissionの本体項目を削除」→本体がDEVELOPER_REJECTEDで解放→APIで下書きに追加→UIで「審査へ提出」**。**教訓: 課金あり初回iOS提出は最初からUIで行う**（UIならサブスクが自動同梱される。APIの`asc_submit`は課金アプリには使わない）。
   - **⏳次**: 審査結果待ち(build 23 / 手動リリース)。承認されたらオーナーが「このバージョンをリリース」。落ちたら`rejection-rescue`。
   - **(以下は経緯)**
