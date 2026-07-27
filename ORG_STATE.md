@@ -31,8 +31,8 @@
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
   - **🔴🔴 iOS: 2026-07-24 再リジェクト＝Guideline 2.5.1（Family Controls 配信用エンタイトルメント未承認）**。**Appleの承認待ちが発生する数日〜数週間のブロッカー**。
   - **真因**: Screen Time API(FamilyControls/DeviceActivity)を使うアプリは、App Store配信前に**「Family Controls配信用エンタイトルメント」をAppleにフォーム申請して承認**が必要。`.entitlements`に`com.apple.developer.family-controls`が入っている(本体+MoffyMonitor拡張とも)だけでは不十分＝**配信用の人手承認**が別途要る。TestFlightは開発用で通っても製品版審査でここで落ちる。
-  - **⏳オーナーがやること**: 申請フォーム `https://developer.apple.com/contact/request/family-controls-distribution` から **bundle ID ごと**に申請。対象=`com.moffy.app`＋拡張`com.moffy.app.MoffyMonitor`。用途説明の英文は `tools/asc/family_controls_request.md` に用意済(そのまま貼付可・「制限/ブロックはせず自分の削減を計測するデジタルウェルビーイング」を明記)。承認は数営業日〜数週間。
-  - **承認後(私)**: `ios-build.yml`で再ビルド(build 24)→1.0に紐付け→UIで「審査へ提出」(サブスク同梱・前回のやり方)。
+  - **✅2026-07-24 権限付与完了**: 申請ページは実は**セルフサービスの「Get Entitlement」**（長い用途フォームではなくT&C同意＋ボタン）。**アカウント単位(Team ID JKPUV48L3V)で付与**＝bundle IDごとの個別申請不要・拡張`com.moffy.app.MoffyMonitor`も自動カバー。押下後「Thank you for your submission」表示→**オーナーに「割り当てられた」メール着=承認完了**。Moffyは規約#2(個人の自己デバイス利用管理)に該当。規約の「Family Controlsデータを広告に使わない/データブローカーに渡さない」も遵守(スクリーンタイムはポイント計算のみ・広告は非パーソナライズで無関係)。
+  - **⏳再ビルド中(私・2026-07-24)**: build 23は権限付与"前"のビルドで配信用エンタイトルメント未焼込→**必ず再ビルドが要る**。`ios-build.yml` `mode=testflight`/`prod_ads=true`で**build 24**実行中(run 30230214982)。完了後→build 24を1.0に紐付け→**オーナーがUIで「審査へ提出」(サブスク同梱・前回確立した手順)**。
   - **📌反省**: 提出前チェックで「コードのentitlementは正しいか」は見たが「**配信用の承認を取ったか**」を確認していなかった。Screen Timeアプリの提出前必須項目。次回は最初に申請する。
   - **⚠️Androidは無関係で公開済**(UsageStatsManagerはユーザーが設定で許可＝Google側の特別承認不要)。iOSだけの遅延で、事業全体は止まっていない。
 
