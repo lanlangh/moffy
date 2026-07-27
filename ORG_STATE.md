@@ -29,7 +29,11 @@
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
   - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
-  - **🔴🔴 iOS: 2026-07-24 再リジェクト＝Guideline 2.5.1（Family Controls 配信用エンタイトルメント未承認）**。**Appleの承認待ちが発生する数日〜数週間のブロッカー**。
+  - **🎉 iOS: 2026-07-27 build 24 で3度目の提出完了＝WAITING_FOR_REVIEW**。reviewSubmission `cb2b49c7`(本体1.0/build 24)＝審査待ち。サブスク2つは`IN_REVIEW`。2つのリジェクト原因(2.1(a)サブスク未同梱／2.5.1 Family Controls権限)とも解消済。手動リリース。
+  - **📌再提出でハマった点(次回のため)**: build 23の提出物755e8857は本体が「却下」状態のまま残り**同じ提出物に本体を戻せない**(APIも「state does not allow adding more items」)。解法=(1)UIで却下本体を削除→(2)**新規reviewSubmissionをAPIで作り本体(build 24)を追加**(cb2b49c7)→(3)サブスクは755e8857提出時に既に`IN_REVIEW`入りしていたので**同梱不要**(2.1(a)は"未提出"時のみ発生)→(4)UIで本体のみの下書きを「審査へ提出」(警告なしで通った)。**教訓: サブスクありアプリは初回からUIで提出(APIは不可)。却下時は却下項目を削除し新規提出物に本体を入れ直す。サブスクが一度IN_REVIEWになれば本体単独で再提出できる**。
+  - **⏳次**: 審査結果待ち(最大48h)。承認→オーナーが「このバージョンをリリース」。落ちたら`rejection-rescue`。
+
+- **🔴🔴 iOS: 2026-07-24 再リジェクト＝Guideline 2.5.1（Family Controls 配信用エンタイトルメント未承認）**。**Appleの承認待ちが発生する数日〜数週間のブロッカー**。
   - **真因**: Screen Time API(FamilyControls/DeviceActivity)を使うアプリは、App Store配信前に**「Family Controls配信用エンタイトルメント」をAppleにフォーム申請して承認**が必要。`.entitlements`に`com.apple.developer.family-controls`が入っている(本体+MoffyMonitor拡張とも)だけでは不十分＝**配信用の人手承認**が別途要る。TestFlightは開発用で通っても製品版審査でここで落ちる。
   - **✅2026-07-24 権限付与完了**: 申請ページは実は**セルフサービスの「Get Entitlement」**（長い用途フォームではなくT&C同意＋ボタン）。**アカウント単位(Team ID JKPUV48L3V)で付与**＝bundle IDごとの個別申請不要・拡張`com.moffy.app.MoffyMonitor`も自動カバー。押下後「Thank you for your submission」表示→**オーナーに「割り当てられた」メール着=承認完了**。Moffyは規約#2(個人の自己デバイス利用管理)に該当。規約の「Family Controlsデータを広告に使わない/データブローカーに渡さない」も遵守(スクリーンタイムはポイント計算のみ・広告は非パーソナライズで無関係)。
   - **⏳再ビルド中(私・2026-07-24)**: build 23は権限付与"前"のビルドで配信用エンタイトルメント未焼込→**必ず再ビルドが要る**。`ios-build.yml` `mode=testflight`/`prod_ads=true`で**build 24**実行中(run 30230214982)。完了後→build 24を1.0に紐付け→**オーナーがUIで「審査へ提出」(サブスク同梱・前回確立した手順)**。
