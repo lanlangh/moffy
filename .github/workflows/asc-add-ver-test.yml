@@ -1,0 +1,13 @@
+name: ASC Add Ver Test
+on: { workflow_dispatch: {} }
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env: { ASC_KEY_P8_BASE64: "${{ secrets.ASC_KEY_P8_BASE64 }}" }
+        run: 'mkdir -p "$RUNNER_TEMP/asc"; echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"'
+      - env: { ASC_KEY_ID: "${{ secrets.ASC_KEY_ID }}", ASC_ISSUER_ID: "${{ secrets.ASC_ISSUER_ID }}" }
+        run: node tools/asc/asc_add_ver_test.mjs "$RUNNER_TEMP/asc/key.p8" "$ASC_KEY_ID" "$ASC_ISSUER_ID" com.moffy.app 1.0 755e8857-3ab8-421d-bdc1-e4642569acb4
+      - if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
