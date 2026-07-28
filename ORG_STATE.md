@@ -29,9 +29,9 @@
     - **🔍本番データがバグを物証で裏付けた**: 適用前点検で **`usage_daily`=0 rows(完全に空)**。profiles は20行あるのに利用データが1行も無い＝「クライアントは一度も提出していない」の動かぬ証拠。改ざんも無し(`timezone`は Asia/Tokyo × 20 で正規化は実質無操作／1440分超の不正行 0件／適用前ゲートPASS)。
   - **✅iOSビルド完了(2026-07-17)**: `ios-build.yml` を `mode=testflight` + **`prod_ads=true`** で実行(run 29554554301 success)→**build 22** をTestFlightへ。**`asc-attach-build.yml`(新設)で build 22 を 1.0 に紐付け＋検証済**(run 29555650630 / 「✅ 検証OK: 1.0 ← build 22」)。app id=6785691850 / version id=7824865b-b21f-4ce3-b76d-3da9ad85bb73 / state=PREPARE_FOR_SUBMISSION。
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
-  - **🎉🎉 iOS: 2026-07-27 審査通過＝`PENDING_DEVELOPER_RELEASE`（デベロッパのリリース待ち）**。build 24 / reviewSubmission cb2b49c7=COMPLETE。3回のリジェクト(2.1(a)×1・2.5.1×1・初回)を乗り越え承認。**手動リリース設定なのでオーナーが「このバージョンをリリース」を押すまで非公開**。サブスクは IN_REVIEW 表示だが本体承認済＝リリースで有効化される見込み。
-  - **⏳オーナーがやること**: ASCで「このバージョンをリリース」を押す→公開。公開後、App Store版URL(`https://apps.apple.com/jp/app/id6785691850`)を[[moffy-store-urls]]に反映しlitlink掲載。
-  - **⏳私がやること(公開後)**: 公開状態をAPIで確認しURL確定。AdMob承認待ち(公開後・それまでバナー非表示は正常)。
+  - **🎉🎉🎉 iOS: 2026-07-27 公開完了＝`READY_FOR_SALE`**。build 24 / v1.0。3回のリジェクト(初回2.1(a)/2.5.1)を乗り越え承認→APIで`appStoreVersionReleaseRequest`送信しリリース済。**Android・iOS 両ストア公開達成**。
+  - **公開URL**: iOS=`https://apps.apple.com/jp/app/id6785691850`(公開直後は反映に数時間) / Android=`https://play.google.com/store/apps/details?id=com.moffy.app`。→[[moffy-store-urls]]。
+  - **⏳残(低優先・公開後)**: ①App Storeへの反映確認(数時間) ②AdMob承認待ち(公開後・それまでバナー非表示は正常) ③サブスクIN_REVIEW→公開で有効化されるか確認 ④iOS利用規約第3条の未実装アカウント連携記述をv1.0.1で是正(既知) ⑤特商法/サポートURLの低優先宿題。
   - **📌3回目でハマった点(記録済[[ios-screentime-app-store-gotchas]])**: 却下本体は同じ提出物に戻せない→新規reviewSubmissionに本体24を入れ直し、サブスクはIN_REVIEW済で同梱不要→UIで審査へ提出。
 
 - **🔴🔴 iOS: 2026-07-24 再リジェクト＝Guideline 2.5.1（Family Controls 配信用エンタイトルメント未承認）**。**Appleの承認待ちが発生する数日〜数週間のブロッカー**。
