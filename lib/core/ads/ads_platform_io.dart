@@ -5,6 +5,7 @@
 /// no-op に倒す（`_adsSupported` ガード）＝安全に素通りする。
 library;
 
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/widgets.dart';
@@ -29,9 +30,14 @@ Future<void> initAds() async {
   if (!_adsSupported) return;
   try {
     await MobileAds.instance.initialize();
-  } catch (e) {
-    // 初期化失敗でもアプリは止めない（広告が出ないだけ）。原因は残す。
-    Log.d('AdMob init failed: $e');
+  } catch (e, st) {
+    // 初期化失敗でもアプリは止めない（広告が出ないだけ）。
+    // ⚠️ ここは Log.e にしても本番に残らない。main() は `unawaited(initAds())` を
+    // 先頭で呼ぶのに対し、`Log.crashReporterSink`(Sentry転送) の登録は main 後半
+    // なので、初期化が早期に失敗すると sink が未設定で握りつぶされる。
+    // 実務上は「AdMob管理画面の広告リクエストが0のまま」で検知できるため、
+    // ここは開発時のログに留める。
+    Log.d('AdMob init failed: $e\n$st');
   }
 }
 
@@ -46,8 +52,23 @@ class AdBannerView extends StatefulWidget {
 }
 
 class _AdBannerViewState extends State<AdBannerView> {
+  /// 読み込み失敗時のリトライ間隔（指数バックオフ・この回数で打ち切り）。
+  ///
+  /// [AdBannerView] はアプリのシェル（bottom_nav_scaffold）に常駐するため、リトライが
+  /// ないと「起動直後の1回目が失敗したら、そのセッション中ずっと広告が出ない」状態になる
+  /// （AdMob の配信制限が解除された直後などに「承認されたのに出ない」と誤診する原因）。
+  /// 一方で無限リトライは AdMob へのリクエスト濫発（規約・パフォーマンス両面で悪い）に
+  /// なるため上限を設ける。ここで諦めても次回起動でまた試すので実害は小さい。
+  static const _retryDelays = <Duration>[
+    Duration(seconds: 5),
+    Duration(seconds: 15),
+    Duration(seconds: 45),
+  ];
+
   BannerAd? _ad;
   bool _loaded = false;
+  Timer? _retryTimer;
+  int _retryCount = 0;
 
   @override
   void initState() {
@@ -64,19 +85,57 @@ class _AdBannerViewState extends State<AdBannerView> {
       request: AdRequest(nonPersonalizedAds: Platform.isIOS ? true : null),
       listener: BannerAdListener(
         onAdLoaded: (_) {
+          _retryCount = 0; // 成功したらバックオフを初期状態に戻す。
           if (mounted) setState(() => _loaded = true);
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           _ad = null; // 破棄済み参照を残さない（dispose() 側の二重 dispose を避ける）。
+          _scheduleRetry(error);
         },
       ),
     )..load();
     _ad = ad;
   }
 
+  /// 読み込み失敗をバックオフで再試行する。上限に達したら諦め、そのときだけ本番にも残す。
+  void _scheduleRetry(LoadAdError error) {
+    // 破棄済みの State では何もしない（タイマーも張らない）。プレミアム購入で
+    // [AdBanner] がこのウィジェットをツリーから外した直後の失敗もここで止まる。
+    if (!mounted) return;
+
+    if (_retryCount >= _retryDelays.length) {
+      // ⚠️ ここを Log.e にしてはいけない。広告の読み込み失敗は「在庫なし(no fill)」を
+      // 含む**正常系**で、AdMob が配信制限中なら無料ユーザーの全セッションで発火する。
+      // Log.e は本番で Sentry へ送られるため、正常系のイベントで無料枠(月5千件)を
+      // 使い切り、**本物のクラッシュが監視から落ちる**。
+      // 広告が出ない原因の調査は Sentry ではなく **AdMob管理画面のリクエスト数/
+      // 表示回数/一致率** で行う（そちらが一次情報）。
+      Log.d('AdMob banner load failed (code=${error.code}): ${error.message}'
+          ' / gave up after $_retryCount retries');
+      return;
+    }
+
+    final delay = _retryDelays[_retryCount];
+    _retryCount++;
+    // 途中の失敗は開発時のみ（本番のノイズにしない）。
+    Log.d(
+      'AdMob banner load failed (code=${error.code}): ${error.message}'
+      ' / retry $_retryCount in ${delay.inSeconds}s',
+    );
+    _retryTimer?.cancel();
+    _retryTimer = Timer(delay, () {
+      if (!mounted) return; // dispose 済みの State で発火させない。
+      _load();
+    });
+  }
+
   @override
   void dispose() {
+    // 破棄後にリトライが発火しないよう必ず止める（プレミアム購入でこのウィジェットが
+    // 外れたときもここを通る＝広告非表示ユーザーに無駄なリクエストを出さない）。
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _ad?.dispose();
     super.dispose();
   }
