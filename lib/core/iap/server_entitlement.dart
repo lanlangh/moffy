@@ -51,6 +51,11 @@ class SupabaseServerEntitlementRepository
     implements ServerEntitlementRepository {
   SupabaseServerEntitlementRepository(this._client);
 
+  /// entitlements 取得の待ち上限。低速なモバイル回線の1往復（数秒）は待てて、応答が
+  /// 返らないまま `serverPremiumProvider` が loading に居座り UI（広告バナー等の
+  /// isLoading 分岐）を止め続けない、その折衷点として 6秒。
+  static const Duration _fetchTimeout = Duration(seconds: 6);
+
   final SupabaseClient _client;
 
   @override
@@ -58,11 +63,14 @@ class SupabaseServerEntitlementRepository
     final uid = _client.auth.currentUser?.id;
     if (uid == null) return null; // 未認証は不明扱い。
     try {
+      // 応答が返らないケースを待ち上限で切る。TimeoutException は下の catch が拾い、
+      // 取得失敗と同じ「不明（null）」に倒す（＝未確認でプレミアムを与えない）。
       final row = await _client
           .from('entitlements')
           .select('is_premium, product_id, expires_at')
           .eq('user_id', uid)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(_fetchTimeout);
       if (row == null) return ServerEntitlement.none; // 行なし=未課金（確定値）。
 
       final expiresRaw = row['expires_at'] as String?;
@@ -80,7 +88,7 @@ class SupabaseServerEntitlementRepository
         expiresAt: expiresAt,
       );
     } catch (e, st) {
-      // 取得失敗は不明扱い（null）。機能ガードはフォールバックで保守的に倒す。
+      // 取得失敗・タイムアウトは不明扱い（null）。機能ガードはフォールバックで保守的に倒す。
       Log.e('entitlements fetch failed', error: e, stack: st);
       return null;
     }
