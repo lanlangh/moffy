@@ -21,7 +21,11 @@
 
 - **🟠 AdMob広告が出ない件(2026-07-28)＝原因確定・対応中**。AdMob管理画面で「承認状況=要審査」「広告配信を制限しています」「ストア情報を追加して…」を確認。
   - **✅完了**: Androidアプリを Play ストアにリンク(「(Windows PC)」版ではなく通常のAndroid版を選択) / Play Console のストアの設定→連絡先の詳細→**ウェブサイトに `https://lan-corp.com` を登録**。
-  - **❌残**: ①**`https://lan-corp.com/app-ads.txt` の設置**(中身=`google.com, pub-5063966757462588, DIRECT, f08c47fec0942fa0`)。lan-corp.com は **Cloudflare Pages(直接アップロード型・Git未連携)** で、存在しないパスに200+HTMLを返すため実ファイルが必要。**方式=Workers のルート `lan-corp.com/app-ads.txt` を1本だけ張る**(手順は下記) ②**iOSのマーケティングURL未設定**(`itunes.apple.com/lookup` に `sellerUrl` が無いことを実測)＝**これが無いとiOSは永久にクロールされない** ③AdMob iOSのストアリンク(公開直後で候補に出ない可能性・数日後に再試行) ④AdMobの税務情報入力(PIN郵送に約3週間)。
+  - **✅ 2026-07-28 `https://lan-corp.com/app-ads.txt` 設置完了**。方式=**Cloudflare Workers のルートを1本だけ張る**(Worker名 `app-ads-txt` / ルート `lan-corp.com/app-ads.txt` / Fail open / 無料枠10万req/日)。会社サイト(Cloudflare Pages `lan-corp`・直接アップロード型・Git未連携)には**一切触れていない**。
+    - **検証済み(サーバ側から実測)**: ① `https://.../app-ads.txt` = 200 / **text/plain** / 中身完全一致 ② `http://` でも 200 + 同内容(AdMobはhttp/https両方で到達必須) ③ 会社サイト本体 = 200 / text/html / **18,393バイト＝変更前と同一** ④ **他パス(`/`・`/zzz-random-test`)は従来どおり会社サイトを返す＝巻き込みゼロ**。
+    - **⚠️ 元に戻す方法**: Domains → lan-corp.com → Workers Routes → 該当行の「…」→ Delete。30秒で完全に元通り(Pages側は無変更)。
+    - **📌 やってはいけなかったこと(回避済み)**: ルート欄に `lan-corp.com/*` を入れる(会社サイト全体が1行テキスト化)／Workerの「Custom Domain」を lan-corp.com に使う(同上＋Pages Known issue により復旧不能)／Pages を再アップロード(リンクされていない隠しファイルが消える)。
+  - **❌残**: ①**iOSのマーケティングURL未設定**(`itunes.apple.com/lookup` に `sellerUrl` が無いことを実測)＝**これが無いとiOSは永久にクロールされない** ③AdMob iOSのストアリンク(公開直後で候補に出ない可能性・数日後に再試行) ④AdMobの税務情報入力(PIN郵送に約3週間)。
   - **📌 2025年1月から新規AdMobアプリは app-ads.txt での確認が必須**(未確認＝限定的な広告配信＝実質ゼロ)。
   - **📌 コードは正常**。`Info.plist:76` の `GADApplicationIdentifier` も `AndroidManifest.xml:57` も正しく、両ストアのビルドは `prod_ads=true`。**「確認するアプリ」タブで広告リクエスト12件/7日を確認＝アプリは正常に広告を要求している**。ただし `ads_platform_io.dart:69` に**リトライが無い**ため、承認が下りても**アプリ再起動までバナーは出ない**(v1.0.2で要修正)。
   - **⚠️ Cloudflare作業の禁止事項**: DNS→Recordsの編集/削除、Workers の **Custom Domain**(ルートではない方)に lan-corp.com を追加、ルート欄に `*`(`lan-corp.com/*` は会社サイト全体が1行テキストになる)、Pagesプロジェクト `lan-corp` の Deployment 作成/Custom domains 削除。新UIでは **「Websites」は「Domains」**、「Workers & Pages」は **「Compute」** の中。
