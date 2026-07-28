@@ -19,6 +19,13 @@
   - **⏳次**: Appleの返事待ち。**私は毎日 `asc-iap-diag.yml`(GETのみ)で state を確認し、IN_REVIEW から動いたら報告**。72時間無反応なら `contact/app-store/?topic=status` に追加起票、7日で提出物スレッドから催促、10営業日で Meet with Apple。
   - **🚫 やってはいけない**: 755e8857 のキャンセル/項目削除、「App Reviewに再提出」の再クリック(効かない＋窓口を閉じる)、サブスク商品の削除(商品IDは `lib/core/constants/pricing.dart:46,49` に焼き込み済みで両OS公開中＝失うと両OS作り直し)。
 
+- **🟢 v1.0.2 のコード修正は完了・main入り済み(2026-07-28 / PR#56 `28d9f37`)**。CI緑(`flutter analyze` No issues / `flutter test` **+173 All tests passed**)。実装3件を独立エージェントが担当し、別の2エージェントがクロスレビュー(GO_WITH_FIXES×2)→指摘3件を反映。
+  - ①**広告バナーのリトライ**(5s→15s→45s・最大3回)。`_load()`は`initState`で1回しか呼ばれず`AdBanner`は常駐シェルにいるため、**起動直後の1回目が失敗するとセッション中ずっと広告が出なかった**。AdMob承認が下りた瞬間に再起動なしで出るようになる。
+  - ②**失敗ログは `Log.d` に留める**(レビュー指摘・重要)。`Log.e`は本番でSentryへ送られるが、広告のロード失敗は**no fillを含む正常系**で配信制限中は全セッションで発火→**Sentry無料枠(月5千件)を正常系で食い潰し本物のクラッシュが監視から落ちる**。調査はAdMob管理画面のリクエスト数/一致率で行うのが正。`initAds()`も同様(そもそも`crashReporterSink`登録前に走るので届かない)。
+  - ③**SKAdNetwork 識別子を50件に**(Google公式・3ページでクロスチェック)。`GADApplicationIdentifier`とFamily Controls関連キーは無改変(XMLパースで検証)。iOSのeCPM/フィル率対策。
+  - ④**プレミアム判定のタイムアウト＋fail-closed**。「サーバー不明 かつ クライアントも取得失敗(`PremiumSource.none`)」なら広告を出さない(=課金済みに広告が出る窓を塞ぐ)。`PremiumSource.mock`は対象外(無料ユーザーに広告が出なくなる回帰を避ける)。
+  - **⏳v1.0.2の残り**: (a)iOSの**マーケティングURL** `https://lan-corp.com`（公開中バージョンでは `409 Attribute 'marketingUrl' cannot be edited at this time` で設定不可＝**新バージョン作成時に必ず設定**。これが無いとiOSのapp-ads.txtは永久に確認されない） (b)ストア説明文の「4種族」修正の反映(原本はmain修正済み) (c)`pubspec.yaml`のバージョン上げ (d)実機でのリトライ動作確認。
+
 - **🟠 AdMob広告が出ない件(2026-07-28)＝原因確定・対応中**。AdMob管理画面で「承認状況=要審査」「広告配信を制限しています」「ストア情報を追加して…」を確認。
   - **✅完了**: Androidアプリを Play ストアにリンク(「(Windows PC)」版ではなく通常のAndroid版を選択) / Play Console のストアの設定→連絡先の詳細→**ウェブサイトに `https://lan-corp.com` を登録**。
   - **✅ 2026-07-28 `https://lan-corp.com/app-ads.txt` 設置完了**。方式=**Cloudflare Workers のルートを1本だけ張る**(Worker名 `app-ads-txt` / ルート `lan-corp.com/app-ads.txt` / Fail open / 無料枠10万req/日)。会社サイト(Cloudflare Pages `lan-corp`・直接アップロード型・Git未連携)には**一切触れていない**。
