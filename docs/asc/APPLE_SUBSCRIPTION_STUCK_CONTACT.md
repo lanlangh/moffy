@@ -64,8 +64,31 @@ API/UI のどこにもその associated errors を参照する手段が見当た
 つまり、古い提出物から外すことも、新しい提出物に入れることもできず、
 開発者側の操作では前にも後ろにも進めない状態です。
 
+■ 新しいバージョンを作って差し替えることもできません（矛盾する応答）
+次に、既存のバージョンを新しいバージョンで置き換えられないかを試しました。
+（SubscriptionVersion の state には REPLACED_WITH_NEW_VERSION が存在するため）
+
+  POST /v1/subscriptionVersions（subscription 6790658702）
+  → HTTP 409 STATE_ERROR.ALREADY_EXISTS
+     "Version already exists. There is already an inflight version with id
+      'b0127a28-ac7a-4dca-afc7-7a8ca9313857' for subscription 6790658702"
+     （6790656254 および subscriptionGroup 22235043 も同一エラー）
+
+■ ここに矛盾があります
+同じリソース b0127a28 について、貴社のサーバは2つの相反する応答を返します。
+
+  ・審査に出そうとすると → 「is not in valid state / cannot be reviewed」
+      （＝審査に出せる状態ではない）
+  ・新しい版に置き換えようとすると → 「already an inflight version」
+      （＝すでに審査に出ている最中である）
+
+「審査に出ていない」と「審査に出ている最中」が同時に成り立っており、
+出すことも、退けることもできません。開発者側の操作は完全に閉じています。
+
 ※ 上記 2bb0b880 は検証のために作成した空の提出物です（項目0件・未提出）。
    不要ですので、そちらで併せて削除していただいて差し支えありません。
+※ 上記の検証で行ったのは GET と POST のみです。既存の提出物 755e8857 および
+   公開中のアプリバージョン 1.0 には一切変更を加えておりません。
 
 ■ お願い
 上記3項目（グループ 22235043、月額 6790656254、年額 6790658702）を提出物
@@ -166,8 +189,37 @@ way to retrieve those associated errors through either the API or App Store
 Connect. The items can neither be removed from the old submission nor added to a
 new one, so there is no forward or backward path available to us as developers.
 
+■ We also cannot replace the stuck versions with new ones
+We then tried to supersede the stuck versions by creating new draft versions
+(SubscriptionVersion.state includes REPLACED_WITH_NEW_VERSION, so this appeared
+to be a supported path):
+
+  POST /v1/subscriptionVersions (subscription 6790658702)
+  -> HTTP 409 STATE_ERROR.ALREADY_EXISTS
+     "Version already exists. There is already an inflight version with id
+      'b0127a28-ac7a-4dca-afc7-7a8ca9313857' for subscription 6790658702"
+     (identical errors for subscription 6790656254 and subscriptionGroup 22235043)
+
+■ These two responses contradict each other
+For the very same resource (b0127a28), your servers return two mutually
+exclusive answers:
+
+  - When we try to submit it for review:
+        "is not in valid state ... This resource cannot be reviewed"
+        (i.e. it is NOT in review)
+  - When we try to supersede it with a new version:
+        "There is already an inflight version"
+        (i.e. it IS in flight / in review)
+
+It cannot simultaneously be both not-submittable and already-in-flight. We can
+neither move these items forward nor replace them, and no developer-facing
+operation remains. This is why we believe manual intervention on your side is
+required.
+
 Note: 2bb0b880 is an empty verification submission we created (zero items, never
 submitted). Please feel free to delete it as part of your cleanup.
+Note: all of the verification above used only GET and POST. We made no changes
+to submission 755e8857 or to the live app version 1.0.
 
 ■ Our request
 Please release the following three items from review submission
