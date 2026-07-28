@@ -3,9 +3,32 @@
 > プロジェクトルートの単一の状態置き場。AI 8 部署がセッションを跨いで「いま何をしているか」を思い出すための場所。
 > `/app-dev-org:kickoff` が作成し、`/app-dev-org:weekly-brief` と各部署が更新する。
 
-## ▶ RESUME / 現在地（2026-07-20更新・/clear後はここから読む）
+## ▶ RESUME / 現在地（2026-07-28更新・/clear後はここから読む）
 
-- **🔴🔴 最優先(2026-07-20)＝Android v1.0 が Google Play で「既に公開中」で、コアループのバグ入りのまま**。IARC Live Rating Notice(7/20)で発覚し、公開ページで確認(インストール可・最終更新2026/07/13・DL数0+)。公開中は `versionCode=23 / versionName=0.1.0`。
+- **🔴🔴 最優先(2026-07-28)＝iOSサブスク3点が Apple 側のデータ破損で固着。オーナーがAppleに問い合わせ済み＝返事待ち**。
+  - **状態**: サブスク月額(6790656254)/年額(6790658702)/グループ(22235043) が **IN_REVIEW のまま固着**。却下済み提出物 `755e8857-3ab8-421d-bdc1-e4642569acb4`(UNRESOLVED_ISSUES) に取り残されている。**アプリ本体 1.0 は READY_FOR_SALE で無傷・公開中**(build 24)。
+  - **経緯**: 7/23に本体+サブスク3点を1提出物で提出→2.5.1で本体却下→本体だけ別提出物(cb2b49c7)で7/27に承認・公開→**サブスクだけ古い提出物に置き去り**。
+  - **🚨 触ってはいけない理由(実測で確定)**: 755e8857 の `state=REMOVED` の item は、**公開中の appStoreVersion `7824865b-b21f-4ce3-b76d-3da9ad85bb73`(READY_FOR_SALE) を今も参照している**(`items?include=appStoreVersion` で確認)。Apple公式は「提出物にアプリバージョンが含まれていればキャンセル時に Developer Rejected になる」と明記しREMOVEDの除外規定は無い。**＝この提出物のキャンセル/削除は公開中iOSを失う経路**。
+  - **✅自力ルートは2本とも実測で潰した(GET/POSTのみ・状態変化なし)**:
+    1. `POST /v1/reviewSubmissionItems` で**新しい**提出物(2bb0b880・空・未提出)に載せる → **3件とも 409 STATE_ERROR.ENTITY_STATE_INVALID**「is not in valid state. This resource cannot be reviewed」
+    2. `POST /v1/subscriptionVersions` で新版を作って旧版を押しのける → **3件とも 409 STATE_ERROR.ALREADY_EXISTS**「There is already an **inflight** version」
+    - **＝同一リソースについて「審査に出せる状態でない」と「すでに審査中」が同時に成立＝Apple側のデータ矛盾**。前にも後ろにも動かせない。これが問い合わせの決定的証拠。
+    - 📌 **v1.0.2 を作って同梱しても解決しない**。409は「箱の中身が足りない」ではなく「サブスクそのものの状態」に対するエラーだから。ただし解放後は**初回サブスクは新バージョンと同梱必須**なので v1.0.2 はどのみち要る。
+  - **⛔ 危険スクリプト4本を封印済み**(`tools/asc/_safety_guard.mjs` / 解除は `ASC_ALLOW_DESTRUCTIVE=i-really-mean-it`)。特に `asc_free_version_and_add.mjs` は submittedDate のある提出物を全走査して無条件DELETEし、**COMPLETEを除外していない**ため公開中リリースの承認済みitemに届く。`asc_prep_resubmit`/`asc_diagnose`(cleanup)/`asc_resubmit_with_iap` も自動cancelを持つ。
+  - **📄 Appleへの連絡文(日英・409の実文言入り)= `docs/asc/APPLE_SUBSCRIPTION_STUCK_CONTACT.md`**。2026-07-28 オーナーが日本語版で送信済み(電話は使わない方針＝メールのみ)。スナップショット=`docs/asc/snapshots/2026-07-28_asc_state.txt`。
+  - **⏳次**: Appleの返事待ち。**私は毎日 `asc-iap-diag.yml`(GETのみ)で state を確認し、IN_REVIEW から動いたら報告**。72時間無反応なら `contact/app-store/?topic=status` に追加起票、7日で提出物スレッドから催促、10営業日で Meet with Apple。
+  - **🚫 やってはいけない**: 755e8857 のキャンセル/項目削除、「App Reviewに再提出」の再クリック(効かない＋窓口を閉じる)、サブスク商品の削除(商品IDは `lib/core/constants/pricing.dart:46,49` に焼き込み済みで両OS公開中＝失うと両OS作り直し)。
+
+- **🟠 AdMob広告が出ない件(2026-07-28)＝原因確定・対応中**。AdMob管理画面で「承認状況=要審査」「広告配信を制限しています」「ストア情報を追加して…」を確認。
+  - **✅完了**: Androidアプリを Play ストアにリンク(「(Windows PC)」版ではなく通常のAndroid版を選択) / Play Console のストアの設定→連絡先の詳細→**ウェブサイトに `https://lan-corp.com` を登録**。
+  - **❌残**: ①**`https://lan-corp.com/app-ads.txt` の設置**(中身=`google.com, pub-5063966757462588, DIRECT, f08c47fec0942fa0`)。lan-corp.com は **Cloudflare Pages(直接アップロード型・Git未連携)** で、存在しないパスに200+HTMLを返すため実ファイルが必要。**方式=Workers のルート `lan-corp.com/app-ads.txt` を1本だけ張る**(手順は下記) ②**iOSのマーケティングURL未設定**(`itunes.apple.com/lookup` に `sellerUrl` が無いことを実測)＝**これが無いとiOSは永久にクロールされない** ③AdMob iOSのストアリンク(公開直後で候補に出ない可能性・数日後に再試行) ④AdMobの税務情報入力(PIN郵送に約3週間)。
+  - **📌 2025年1月から新規AdMobアプリは app-ads.txt での確認が必須**(未確認＝限定的な広告配信＝実質ゼロ)。
+  - **📌 コードは正常**。`Info.plist:76` の `GADApplicationIdentifier` も `AndroidManifest.xml:57` も正しく、両ストアのビルドは `prod_ads=true`。**「確認するアプリ」タブで広告リクエスト12件/7日を確認＝アプリは正常に広告を要求している**。ただし `ads_platform_io.dart:69` に**リトライが無い**ため、承認が下りても**アプリ再起動までバナーは出ない**(v1.0.2で要修正)。
+  - **⚠️ Cloudflare作業の禁止事項**: DNS→Recordsの編集/削除、Workers の **Custom Domain**(ルートではない方)に lan-corp.com を追加、ルート欄に `*`(`lan-corp.com/*` は会社サイト全体が1行テキストになる)、Pagesプロジェクト `lan-corp` の Deployment 作成/Custom domains 削除。新UIでは **「Websites」は「Domains」**、「Workers & Pages」は **「Compute」** の中。
+
+- **📣 SNS投稿は保留(オーナー判断 2026-07-28)**。課金と広告が動き出してから投稿する。**確定版の文面は作成済み**(X 264/280・Threads・Instagram タグ5個・開発者向け 279/280＝すべて実測で検算済み)。ハッシュタグ上限の根拠=**Instagram 5個(2025-12-18に30→5)/X 2個(公式推奨)/Threads 1個(仕様)**。**#勉強垢 は全媒体から除外**(Play Consoleのターゲットユーザー申告が18歳以上のみのため、中高生中心のタグで広告・課金ありアプリを訴求すると申告と食い違う)。**実装事実の訂正=「3種族」は誤りで正しくは4種族20体・図鑑40ページ**(`assets/images/mofi/` を実測)。**公開中のiOSストア説明文と docs/ASO.md に「3種族」の誤りが残っている＝要修正**。
+
+- **🔴🔴 (以下は経緯)最優先(2026-07-20)＝Android v1.0 が Google Play で「既に公開中」で、コアループのバグ入りのまま**。IARC Live Rating Notice(7/20)で発覚し、公開ページで確認(インストール可・最終更新2026/07/13・DL数0+)。公開中は `versionCode=23 / versionName=0.1.0`。
   - **🎉🎉 2026-07-20 Android v1.0.1 公開完了**。Play Console 製品版トラック「有効・最新リリース: **24 (1.0.1)**・1か国/地域・インストール数 0件」。バグ入りの23が修正版24に置換済。
   - **✅公開後スモークで本番動作を再確認(2026-07-20)**: `core-loop-smoke.yml` 全項目PASS。`usage_daily`に`total_minutes=42/is_finalized=true`が書けることを公開後の本番でも実証。「動いているはず」ではなく「動いている」。
   - (経緯)修正AAB: `build-aab.yml` run#**24** success(`prod_ads=true`)＝`versionCode=24` / `versionName=1.0.1`。

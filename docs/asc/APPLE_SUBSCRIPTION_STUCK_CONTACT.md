@@ -13,7 +13,7 @@
 ### 日本語（本文の冒頭に貼る）
 
 ```
-お世話になっております。合同会社Lan の Moffy 開発チームです。
+お世話になっております。合同会社Lanです。
 
 App Store Connect のサブスクリプション提出について、システム上の不整合により
 提出物が動かなくなっているため、手動での解除をお願いしたく連絡いたします。
@@ -124,8 +124,8 @@ Subject: Subscriptions stuck In Review on a rejected submission — request for 
 
 Hello,
 
-We are the development team for the app "Moffy" (Lan LLC). We are writing to
-request manual intervention on a subscription submission that appears to be in an
+We are Lan LLC, the developer of the app "Moffy". We are writing to request
+manual intervention on a subscription submission that appears to be in an
 inconsistent state in App Store Connect.
 
 ■ Identifiers
