@@ -31,6 +31,7 @@
     - 🆕`tools/asc/asc_attach_build.mjs` + `.github/workflows/asc-attach-build.yml`＝**ビルド番号を明示入力**して紐付ける(「最新」ではなく番号指定＝取り違え防止)。TestFlightの`processingState=VALID`を最大40分待つ／冪等／実行後に読み直して検証。既存`asc_api.mjs`の`raw`はGET専用(ボディを渡せない)ため使えなかった。
   - **🎉🎉🎉 iOS: 2026-07-27 公開完了＝`READY_FOR_SALE`**。build 24 / v1.0。3回のリジェクト(初回2.1(a)/2.5.1)を乗り越え承認→APIで`appStoreVersionReleaseRequest`送信しリリース済。**Android・iOS 両ストア公開達成**。
   - **公開URL**: iOS=`https://apps.apple.com/jp/app/id6785691850`(公開直後は反映に数時間) / Android=`https://play.google.com/store/apps/details?id=com.moffy.app`。→[[moffy-store-urls]]。
+  - **📣 SNSローンチ投稿の確定版＝`docs/SNS_LAUNCH_POSTS.md`**（X/Threads/Instagram）。**オーナー是正**: #個人開発はターゲットユーザー(=減らしたい層/勉強垢/かわいいゲーム好き)でなく開発者に届く→**ユーザー獲得ポストと開発者ポストを分離**。ターゲット層タグ(デジタルデトックス/勉強垢/育成ゲーム等)を使う。IGはプロフィールにリンク必須。ストアスクショ5枚はオーナーに送付済。
   - **⏳残(低優先・公開後)**: ①App Storeへの反映確認(数時間) ②AdMob承認待ち(公開後・それまでバナー非表示は正常) ③サブスクIN_REVIEW→公開で有効化されるか確認 ④iOS利用規約第3条の未実装アカウント連携記述をv1.0.1で是正(既知) ⑤特商法/サポートURLの低優先宿題。
   - **📌3回目でハマった点(記録済[[ios-screentime-app-store-gotchas]])**: 却下本体は同じ提出物に戻せない→新規reviewSubmissionに本体24を入れ直し、サブスクはIN_REVIEW済で同梱不要→UIで審査へ提出。
 
