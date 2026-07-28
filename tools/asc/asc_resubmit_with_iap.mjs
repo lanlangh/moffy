@@ -6,6 +6,14 @@
 // Usage: node asc_resubmit_with_iap.mjs <p8> <keyId> <issuerId> <bundleId> <versionString> <mode>
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { assertDestructiveAllowed } from './_safety_guard.mjs';
+
+// ⛔ 安全停止（2026-07-28・iOSサブスク膠着の対応中）。
+// 内部で reviewSubmission を canceled:true にする経路を持つ（フォールバック時）。
+// 膠着中の 755e8857 は公開中の 1.0 を今も参照しており、キャンセルは公開中バージョンを
+// DEVELOPER_REJECTED に落としうる。
+// 詳細: docs/asc/APPLE_SUBSCRIPTION_STUCK_CONTACT.md
+assertDestructiveAllowed('asc_resubmit_with_iap');
 const [, , P8, KEY_ID, ISSUER, BUNDLE_ID, VERSION, MODE = 'prepare'] = process.argv;
 const b64url = (b) => Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 function jwt() {

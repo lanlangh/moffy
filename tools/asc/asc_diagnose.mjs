@@ -74,7 +74,12 @@ async function api(method, path, body) {
     console.log(`  id=${s.id} state=${s.attributes.state} platform=${s.attributes.platform} submitted=${s.attributes.submittedDate ?? '-'}`);
     const items = await api('GET', `/v1/reviewSubmissions/${s.id}/items?limit=20`);
     console.log(`     items=${(items.json?.data ?? []).length}`);
-    if (CLEANUP === 'true' && !['COMPLETE', 'CANCELING', 'CANCELED'].includes(s.attributes.state)) {
+    // ⛔ 安全停止（2026-07-28）: 診断(GET)はそのまま使えるが、自動キャンセルだけを封印する。
+    // 膠着中の 755e8857 は公開中の 1.0 を今も参照しており、キャンセルは公開中バージョンを
+    // DEVELOPER_REJECTED に落としうる。解除には ASC_ALLOW_DESTRUCTIVE=i-really-mean-it が必要。
+    if (CLEANUP === 'true' && process.env.ASC_ALLOW_DESTRUCTIVE !== 'i-really-mean-it') {
+      console.log('     → [安全停止] 自動キャンセルは封印中（診断のみ実行）');
+    } else if (CLEANUP === 'true' && !['COMPLETE', 'CANCELING', 'CANCELED'].includes(s.attributes.state)) {
       const items0 = (items.json?.data ?? []).length;
       if (items0 === 0) {
         const c = await api('PATCH', `/v1/reviewSubmissions/${s.id}`, {

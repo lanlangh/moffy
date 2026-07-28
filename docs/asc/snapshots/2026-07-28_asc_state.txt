@@ -1,0 +1,32 @@
+=== サブスクリプション ===
+グループ id=22235043 ref=Moffy Premium
+
+  ● moffy_premium_yearly  id=6790658702
+     state=IN_REVIEW name="Moffy Premium 年額" 期間=ONE_YEAR
+     ローカライズ: ja(名:有/説明:有)
+     価格設定: 5件
+     審査用スクショ: COMPLETE
+
+  ● moffy_premium_monthly  id=6790656254
+     state=IN_REVIEW name="Moffy Premium 月額" 期間=ONE_MONTH
+     ローカライズ: ja(名:有/説明:有)
+     価格設定: 5件
+     審査用スクショ: COMPLETE
+
+=== レビュー提出(reviewSubmission)に何が含まれているか ===
+
+reviewSubmission id=755e8857-3ab8-421d-bdc1-e4642569acb4 state=UNRESOLVED_ISSUES submitted=2026-07-23T04:15:39.325Z
+   item id=NzU1ZTg4NTctM2FiOC00MjFkLWJkYzEtZTQ2NDI1NjlhY2I0fDE5fGFmOWZjZTljLTEzYWMtNDEyNi1iYjM3LWUyNmUyOTc5YmU2Mw state=READY_FOR_REVIEW → (関連なし)
+   item id=NzU1ZTg4NTctM2FiOC00MjFkLWJkYzEtZTQ2NDI1NjlhY2I0fDE4fDE2NDU2NmM0LTc4ZDItNDgxMy1hMjhiLWMwYjA1ZjRmYTczMA state=READY_FOR_REVIEW → (関連なし)
+   item id=NzU1ZTg4NTctM2FiOC00MjFkLWJkYzEtZTQ2NDI1NjlhY2I0fDE4fGIwMTI3YTI4LWFjN2EtNGRjYS1hZmM3LTdhOGNhOTMxMzg1Nw state=READY_FOR_REVIEW → (関連なし)
+   item id=NzU1ZTg4NTctM2FiOC00MjFkLWJkYzEtZTQ2NDI1NjlhY2I0fDZ8ODg3NjE3NTg0 state=REMOVED → (関連なし)
+
+reviewSubmission id=cb2b49c7-9a26-4c05-94ae-72d6f45c1055 state=COMPLETE submitted=2026-07-27T02:47:50.423Z
+   item id=Y2IyYjQ5YzctOWEyNi00YzA1LTk0YWUtNzJkNmY0NWMxMDU1fDZ8ODg3NjE3NTg0 state=APPROVED → (関連なし)
+
+reviewSubmission id=c4ba6b1f-2dc8-40da-ba42-66d0d32a4c13 state=COMPLETE submitted=2026-07-17T06:01:37.023Z
+   item id=YzRiYTZiMWYtMmRjOC00MGRhLWJhNDItNjZkMGQzMmE0YzEzfDZ8ODg3NjE3NTg0 state=REMOVED → (関連なし)
+
+=== 判定ヒント ===
+
+# 取得: 2026-07-28 (GETのみ・書き込みなし) / run=30325720283

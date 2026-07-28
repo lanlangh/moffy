@@ -3,6 +3,15 @@
 // 提出はしない。Usage: node asc_free_version_and_add.mjs <p8> <keyId> <issuerId> <bundleId> <versionString>
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { assertDestructiveAllowed } from './_safety_guard.mjs';
+
+// ⛔ 安全停止（2026-07-28・iOSサブスク膠着の対応中）。
+// このスクリプトは submittedDate のある reviewSubmission を「全部」走査し、指定バージョンの
+// item を無条件 DELETE する（dry-run も確認も state ガードも無い）。COMPLETE を除外していないため
+// `... com.moffy.app 1.0` を実行すると、公開中リリースを承認した提出物 cb2b49c7 の
+// state=APPROVED な item にも DELETE が飛ぶ ＝ 公開中の iOS 1.0 を失う経路が実在する。
+// 詳細: docs/asc/APPLE_SUBSCRIPTION_STUCK_CONTACT.md
+assertDestructiveAllowed('asc_free_version_and_add');
 const [, , P8, KEY_ID, ISSUER, BUNDLE_ID, VERSION] = process.argv;
 const b64url = (b) => Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
 function jwt() {
