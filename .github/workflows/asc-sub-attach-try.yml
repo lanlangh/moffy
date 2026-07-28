@@ -1,0 +1,28 @@
+name: ASC Sub Attach Try (サブスクを新しい箱に載せられるか試す)
+
+# 安全装置（スクリプト側で強制）:
+#   * GET と POST しか投げられない（DELETE/PATCH/PUT は例外で落ちる）
+#   * 膠着中の提出物 755e8857 / 公開中の appStoreVersion 7824865b に触れたら即中止
+#   * submitted:true にしない = Apple には送らない（入るかどうかを試すだけ）
+on:
+  workflow_dispatch: {}
+
+jobs:
+  try:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode ASC API key (.p8)
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+      - name: Try attach
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node tools/asc/asc_sub_attach_try.mjs "$RUNNER_TEMP/asc/key.p8" "$ASC_KEY_ID" "$ASC_ISSUER_ID" com.moffy.app
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
