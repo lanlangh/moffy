@@ -47,6 +47,26 @@ Team ID: JKPUV48L3V
   と表示されますが、押下前後で API 上の状態は完全に同一で、何も起きません。
 ・サブスクグループの「審査用に追加」ボタンはグレーアウトしており押せません。
 
+■ 新しい提出物にも載せられないことを API で確認済み
+既存の提出物には触れずに、新規の reviewSubmission
+（2bb0b880-874f-42db-8872-2c9143481aac・未提出）を作成し、そこへ3項目を
+追加しようとしたところ、3件すべてが同じエラーで拒否されました。
+
+  POST /v1/reviewSubmissionItems
+  → HTTP 409 STATE_ERROR.ENTITY_STATE_INVALID
+     "subscriptionVersions with id 'b0127a28-ac7a-4dca-afc7-7a8ca9313857'
+      is not in valid state. This resource cannot be reviewed, please check
+      associated errors to see why."
+     （164566c4-... および subscriptionGroupVersions af9fce9c-... も同一エラー）
+
+エラーは「associated errors を確認せよ」と指示していますが、
+API/UI のどこにもその associated errors を参照する手段が見当たりません。
+つまり、古い提出物から外すことも、新しい提出物に入れることもできず、
+開発者側の操作では前にも後ろにも進めない状態です。
+
+※ 上記 2bb0b880 は検証のために作成した空の提出物です（項目0件・未提出）。
+   不要ですので、そちらで併せて削除していただいて差し支えありません。
+
 ■ お願い
 上記3項目（グループ 22235043、月額 6790656254、年額 6790658702）を提出物
 755e8857 から解放し、Ready to Submit の状態に戻していただけますでしょうか。
@@ -127,6 +147,27 @@ Additional symptoms:
   identical before and after clicking — nothing actually happens.
 - The "Add for Review" button on the subscription group is greyed out and cannot
   be clicked, so we have no way to attach these items to a new submission.
+
+■ We also verified that the items cannot be attached to a NEW submission
+Without touching submission 755e8857, we created a new, separate review
+submission (2bb0b880-874f-42db-8872-2c9143481aac, never submitted) and attempted
+to add the three items to it. All three were rejected with the same error:
+
+  POST /v1/reviewSubmissionItems
+  -> HTTP 409 STATE_ERROR.ENTITY_STATE_INVALID
+     "subscriptionVersions with id 'b0127a28-ac7a-4dca-afc7-7a8ca9313857' is not
+      in valid state. This resource cannot be reviewed, please check associated
+      errors to see why."
+     (identical errors for subscriptionVersions 164566c4-78d2-4813-a28b-c0b05f4fa730
+      and subscriptionGroupVersions af9fce9c-13ac-4126-bb37-e26e2979be63)
+
+The error asks us to "check associated errors to see why", but we cannot find any
+way to retrieve those associated errors through either the API or App Store
+Connect. The items can neither be removed from the old submission nor added to a
+new one, so there is no forward or backward path available to us as developers.
+
+Note: 2bb0b880 is an empty verification submission we created (zero items, never
+submitted). Please feel free to delete it as part of your cleanup.
 
 ■ Our request
 Please release the following three items from review submission
