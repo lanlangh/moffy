@@ -16,7 +16,9 @@
     - 📌 **v1.0.2 を作って同梱しても解決しない**。409は「箱の中身が足りない」ではなく「サブスクそのものの状態」に対するエラーだから。ただし解放後は**初回サブスクは新バージョンと同梱必須**なので v1.0.2 はどのみち要る。
   - **⛔ 危険スクリプト4本を封印済み**(`tools/asc/_safety_guard.mjs` / 解除は `ASC_ALLOW_DESTRUCTIVE=i-really-mean-it`)。特に `asc_free_version_and_add.mjs` は submittedDate のある提出物を全走査して無条件DELETEし、**COMPLETEを除外していない**ため公開中リリースの承認済みitemに届く。`asc_prep_resubmit`/`asc_diagnose`(cleanup)/`asc_resubmit_with_iap` も自動cancelを持つ。
   - **📄 Appleへの連絡文(日英・409の実文言入り)= `docs/asc/APPLE_SUBSCRIPTION_STUCK_CONTACT.md`**。2026-07-28 オーナーが日本語版で送信済み(電話は使わない方針＝メールのみ)。スナップショット=`docs/asc/snapshots/2026-07-28_asc_state.txt`。
-  - **⏳次**: Appleの返事待ち。**私は毎日 `asc-iap-diag.yml`(GETのみ)で state を確認し、IN_REVIEW から動いたら報告**。72時間無反応なら `contact/app-store/?topic=status` に追加起票、7日で提出物スレッドから催促、10営業日で Meet with Apple。
+  - **⏳次**: Appleの返事待ち。**私は `asc-iap-diag.yml`(GETのみ)で state を確認し、IN_REVIEW から動いたら報告**。
+  - **📅 経過(2026-08-03時点)**: 7/28にDeveloper Supportへ送信 → **6日間まったく返信なし・状態も1ビットも変化なし**(サブスク=IN_REVIEW / 提出物=UNRESOLVED_ISSUES)。→ **8/3にオーナーが提出物スレッドの「App Reviewに返信」から催促を送信**(英文・409の実文言2件と矛盾の指摘入り)。※「返信」はスレッドを閉じない。閉じるのは「再提出」を押したとき。
+  - **📅 次のトリガー**: ①**8/6頃(App Review返信から3日)無反応** → `https://developer.apple.com/contact/app-store/?topic=status` に同じ英文で追加起票(※`?topic=appeal`は不服申立で論点がズレるので使わない) ②**8/11頃(10営業日)無反応** → **Meet with Apple の App Review枠(30分・オンライン)** を予約 ③**8/27頃(30日)無反応** → v1.1のタイミングで「新バージョン＋サブスク3点を新規提出物にまとめて出す」形に流し込む案を再検討(それまで不可逆操作は検討もしない)。
   - **🚫 やってはいけない**: 755e8857 のキャンセル/項目削除、「App Reviewに再提出」の再クリック(効かない＋窓口を閉じる)、サブスク商品の削除(商品IDは `lib/core/constants/pricing.dart:46,49` に焼き込み済みで両OS公開中＝失うと両OS作り直し)。
 
 - **🟢 v1.0.2 のコード修正は完了・main入り済み(2026-07-28 / PR#56 `28d9f37`)**。CI緑(`flutter analyze` No issues / `flutter test` **+173 All tests passed**)。実装3件を独立エージェントが担当し、別の2エージェントがクロスレビュー(GO_WITH_FIXES×2)→指摘3件を反映。
