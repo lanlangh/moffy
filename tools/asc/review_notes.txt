@@ -23,8 +23,22 @@
 【広告について】
 無料プランでは AdMob のバナー広告を表示しますが、非パーソナライズ広告のみで、
 ATT（トラッキング許可）は求めず、IDFA をトラッキング目的で使用しません。
-公開前のため AdMob の配信承認が下りておらず、審査時点ではバナーが表示されない
+iOS 側は AdMob の配信承認がまだ下りていないため、審査時点ではバナーが表示されない
 場合があります。
+
+【アプリ内課金について（重要・ご確認ください）】
+本バージョンにはサブスクリプションを同梱できていませんが、これは入力漏れでは
+ありません。当社のサブスク2件（moffy_premium_monthly / moffy_premium_yearly）は
+2026-07-23 の提出物 755e8857-3ab8-421d-bdc1-e4642569acb4 の中で
+「審査中（In Review）」のまま固着しており、提出も削除もできない状態です。
+どちらを試しても App Store Connect が HTTP 409 を返し、「審査用に追加」ボタンも
+グレーアウトして押せません。この件は Developer Support と App Review の双方に
+問い合わせ中です。
+
+そのため、本ビルドの課金画面（ペイウォール）は商品が並ばず「プランがありません」
+という空の状態で表示されます。これはアプリの不具合ではなく、上記の固着による
+一時的な結果です。中核機能（利用時間の計測、ポイント、卵、孵化、図鑑の収集）は
+すべて無料で利用でき、通常どおりご確認いただけます。
 
 ----------------------------------------------------------------------
 
@@ -51,5 +65,24 @@ lets you verify the core game loop within a short review session.
 
 [Ads]
 The free tier shows AdMob banners, non-personalized only. We do not request ATT and
-do not use IDFA for tracking. As the app is not yet published, AdMob has not approved
-serving, so banners may not appear during review.
+do not use IDFA for tracking. AdMob has not yet approved serving for the iOS app, so
+banners may not appear during review.
+
+[In-App Purchases - please read]
+This submission does not include our auto-renewable subscriptions, and this is not
+an oversight. Our two subscriptions (moffy_premium_monthly, moffy_premium_yearly)
+and their subscription group have been stuck "In Review" inside an earlier
+submission, 755e8857-3ab8-421d-bdc1-e4642569acb4, since 2026-07-23. We can neither
+submit them nor remove them: both operations return HTTP 409 from App Store Connect
+("is not in valid state" when submitting, "there is already an inflight version"
+when trying to replace them), and the "Add for Review" button on the subscription
+group is greyed out. We have open cases with both Developer Support and App Review
+about this.
+
+As a result, the paywall screen in this build shows an empty "no plans available"
+state instead of purchasable products. This is a temporary consequence of the stuck
+submission, not a defect in the app, and no purchase flow can be triggered. All core
+functionality (usage measurement, points, eggs, hatching, and the collection) is
+fully available for free and can be reviewed normally.
+
+Once the subscriptions are released, we will submit them separately.
