@@ -55,17 +55,27 @@ const cp = (s) => [...(s ?? '')].length;
 
 (async () => {
   const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
-  const desc = fs.readFileSync(path.join(here, 'ios_store_description.txt'), 'utf8').replace(/\r\n/g, '\n').trim();
+  const rd = (f) => fs.readFileSync(path.join(here, f), 'utf8').replace(/\r\n/g, '\n').trim();
+  const desc = rd('ios_store_description.txt');
   const keywords = fs.readFileSync(path.join(here, 'ios_store_keywords.txt'), 'utf8').trim();
+  const promo = rd('ios_store_promotional_text.txt');
+  const whatsNew = rd('ios_store_whats_new.txt');
 
   console.log('=== 流し込む内容の検証 ===');
-  console.log(`  description = ${cp(desc)} / 4000字`);
-  console.log(`  keywords    = ${cp(keywords)} / 100字`);
+  console.log(`  description      = ${cp(desc)} / 4000字`);
+  console.log(`  keywords         = ${cp(keywords)} / 100字`);
+  console.log(`  promotionalText  = ${cp(promo)} / 170字`);
+  console.log(`  whatsNew         = ${cp(whatsNew)} / 4000字`);
   if (cp(desc) > 4000) throw new Error('description が4000字超');
   if (cp(keywords) > 100) throw new Error('keywords が100字超');
   if (/,\s/.test(keywords)) throw new Error('keywords: カンマ後にスペースあり');
-  if (desc.includes('3種族')) throw new Error('❌ description にまだ「3種族」が残っている（実装は4種族）');
-  console.log(`  「4種族」を含む: ${desc.includes('4種族') ? '✅' : '❌'}`);
+  // promotionalText は Apple の上限が 170。改行も1文字として数えられる。
+  if (cp(promo) > 170) throw new Error(`promotionalText が170字超（${cp(promo)}字）`);
+  if (cp(whatsNew) > 4000) throw new Error('whatsNew が4000字超');
+  for (const [name, t] of [['description', desc], ['promotionalText', promo], ['whatsNew', whatsNew]]) {
+    if (t.includes('3種族')) throw new Error(`❌ ${name} にまだ「3種族」が残っている（実装は4種族）`);
+  }
+  console.log(`  「4種族」を含む(description): ${desc.includes('4種族') ? '✅' : '❌'}`);
   console.log('');
 
   const apps = await call('GET', `/v1/apps?filter[bundleId]=${encodeURIComponent(BUNDLE_ID)}`);
@@ -119,12 +129,18 @@ const cp = (s) => [...(s ?? '')].length;
     return;
   }
 
-  console.log('\n--- ja ローカライズを更新（marketingUrl / description / keywords）---');
+  console.log('\n--- ja ローカライズを更新（marketingUrl / description / keywords / promotionalText / whatsNew）---');
   const patched = await call('PATCH', `/v1/appStoreVersionLocalizations/${ja.id}`, {
     data: {
       type: 'appStoreVersionLocalizations',
       id: ja.id,
-      attributes: { marketingUrl: MARKETING_URL, description: desc, keywords },
+      attributes: {
+        marketingUrl: MARKETING_URL,
+        description: desc,
+        keywords,
+        promotionalText: promo,
+        whatsNew,
+      },
     },
   });
   console.log(`  PATCH → HTTP ${patched.status}`);
@@ -136,9 +152,13 @@ const cp = (s) => [...(s ?? '')].length;
   const a = after.json?.data?.attributes ?? {};
   const okUrl = a.marketingUrl === MARKETING_URL;
   const okDesc = (a.description ?? '').includes('4種族') && !(a.description ?? '').includes('3種族');
-  console.log(`  marketingUrl = ${a.marketingUrl}  ${okUrl ? '✅' : '❌'}`);
-  console.log(`  description  = ${cp(a.description)}字 / 4種族=${(a.description ?? '').includes('4種族')} 3種族=${(a.description ?? '').includes('3種族')}  ${okDesc ? '✅' : '❌'}`);
-  console.log(`  keywords     = ${a.keywords}`);
-  if (!okUrl || !okDesc) { console.log('\n❌ 反映されていない項目がある'); process.exit(1); }
+  const okPromo = cp(a.promotionalText) > 0 && cp(a.promotionalText) <= 170;
+  const okNew = cp(a.whatsNew) > 0;
+  console.log(`  marketingUrl    = ${a.marketingUrl}  ${okUrl ? '✅' : '❌'}`);
+  console.log(`  description     = ${cp(a.description)}字 / 4種族=${(a.description ?? '').includes('4種族')} 3種族=${(a.description ?? '').includes('3種族')}  ${okDesc ? '✅' : '❌'}`);
+  console.log(`  keywords        = ${a.keywords}`);
+  console.log(`  promotionalText = ${cp(a.promotionalText)}字 / 170  ${okPromo ? '✅' : '❌'}`);
+  console.log(`  whatsNew        = ${cp(a.whatsNew)}字 / 4000  ${okNew ? '✅' : '❌'}`);
+  if (!okUrl || !okDesc || !okPromo || !okNew) { console.log('\n❌ 反映されていない項目がある'); process.exit(1); }
   console.log('\n🎉 新バージョンの下ごしらえ完了。次: build を紐付け → 提出物にサブスクを載せられるか試す。');
 })().catch((e) => { console.error('ERR', e.message); process.exit(1); });
