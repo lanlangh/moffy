@@ -99,9 +99,24 @@ const warn = (m) => { warns.push(m); console.log('  ⚠️  ' + m); };
     else if (x.keywords.length > 100) bad(`${x.locale}: キーワード ${x.keywords.length}字（100字上限を超過）`);
     else ok(`${x.locale}: キーワード ${x.keywords.length}字`);
     if (!x.supportUrl?.trim()) bad(`${x.locale}: サポートURLが空（必須）`); else ok(`${x.locale}: supportUrl=${x.supportUrl}`);
+    // marketingUrl は AdMob の app-ads.txt クローラが見に行く「デベロッパーサイト」。
+    // 未設定だと iOS の app-ads.txt は永久に確認されない（＝広告収益が立たない）。
     if (x.marketingUrl) ok(`${x.locale}: marketingUrl=${x.marketingUrl}`);
-    if (x.promotionalText) ok(`${x.locale}: プロモーションテキスト ${x.promotionalText.length}字`);
-    if (x.whatsNew) warn(`${x.locale}: whatsNew が入っている（初版では不要）`);
+    else warn(`${x.locale}: marketingUrl が空（AdMobのapp-ads.txt確認に必要）`);
+    // 説明文の真上に出る一等地。審査なしで随時更新できる唯一の枠なので空は機会損失。
+    if (!x.promotionalText?.trim()) warn(`${x.locale}: プロモーションテキストが空（説明文の真上の一等地）`);
+    else if (x.promotionalText.length > 170) bad(`${x.locale}: プロモーションテキスト ${x.promotionalText.length}字（170字上限を超過）`);
+    else ok(`${x.locale}: プロモーションテキスト ${x.promotionalText.length}字`);
+    // whatsNew は Apple 仕様で「初版では設定不可・2版目以降は必須」。
+    // versionString が初版かどうかで期待値が反転するため、それで判定する。
+    const isFirstVersion = VERSION_STRING === '1.0' || VERSION_STRING === '1.0.0';
+    if (isFirstVersion) {
+      if (x.whatsNew) warn(`${x.locale}: whatsNew が入っている（初版では不要）`);
+    } else if (!x.whatsNew?.trim()) {
+      bad(`${x.locale}: whatsNew が空（アップデート版では必須）`);
+    } else {
+      ok(`${x.locale}: whatsNew ${x.whatsNew.length}字`);
+    }
 
     // ---- スクリーンショット ----
     const sets = await get(`/v1/appStoreVersionLocalizations/${l.id}/appScreenshotSets?limit=20`);
