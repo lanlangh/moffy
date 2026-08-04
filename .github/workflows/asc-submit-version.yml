@@ -1,0 +1,42 @@
+name: ASC Submit Version (下ごしらえ済みの提出物を審査へ送る)
+
+# ⚠️ 外向きで取り消しの効きにくい操作。送る前に中身を機械的に検証する。
+# 安全装置(スクリプト側で強制):
+#   - 膠着中の提出物 755e8857 は対象にできない
+#   - 公開中の appStoreVersion 7824865b が含まれていたら中止
+#   - 対象バージョン以外が入っていたら中止 / items が0件なら中止
+#   - GET/PATCH のみ / 既定は dry-run
+on:
+  workflow_dispatch:
+    inputs:
+      version_string:
+        description: "提出するバージョン"
+        required: true
+        default: "1.0.2"
+        type: string
+      mode:
+        description: "dry-run(検証のみ) / submit(実際に送る)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options: [dry-run, submit]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode ASC API key (.p8)
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+      - name: Submit
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node tools/asc/asc_submit_version.mjs "$RUNNER_TEMP/asc/key.p8" "$ASC_KEY_ID" "$ASC_ISSUER_ID" com.moffy.app "${{ inputs.version_string }}" "${{ inputs.mode }}"
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
