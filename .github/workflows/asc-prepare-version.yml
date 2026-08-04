@@ -1,0 +1,39 @@
+name: ASC Prepare Version (新バージョンを作って公開中は編集不可の項目を設定)
+
+# 公開中バージョンでは marketingUrl / description が 409 で編集できないため、
+# 新しい下書きバージョンを作ってそこに設定する。
+# 安全装置: GET/POST/PATCH のみ / 755e8857・7824865b に触れない / 既定は dry-run
+on:
+  workflow_dispatch:
+    inputs:
+      version_string:
+        description: "作るバージョン"
+        required: true
+        default: "1.0.2"
+        type: string
+      mode:
+        description: "dry-run(読むだけ) / apply(書き込む)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options: [dry-run, apply]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode ASC API key (.p8)
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+      - name: Prepare version
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node tools/asc/asc_prepare_version.mjs "$RUNNER_TEMP/asc/key.p8" "$ASC_KEY_ID" "$ASC_ISSUER_ID" com.moffy.app "${{ inputs.version_string }}" "${{ inputs.mode }}"
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
