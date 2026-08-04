@@ -36,6 +36,7 @@ const errOf = (r) => (r.json?.errors ?? []).map((e) => `${e.status} ${e.code} ${
   const groups = await get(`/v1/apps/${appId}/subscriptionGroups?limit=10`);
 
   let missingTrial = 0;
+  let mismatch = 0;
   for (const g of groups.json?.data ?? []) {
     const subs = await get(`/v1/subscriptionGroups/${g.id}/subscriptions?limit=20`);
     for (const s of subs.json?.data ?? []) {
@@ -57,11 +58,33 @@ const errOf = (r) => (r.json?.errors ?? []).map((e) => `${e.status} ${e.code} ${
         }
       }
 
-      const prices = await get(`/v1/subscriptions/${s.id}/prices?limit=50&include=subscriptionPricePoint`);
-      const pts = (prices.json?.included ?? [])
-        .filter((x) => x.type === 'subscriptionPricePoints' && x.attributes?.customerPrice)
-        .map((x) => x.attributes.customerPrice);
-      console.log(`  価格ポイント(${pts.length}件): ${pts.slice(0, 8).join(' / ')}${pts.length > 8 ? ' …' : ''}`);
+      // 日本(JPN)の実売価格を特定する。説明文の「月¥480／年¥4,800」との一致検証。
+      const prices = await get(
+        `/v1/subscriptions/${s.id}/prices?limit=200&include=subscriptionPricePoint,territory`);
+      const inc = prices.json?.included ?? [];
+      const points = new Map(inc.filter((x) => x.type === 'subscriptionPricePoints').map((x) => [x.id, x]));
+      const terrs = new Map(inc.filter((x) => x.type === 'territories').map((x) => [x.id, x]));
+      let jpPrice = null;
+      const rows = [];
+      for (const p of prices.json?.data ?? []) {
+        const tid = p.relationships?.territory?.data?.id;
+        const pid = p.relationships?.subscriptionPricePoint?.data?.id;
+        const cur = points.get(pid)?.attributes?.customerPrice;
+        if (!tid) continue;
+        rows.push(`${tid}=${cur ?? '?'}`);
+        if (tid === 'JPN') jpPrice = cur;
+      }
+      console.log(`  価格設定(${rows.length}件): ${rows.slice(0, 8).join(' / ')}${rows.length > 8 ? ' …' : ''}`);
+      const expected = s.attributes.productId.includes('yearly') ? '4800' : '480';
+      const jpNum = jpPrice != null ? String(Math.round(Number(jpPrice))) : null;
+      if (jpNum === expected) {
+        console.log(`  ✅ 日本(JPN)の価格 = ¥${jpNum}（説明文の記述と一致）`);
+      } else if (jpNum) {
+        console.log(`  ❌ 日本(JPN)の価格 = ¥${jpNum} だが、説明文は ¥${expected} と書いている（不一致）`);
+        mismatch++;
+      } else {
+        console.log('  ⚠️ 日本(JPN)の価格を特定できなかった（要目視確認）');
+      }
     }
   }
 
@@ -71,6 +94,11 @@ const errOf = (r) => (r.json?.errors ?? []).map((e) => `${e.status} ${e.code} ${
     console.log('   → ストア説明文から「初回7日間無料」の記述を削除するか、ASCでトライアルを設定すること。');
   } else {
     console.log('✅ 全サブスクに無料トライアルが設定されている。');
+  }
+  if (mismatch > 0) {
+    console.log(`❌ 日本の価格が説明文と一致しないサブスクが ${mismatch} 件。景表法(有利/不利誤認)。`);
+  } else {
+    console.log('✅ 日本の価格は説明文の記述と一致している。');
   }
   console.log('\n※ GET のみ。状態は変更していません。');
 })().catch((e) => { console.error('ERR', e.message); process.exit(1); });
