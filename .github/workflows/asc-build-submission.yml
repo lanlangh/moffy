@@ -1,0 +1,32 @@
+name: ASC Build Submission (提出物に本体+サブスクを載せる / 提出はしない)
+
+# 安全装置(スクリプト側で強制): GET/POST のみ / 755e8857・7824865b に触れない /
+# submitted:true にしない = Apple には送らない
+on:
+  workflow_dispatch:
+    inputs:
+      version_string:
+        description: "提出物に入れるバージョン"
+        required: true
+        default: "1.0.2"
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode ASC API key (.p8)
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+      - name: Build submission
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node tools/asc/asc_build_submission.mjs "$RUNNER_TEMP/asc/key.p8" "$ASC_KEY_ID" "$ASC_ISSUER_ID" com.moffy.app "${{ inputs.version_string }}"
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
