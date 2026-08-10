@@ -86,11 +86,16 @@ jobs:
 
       # 残高は「1ptも動かさない」ことが 0016 の約束。適用の前後で全行を突き合わせる。
       # ⚠️ 不可逆な変更（0013 の user_quests DELETE / 0015 の eggs バックフィル）の前に
-      #    必ず適用前スナップショットを取る（保存先は下記のとおり DB 内の ops スキーマ）。
+      #    必ず適用前スナップショットを取る。保存先は2箇所に分かれる:
+      #      * runner の /tmp … 下の Snapshot BEFORE ステップ（job 終了で消える。行数確認用）
+      #      * DB 内の ops スキーマ … 下の Apply ステップの -c（残る。事後調査の本体）
+      #    ★ops のスナップショットは**調査が終わったら必ず drop すること**（ORG_STATE 手順3-5）。
+      #      退会ユーザーの物理削除（fn_purge_deleted_accounts / 30日）は ops に届かない。
+      #      CTAS で作った素のテーブルで auth.users への FK が無く、cascade が及ばないため。
       #    --single-transaction が守るのは「途中で失敗した」ケースだけで、
       #    「成功したが内容が間違っていた」は守らない。そのとき比較対象が無いと調査できない。
       # ⚠️⚠️ **このリポジトリは PUBLIC**（無料でActionsを回すため公開にしてある）。
-      #    よって artifact もワークフローログも**誰でもダウンロード・閲覧できる**。
+      #    よってワークフローログは**誰でも閲覧できる**（artifact 保存を入れかけたが削除済み）。
       #    本番ユーザーの UUID・残高をここへ出してはいけない（1回出したら取り消せない）。
       #    スナップショットは runner のローカル(/tmp)に置き、**行数だけ**をログに出す。
       #    適用後の調査に使う本体は、下の Apply ステップで **DB の中**(ops スキーマ)に取る。
@@ -123,13 +128,14 @@ jobs:
             -c "set lock_timeout = '5s'; set statement_timeout = '180s';" \
             -c "create schema if not exists ops; \
                 revoke all on schema ops from public, anon, authenticated; \
-                drop table if exists ops.snap_v11_balances; \
-                create table ops.snap_v11_balances as \
+                create table if not exists ops.snap_v11_balances as \
                   select id, point_balance, pooled_points, gem_balance from public.profiles; \
-                drop table if exists ops.snap_v11_eggs_hatched; \
-                create table ops.snap_v11_eggs_hatched as \
+                create table if not exists ops.snap_v11_eggs_hatched as \
                   select id, user_id, location, created_at, updated_at, hatched_into \
-                    from public.eggs where location='hatched';" \
+                    from public.eggs where location='hatched'; \
+                create table if not exists ops.snap_v11_user_quests_tiktok as \
+                  select * from public.user_quests where quest_id='daily_tiktok_under_20'; \
+                revoke all on all tables in schema ops from public, anon, authenticated;" \
             -f supabase/migrations/0013_disable_tiktok_quest_fail_closed.sql \
             -f supabase/migrations/0014_profile_stats_rpc.sql \
             -f supabase/migrations/0015_quest_condition_hardening.sql \
@@ -245,7 +251,7 @@ jobs:
                 raise warning '[FAIL] app_under が型チェック(jsonb_typeof)をしていない（null値で貫通する）';
                 v_fail := v_fail + 1;
               end if;
-              if v_src not like '%current_streak%' then
+              if v_src not like '%coalesce(v_streak, 0) > 0%' then
                 raise warning '[FAIL] streak_keep が current_streak を見ていない（切った日でも達成になる）';
                 v_fail := v_fail + 1;
               end if;
@@ -254,7 +260,7 @@ jobs:
                 v_fail := v_fail + 1;
               end if;
               -- reduce_total の計測モード判定（iOS の計測ゼロ日に 50pt が出るのを止めた本体）。
-              if v_src not like '%threshold-achievement%' then
+              if v_src not like '%v_today = 0 and v_source_mode%' then
                 raise warning '[FAIL] reduce_total が計測モードを見ていない（iOSの計測ゼロ日に50ptが出る）';
                 v_fail := v_fail + 1;
               end if;
@@ -295,22 +301,29 @@ jobs:
             --   set_updated_at（無条件 now()）を一時的に外して実行する設計なので、
             --   全孵化卵の updated_at が「たった今」に揃っていたら外し忘れ＝
             --   farm 調査の唯一の材料が消えたことを意味する（不可逆）。
-            if exists (select 1 from public.eggs
-                        where location = 'hatched'
-                          and updated_at > now() - interval '2 minutes')
-               and not exists (select 1 from public.eggs
-                                where location = 'hatched'
-                                  and updated_at <= now() - interval '2 minutes') then
+            -- 時間窓ではなく適用前スナップショットと直接突き合わせる（経過時間・件数に依存しない）。
+            -- 少数件のDBで実ユーザーの1操作が誤検知にならないよう、5件以上のときだけ判定する。
+            if (select count(*) from ops.snap_v11_eggs_hatched) >= 5
+               and not exists (select 1 from public.eggs e
+                                 join ops.snap_v11_eggs_hatched s on s.id = e.id
+                                where e.updated_at = s.updated_at) then
               raise warning '[FAIL] 全孵化卵の updated_at が適用時刻に揃っている（バックフィルがトリガーを発火させた＝痕跡の破壊）';
+              v_fail := v_fail + 1;
+            end if;
+            -- 適用前スナップショットが実際に取れていること（0行のまま不可逆変更を通さない）。
+            if coalesce((select count(*) from ops.snap_v11_balances), 0) = 0 then
+              raise warning '[FAIL] ops.snap_v11_balances が空（適用前スナップショットが取れていない）';
               v_fail := v_fail + 1;
             end if;
             -- 0015 のバックフィルが trg_eggs_updated_at を一時停止する。**有効に戻っていること**。
             -- 戻っていないと、以後 eggs の updated_at が一切更新されなくなる。
-            if exists (select 1 from pg_trigger
-                        where tgrelid = 'public.eggs'::regclass
-                          and tgname = 'trg_eggs_updated_at'
-                          and tgenabled <> 'O') then
-              raise warning '[FAIL] trg_eggs_updated_at が無効のまま（バックフィル後に戻し忘れ）';
+            -- ★「行が無い」も失敗にする（exists 版だと drop されていた場合に緑になる）。
+            if not exists (select 1 from pg_trigger
+                            where tgrelid = 'public.eggs'::regclass
+                              and tgname = 'trg_eggs_updated_at'
+                              and not tgisinternal
+                              and tgenabled = 'O') then
+              raise warning '[FAIL] trg_eggs_updated_at が無効、または存在しない（バックフィル後に戻し忘れ）';
               v_fail := v_fail + 1;
             end if;
             -- hatched_at が「未来」や「created_at より前」になっていないこと（採用元の妥当性）。
