@@ -19,13 +19,15 @@ abstract interface class OnboardingRepository {
 class SharedPrefsOnboardingRepository implements OnboardingRepository {
   SharedPrefsOnboardingRepository();
 
-  static const String _key = 'onboarding_completed_v1';
+  /// 完了フラグの保存キー。退会時のローカル初期化（core/local/local_reset.dart）が
+  /// 参照するため公開する（キー文字列を2箇所に書くと必ずズレる）。
+  static const String prefsKey = 'onboarding_completed_v1';
 
   @override
   Future<bool> isCompleted() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_key) ?? false;
+      return prefs.getBool(prefsKey) ?? false;
     } catch (e, st) {
       // 読み取り失敗時はオンボを表示する側に倒す（安全側 / クラッシュさせない）。
       Log.e('onboarding flag read failed', error: e, stack: st);
@@ -37,7 +39,7 @@ class SharedPrefsOnboardingRepository implements OnboardingRepository {
   Future<void> markCompleted() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_key, true);
+      await prefs.setBool(prefsKey, true);
     } catch (e, st) {
       Log.e('onboarding flag write failed', error: e, stack: st);
     }

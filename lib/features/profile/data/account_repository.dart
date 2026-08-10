@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/auth/auth_session.dart';
 import '../../../core/config/env.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/observability/log.dart';
@@ -101,17 +102,28 @@ class SupabaseAccountRepository implements AccountRepository {
     if (!_ref.read(isOnlineProvider)) {
       throw const NetworkFailure('削除には接続が必要です');
     }
+    // ① サーバーの論理削除（profiles.deleted_at をセット / F-03）。物理削除は 30日後に
+    //    fn_purge_deleted_accounts() が cascade で行う（pg_cron / S12）。
+    //    ここで失敗したら**何も消さない**（中途半端な削除を防ぐ / §5-4）。
     try {
-      // サーバーは論理削除（profiles.deleted_at をセット / F-03）。物理削除は 30日後に
-      // fn_purge_deleted_accounts() が cascade で行う（pg_cron / S12）。
       await _client.rpc('fn_delete_account');
-      // 端末側: 認証セッション破棄（Drift クリアは呼び出し側の責務 / S12）。
-      // 退会後は profiles SELECT RLS（deleted_at is null）で本人行も見えなくなる。
-      await _client.auth.signOut();
     } on PostgrestException catch (e, st) {
       Log.e('fn_delete_account failed: ${e.code}', error: e, stack: st);
       throw const ServerFailure('削除に失敗しました。時間をおいて再度お試しください');
     }
+
+    // ② サインアウト。★ここは①と try を分け、失敗しても throw しない。
+    //   まとめて try にしていると、signOut の失敗で「削除できませんでした」を表示しつつ
+    //   サーバーは削除済み・端末はセッション生存という復旧不能な状態（ゾンビセッション）
+    //   になる。そうなると profiles は RLS で本人にも見えず残高0・空の巣になる一方、
+    //   卵と図鑑は見えたまま、次回起動時も currentSession が残るので匿名再サインインも
+    //   走らず、ユーザーに脱出手段が無くなる。
+    //   AuthSession が global 失敗時に local スコープへフォールバックして、
+    //   ローカルセッションだけは必ず捨てる。
+    //
+    //   端末に残る状態（オンボ完了フラグ / ウォームアップ初回起動日 / 送信キュー）の
+    //   初期化は resetLocalUserState の責務（呼び出し側の画面が続けて実行する）。
+    await AuthSession.signOutAfterDeletion(_client);
   }
 }
 
