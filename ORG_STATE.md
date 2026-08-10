@@ -194,7 +194,15 @@ Actions の一覧に出てきません**（実測で確認済み: 登録38件の
 > `drop schema if exists ops cascade;` → `Success. No rows returned` を確認。
 > 適用前データのコピーは削除済み＝退会者のPIIが本番DBに残る問題は解消。
 
-#### 【手順2b / 手順5】ストア提出用にビルドし直す（**広告の設定に注意**）
+#### ✅【手順5-1】完了（Build AAB #26 / 本番広告ON）
+> branch=v1.1-fixes / **ADMOB_USE_PROD_ADS=true** / build-number=**26** / versionName=1.1.0
+> ＝ Play 提出用の AAB ができている（Artifacts の `moffy-release-aab`）。
+> ⚠️ 実機確認に使った #25 は広告がテスト用。**提出には #26 を使うこと。**
+
+#### ✅【手順6-1】iOSビルド起動済み（mode=testflight / prod_ads=true / branch=v1.1-fixes）
+> 完了すると App Store Connect にビルドが自動アップロードされる（審査提出ではない）。
+
+#### （記録）手順2b / 手順5: ストア提出用にビルドし直す（**広告の設定に注意**）
 
 1. **Actions** → **「Build AAB」** → **「Run workflow」** → branch は **`v1.1-fixes`**
 2. **⚠️「本番の実広告を出す」のチェックボックス**:
