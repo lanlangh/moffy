@@ -50,11 +50,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// 直近の権限状態（OB2で表示し、未許可時はフォールバック文言を出す）。
   UsagePermissionStatus? _permission;
 
-  /// 対象SNS選択（Android: MVPは4固定。トグルで「育てる対象」を選ぶ体験 / S3）。
-  /// 真のSSOTは tracked_apps（後続で永続化）。ここでは選択状態のみ保持。
-  late final Map<String, bool> _selectedApps = {
-    for (final t in AppConstants.defaultAndroidTargets) t.packageName: true,
-  };
+  // 【v1.1】Android の「対象SNSトグル」を撤去した。
+  // 保存先がどこにも無く（OnboardingRepository が持つキーは完了フラグ1個だけ）、
+  // targetPackagesProvider は常に AppConstants.defaultAndroidTargets を返すため、
+  // トグルを切り替えても計測対象は1ミリも変わらなかった。
+  // **何も起きないスイッチは、固定表示より悪い嘘**なので表示専用の一覧にする。
+  // 対象を本当に選べるようにするのは v1.2（基準値の作り直しとセットで実装する。
+  // それ無しに対象を減らすと、削減量が跳ね上がって1日上限まで稼げる穴が開く）。
 
   /// iOS: 対象アプリは OS の FamilyActivityPicker でユーザー自身が選ぶ（不透明トークンの
   /// ため Moffy から4SNSを自動指定できない / ORG_STATE 2026-06-26）。Android のトグルとは別物。
@@ -165,10 +167,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   )
                 else
                   _TargetSelectPage(
-                    selected: _selectedApps,
-                    onToggle: (pkg) => setState(
-                      () => _selectedApps[pkg] = !(_selectedApps[pkg] ?? false),
-                    ),
                     onFinish: isOnline ? _finish : null,
                   ),
               ],
@@ -282,16 +280,14 @@ class _PermissionGrantPage extends StatelessWidget {
   }
 }
 
-/// 対象SNS選択（MVP4固定。育てる対象を選ぶ体験 / S3）。
+/// 対象SNSの案内（Android: 4アプリ固定 / S3）。
+///
+/// v1.1 で「選べるように見えるトグル」をやめ、事実どおりの表示専用一覧にした
+/// （選択を保存する先が無く、切り替えても計測対象が変わらなかった）。
 class _TargetSelectPage extends StatelessWidget {
   const _TargetSelectPage({
-    required this.selected,
-    required this.onToggle,
     required this.onFinish,
   });
-
-  final Map<String, bool> selected;
-  final ValueChanged<String> onToggle;
 
   /// オフライン時は null（匿名認証オンライン必須 / グレーアウト）。
   final VoidCallback? onFinish;
@@ -304,10 +300,10 @@ class _TargetSelectPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: AppSpace.xl),
-          Text('減らしたいSNSを選ぼう', style: AppType.title),
+          Text('見守るのはこの4つ', style: AppType.title),
           const SizedBox(height: AppSpace.sm),
           Text(
-            'これらの利用時間が削減ポイントの対象になります。あとで変更できます。',
+            'これらの利用時間を合計して、削減ポイントを計算します。',
             style: AppType.caption,
           ),
           const SizedBox(height: AppSpace.xl),
@@ -315,11 +311,7 @@ class _TargetSelectPage extends StatelessWidget {
             child: ListView(
               children: [
                 for (final t in AppConstants.defaultAndroidTargets)
-                  _AppToggleTile(
-                    label: t.label,
-                    on: selected[t.packageName] ?? false,
-                    onTap: () => onToggle(t.packageName),
-                  ),
+                  _AppListTile(label: t.label),
               ],
             ),
           ),
@@ -429,16 +421,15 @@ class _IOSAppPickerPage extends StatelessWidget {
   }
 }
 
-class _AppToggleTile extends StatelessWidget {
-  const _AppToggleTile({
-    required this.label,
-    required this.on,
-    required this.onTap,
-  });
+/// 対象アプリの表示専用タイル（Android / v1.1）。
+///
+/// 以前は Switch 付きのトグルだったが、保存先が存在せず切り替えても計測対象が
+/// 変わらなかったため撤去した。操作できないことが見た目で分かるよう、
+/// チェックアイコンで「対象です」と示すだけにしている。
+class _AppListTile extends StatelessWidget {
+  const _AppListTile({required this.label});
 
   final String label;
-  final bool on;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -447,30 +438,22 @@ class _AppToggleTile extends StatelessWidget {
       child: Material(
         color: AppColors.surface,
         borderRadius: AppRadius.lgR,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppRadius.lgR,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpace.lg),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: AppColors.surfaceNest,
-                  child: Text(
-                    label.characters.first,
-                    style: AppType.bodyStrong,
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.lg),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: AppColors.surfaceNest,
+                child: Text(
+                  label.characters.first,
+                  style: AppType.bodyStrong,
                 ),
-                const SizedBox(width: AppSpace.md),
-                Expanded(child: Text(label, style: AppType.bodyStrong)),
-                Switch(
-                  value: on,
-                  onChanged: (_) => onTap(),
-                  activeThumbColor: AppColors.primary,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(child: Text(label, style: AppType.bodyStrong)),
+              const Icon(Icons.check_rounded, color: AppColors.primary),
+            ],
           ),
         ),
       ),
