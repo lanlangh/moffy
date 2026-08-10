@@ -73,8 +73,11 @@ abstract final class AuthSession {
     try {
       await client.auth.signOut();
     } catch (e, st) {
-      Log.e('signOut(global) failed after deletion; falling back to local',
-          error: e, stack: st);
+      Log.e(
+        'signOut(global) failed after deletion; falling back to local',
+        error: e,
+        stack: st,
+      );
       try {
         await client.auth.signOut(scope: SignOutScope.local);
       } catch (e2, st2) {

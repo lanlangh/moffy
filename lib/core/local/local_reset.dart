@@ -1,4 +1,3 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/home/data/warmup_tracker.dart';
@@ -33,10 +32,13 @@ import '../sync/sync_queue.dart';
 /// 何度でも取り直せる。ただし代償として図鑑・残高・ストリークを毎回すべて失うため
 /// 自己破壊的で、ランキングや交換の仕組みも無いので他人に影響しない。
 /// 消さない場合の害（新規が永久にボーナスを受け取れない）のほうが大きいと判断した。
-Future<void> resetLocalUserState(Ref ref) async {
+///
+/// 引数に Ref/WidgetRef ではなく [SyncQueue] そのものを取るのは、呼び出し元が
+/// 画面（WidgetRef）と Provider（Ref）のどちらにもなり得るため。依存を1つに絞る。
+Future<void> resetLocalUserState(SyncQueue syncQueue) async {
   // 送信キュー: 失敗しても続行する（メモリ上のキューなのでプロセス終了でも消える）。
   try {
-    await ref.read(syncQueueProvider).clear();
+    await syncQueue.clear();
   } catch (e, st) {
     Log.e('sync queue clear failed on account deletion', error: e, stack: st);
   }

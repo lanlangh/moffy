@@ -7,6 +7,7 @@ import '../../../core/error/failure.dart';
 import '../../../core/local/local_reset.dart';
 import '../../../core/providers/supabase_provider.dart';
 import '../../../core/sync/connectivity_provider.dart';
+import '../../../core/sync/sync_queue.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
@@ -132,7 +133,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       // 残したままだと、次に始める人がオンボと初回ボーナスをスキップした
       // 「正規の新規より貧しい」状態で始まり、旧ユーザーの未送信データが
       // 新ユーザーの記録として確定されうる。
-      await resetLocalUserState(ref);
+      await resetLocalUserState(ref.read(syncQueueProvider));
       if (!mounted) return;
       // 成功 → サブスク解約案内へ（S12: アプリから解約不可と明示）。
       setState(() {
