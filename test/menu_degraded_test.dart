@@ -28,6 +28,16 @@ import 'package:moffy/features/profile/domain/profile_models.dart';
 ///   画面まで pump して**何が消えるか**を見ないと、この型の退行は捕まらない
 ///   （daily_submission_test.dart と同じ思想: 部品ではなく配線を守る）。
 void main() {
+  /// メニューは ListView なので、既定のテスト画面(800x600)だと最下部の
+  /// 「アカウント削除」が遅延描画されず見つからない。**実機で見えるかどうかを
+  /// 検証したいのはスクロール可否ではなく「そもそも描画されるか」**なので、
+  /// 縦長のビューポートで全項目を build させる。
+  void useTallViewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+  }
+
   Widget harness({required ProfileState state}) {
     return ProviderScope(
       overrides: [
@@ -55,6 +65,7 @@ void main() {
 
   testWidgets('オフラインでも退会・法務リンクに到達できる（統計だけが縮退する）',
       (tester) async {
+    useTallViewport(tester);
     await tester.pumpWidget(
       harness(
         state: const ProfileState(
@@ -78,6 +89,7 @@ void main() {
   testWidgets('オンラインでも統計 RPC が失敗したら画面は生かして縮退する',
       (tester) async {
     // 0014 未適用（PGRST202）や権限欠落を想定＝統計だけ null、接続はある。
+    useTallViewport(tester);
     await tester.pumpWidget(
       harness(
         state: const ProfileState(
@@ -95,6 +107,7 @@ void main() {
   });
 
   testWidgets('統計が取れたときは5指標を出す（縮退カードは出さない）', (tester) async {
+    useTallViewport(tester);
     await tester.pumpWidget(
       harness(
         state: const ProfileState(
@@ -124,6 +137,7 @@ void main() {
 
   testWidgets('通知は未実装なので設定導線を出さず、正直に案内する（2.1 App Completeness）',
       (tester) async {
+    useTallViewport(tester);
     await tester.pumpWidget(
       harness(
         state: const ProfileState(
