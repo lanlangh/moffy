@@ -86,43 +86,50 @@ jobs:
 
       # 残高は「1ptも動かさない」ことが 0016 の約束。適用の前後で全行を突き合わせる。
       # ⚠️ 不可逆な変更（0013 の user_quests DELETE / 0015 の eggs バックフィル）の前に
-      #    必ず適用前スナップショットを取り、**artifact として保存**する。
+      #    必ず適用前スナップショットを取る（保存先は下記のとおり DB 内の ops スキーマ）。
       #    --single-transaction が守るのは「途中で失敗した」ケースだけで、
       #    「成功したが内容が間違っていた」は守らない。そのとき比較対象が無いと調査できない。
-      - name: Snapshot BEFORE (artifact に保存する)
+      # ⚠️⚠️ **このリポジトリは PUBLIC**（無料でActionsを回すため公開にしてある）。
+      #    よって artifact もワークフローログも**誰でもダウンロード・閲覧できる**。
+      #    本番ユーザーの UUID・残高をここへ出してはいけない（1回出したら取り消せない）。
+      #    スナップショットは runner のローカル(/tmp)に置き、**行数だけ**をログに出す。
+      #    適用後の調査に使う本体は、下の Apply ステップで **DB の中**(ops スキーマ)に取る。
+      - name: Snapshot BEFORE (runner ローカルのみ / 公開しない)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          mkdir -p snapshot
           psql "$DB_URL" -At -F '|' \
             -c "select id, point_balance, pooled_points, gem_balance from public.profiles order by id;" \
-            > snapshot/balances_before.txt
+            > /tmp/balances_before.txt
           psql "$DB_URL" -At -F '|' \
             -c "select id, user_id, quest_id, kind, period_start, is_completed, reward_granted, completed_at from public.user_quests where quest_id='daily_tiktok_under_20' order by id;" \
-            > snapshot/user_quests_tiktok_before.txt
+            > /tmp/user_quests_tiktok_before.txt
           psql "$DB_URL" -At -F '|' \
             -c "select id, user_id, location, created_at, updated_at, hatched_into from public.eggs where location='hatched' order by id;" \
-            > snapshot/eggs_hatched_before.txt
-          wc -l snapshot/*
-          cp snapshot/balances_before.txt /tmp/balances_before.txt
-
-      - name: Upload snapshot artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: db-apply-v11-snapshot
-          path: snapshot/
-          retention-days: 90
+            > /tmp/eggs_hatched_before.txt
+          echo "### 取得できた行数だけを出す（ID・残高は公開ログに出さない）"
+          wc -l /tmp/balances_before.txt /tmp/user_quests_tiktok_before.txt /tmp/eggs_hatched_before.txt
 
       # --- 本体: 4本を1トランザクションで適用 ------------------------------------
       # lock_timeout: 0015 の add column が eggs に ACCESS EXCLUSIVE を取り、
-      #   --single-transaction なのでコミットまで保持する。待ちの入口が塞がると
-      #   本番の卵まわりが止まるため、5秒で諦めて全体をロールバックさせる。
+      #   --single-transaction なのでコミットまで保持する。lock_timeout が制限するのは
+      #   **ロック取得の待ち時間だけ**（取得後の保持時間は statement_timeout 側）。
+      #   長時間待たされて本番の卵まわりを巻き込むのを避け、5秒で諦めて全体をロールバックする。
       - name: Apply 0013 to 0016 (single transaction)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 --single-transaction \
             -c "set lock_timeout = '5s'; set statement_timeout = '180s';" \
+            -c "create schema if not exists ops; \
+                revoke all on schema ops from public, anon, authenticated; \
+                drop table if exists ops.snap_v11_balances; \
+                create table ops.snap_v11_balances as \
+                  select id, point_balance, pooled_points, gem_balance from public.profiles; \
+                drop table if exists ops.snap_v11_eggs_hatched; \
+                create table ops.snap_v11_eggs_hatched as \
+                  select id, user_id, location, created_at, updated_at, hatched_into \
+                    from public.eggs where location='hatched';" \
             -f supabase/migrations/0013_disable_tiktok_quest_fail_closed.sql \
             -f supabase/migrations/0014_profile_stats_rpc.sql \
             -f supabase/migrations/0015_quest_condition_hardening.sql \
@@ -144,8 +151,11 @@ jobs:
           if diff -u /tmp/balances_before.txt /tmp/balances_after.txt > /tmp/balances_diff.txt; then
             echo "=== 残高は1ptも動いていない ==="
           else
-            echo "::warning::残高に差分がある。0013-0016 は残高列を1つも書かないので、通常は適用中の実ユーザー操作による正当な変化。数行〜数十行なら通常トラフィック、全行が動いていれば異常。"
-            head -50 /tmp/balances_diff.txt || true
+            echo "::warning::残高に差分がある。0013-0016 は残高列を1つも書かないので、通常は適用中の実ユーザー操作（日次確定 / warmup 受取 / 新規サインイン）による正当な変化。"
+            echo "差分の行数（内容は PUBLIC リポジトリのログに出さない）:"
+            wc -l < /tmp/balances_diff.txt
+            echo "※ 全ユーザー数と同じ行数なら異常。数行〜数十行なら通常トラフィック。"
+            echo "※ 中身を見る必要が出たら、Supabase の SQL エディタで ops.snap_v11_balances と突き合わせること。"
           fi
 
       # ⚠️ 必ず「失敗したら落ちる」形にすること。
@@ -243,6 +253,11 @@ jobs:
                 raise warning '[FAIL] hatch_count が hatched_at を見ていない（no-op UPDATE で farm できる）';
                 v_fail := v_fail + 1;
               end if;
+              -- reduce_total の計測モード判定（iOS の計測ゼロ日に 50pt が出るのを止めた本体）。
+              if v_src not like '%threshold-achievement%' then
+                raise warning '[FAIL] reduce_total が計測モードを見ていない（iOSの計測ゼロ日に50ptが出る）';
+                v_fail := v_fail + 1;
+              end if;
               if v_src like '%updated_at at time zone%' then
                 raise warning '[FAIL] hatch_count に updated_at 基準の判定が残っている';
                 v_fail := v_fail + 1;
@@ -287,6 +302,15 @@ jobs:
                                 where location = 'hatched'
                                   and updated_at <= now() - interval '2 minutes') then
               raise warning '[FAIL] 全孵化卵の updated_at が適用時刻に揃っている（バックフィルがトリガーを発火させた＝痕跡の破壊）';
+              v_fail := v_fail + 1;
+            end if;
+            -- 0015 のバックフィルが trg_eggs_updated_at を一時停止する。**有効に戻っていること**。
+            -- 戻っていないと、以後 eggs の updated_at が一切更新されなくなる。
+            if exists (select 1 from pg_trigger
+                        where tgrelid = 'public.eggs'::regclass
+                          and tgname = 'trg_eggs_updated_at'
+                          and tgenabled <> 'O') then
+              raise warning '[FAIL] trg_eggs_updated_at が無効のまま（バックフィル後に戻し忘れ）';
               v_fail := v_fail + 1;
             end if;
             -- hatched_at が「未来」や「created_at より前」になっていないこと（採用元の妥当性）。

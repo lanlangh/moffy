@@ -87,6 +87,11 @@
 --     ⚠️ 0016 適用後は、この phantom pt が**確実に卵へ届くようになる**
 --     （従来は冪等キー衝突で一部が消えていた）。v1.2 で必ず塞ぐこと。
 --
+--   * Android(exact-minutes) の「計測に失敗して0分を提出した日」は素通りする。
+--     0分が「本当に使わなかった」のか「取得に失敗した」のかを Android 側は区別できず、
+--     区別できない以上は**達成させる側**に倒した（最も報いたい「完全に断てた人」を
+--     弾かないため）。iOS と非対称なのは意図的。
+--
 --   * 攻撃者への防御ではない点の明示: source_mode も per_app_minutes も等しく
 --     クライアント入力で、0011 は total と source_mode の**値域**しか検証しない。
 --     細工した端末は依然として通せる。入力側のホワイトリスト化／値型・範囲検証、
@@ -126,11 +131,22 @@ comment on column public.eggs.hatched_at is
 --     同一Tx・直前の add column が ACCESS EXCLUSIVE を保持中なので、他セッションから
 --     中間状態は見えない。所有者権限が無ければこの文で失敗し、適用ごとロールバックされる
 --     （安全側に倒れる）。
+--   * ⚠️ **このファイルは必ずトランザクション内で流すこと**（db-apply-v11.yml は
+--     psql --single-transaction を使っている）。SQL エディタや素の `psql -f` で
+--     単体実行すると、途中で失敗したときに trg_eggs_updated_at が**無効のまま残る**。
+--     その状態では以後 eggs.updated_at が一切更新されなくなる。
 alter table public.eggs disable trigger trg_eggs_updated_at;
 
+--   ※ 図鑑行は「種×色違い」で1行しか無く(uq_collection_dex)、同じ種を2回目に孵しても
+--     discovered_at は**初回発見時刻のまま**更新されない。よって重複入手の卵は
+--     discovered_at < 自分の created_at になる。そのまま入れると「卵が作られる前に
+--     孵化した」ことになり、整合性検査に引っかかる（かつ再実行では直せない）。
+--     自分の created_at で下限クランプする。
 update public.eggs e
-   set hatched_at = coalesce(
-         (select c.discovered_at from public.mofi_collection c where c.id = e.hatched_into),
+   set hatched_at = greatest(
+         coalesce(
+           (select c.discovered_at from public.mofi_collection c where c.id = e.hatched_into),
+           e.created_at),
          e.created_at)
  where e.location = 'hatched'
    and e.hatched_at is null;
@@ -144,7 +160,7 @@ alter table public.eggs enable trigger trg_eggs_updated_at;
 --   * 孵化への遷移 (location が hatched 以外 → hatched) のときだけ now() を刻む。
 --   * 既に hatched_at がある行は上書きしない (再孵化は 0005 の H-1 で不可能だが、
 --     万一の経路でも「最初の孵化日時」を保持する)。
---   * security definer は不要 (トリガーはテーブル所有者権限で走る)。
+--   * security definer は不要 (NEW を書き換えるだけで、他テーブルを読み書きしないため)。
 --   * 0005 の trg_eggs_block_hatched_mutation と併存する。あちらが不正な遷移を
 --     例外で止めるので、拒否された UPDATE でこの列が動くことはない
 --     (例外が出れば Tx 全体がロールバックする)。

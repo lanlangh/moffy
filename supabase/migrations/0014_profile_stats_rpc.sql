@@ -13,8 +13,10 @@
 -- 集計定義 (アプリ内の他画面と同じ定義に揃える = 同一アプリ内で矛盾させない):
 --   * total_reduced_minutes: 確定日 (usage_daily.is_finalized=true) の
 --       greatest(baselines.applied_minutes - total_minutes, 0) の総和。
---       quest_condition_met('reduce_total') と同じ削減量定義 (0005)。
 --       warmup 等 baselines の無い日は削減 0 (join で自然に除外)。
+--       ⚠️ 0015 以降、quest_condition_met('reduce_total') は iOS の計測ゼロ日を
+--       未達に倒すが、この統計はその分岐を持たない（累計の表示値なので、クエストの
+--       達成可否とは別物として扱う）。両者を一致させるかは v1.2 で判断する。
 --   * total_mofi: mofi_collection.obtained_count の総和 (重複入手も数える)。
 --   * dex_discovered: mofi_collection の行数 (= distinct 種×色違い。
 --       uq_collection_dex により 1 エントリ 1 行 / collection_repository.dart と同一定義)。
