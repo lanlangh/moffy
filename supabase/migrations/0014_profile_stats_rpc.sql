@@ -27,8 +27,8 @@
 --     関数内の user_id = auth.uid() 述語は二重防御 + インデックス利用のため。
 --   * 読み取り専用 (stable)。書込は一切しない。
 -- 冪等: create or replace / revoke・grant は再実行安全。
--- 適用: .github/workflows/db-apply-0013.yml が 0013 とまとめて適用する。
--- 前提: 0001〜0013 適用済み (moffy-prod)。
+-- 適用: .github/workflows/db-apply-v11.yml (0013→0014→0015→0016 を1トランザクションで適用)。
+-- 前提: 0001〜0012 適用済み (moffy-prod)。0013 と同時に当たる。
 -- ============================================================================
 
 create or replace function public.fn_profile_stats()

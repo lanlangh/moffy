@@ -19,10 +19,13 @@
 --   1ptも入らず、エラーも出ない**。ユーザーからは「ポイントは増えたのに卵が育たない」
 --   に見える。
 --
---   確定的に踏むシナリオ (新規ユーザー全員):
---     Day2 に fn_claim_warmup(2) が 300pt を付与 → 控除キー uid:2026-08-07:spend_incubation
---     同じ日に前日ぶんの削減確定が走る          → 控除キー uid:2026-08-07:spend_incubation ← 衝突
+--   踏むシナリオ (オンボーディング期のユーザー):
+--     暦日 D に fn_claim_warmup が付与        → 控除キー uid:D:spend_incubation
+--     暦日 D+1 に「usage_date=D」の確定が走る  → 控除キー uid:D:spend_incubation ← 衝突
+--     （確定は常に前日ぶん。fn_apply_growth の日付は p_date=対象日であって実行日ではない）
 --     後から来たほうの pt が卵に届かず黙って消える。
+--   規模: fn_apply_growth の呼び出し元は確定と warmup の2箇所だけで、warmup は生涯2回。
+--   ＝ **1ユーザーあたり最大2日ぶん・オンボーディング期間限定**の損失（全期間ではない）。
 --
 -- 対処:
 --   fn_apply_growth に p_source_key を追加し、控除キーを
@@ -34,12 +37,22 @@
 -- 既存データへの影響: **なし**。
 --   * 台帳の書き換え・削除は一切しない。過去に消えたptの遡及補填もしない
 --     (どの日に何が消えたかを事後に再構成すると二重付与のリスクがあるため)。
---   * profiles.point_balance / pooled_points を1ptも動かさない。
---     db-apply-v11.yml が適用の前後で全行を突き合わせて証跡を残す。
+--   * profiles.point_balance / pooled_points を1ptも動かさない（関数定義を差し替える
+--     だけで、データ行への UPDATE は1文も無い）。db-apply-v11.yml が適用前の
+--     スナップショットを artifact として保存する。
+--     ※ 適用の前後で残高 diff を取るが、両ストア公開中は実ユーザーの通常操作
+--     （日次確定 / warmup 受取 / 新規サインインによる profiles 行追加）でも差分が出るため、
+--     これは異常判定ではなく人間が見る材料（warning）として扱う。
 --   * 新旧キーは文字列として絶対に衝突しない
 --     (旧 'uid:D:spend_incubation' vs 新 'uid:D:reduction:spend_incubation')。
 --
--- ロールバック: 0002 の3引数版と 0012/0003 の元定義を create or replace で戻すだけ。
+-- ロールバック手順（この順で実行すること）:
+--   ① drop function if exists public.fn_apply_growth(uuid, integer, date, text);
+--      ← これを先にやらないと同名2本が並び、3引数呼び出しが is not unique になりうる
+--   ② 0002 の3引数版 fn_apply_growth を create or replace で復元
+--   ③ 0012 の fn_finalize_day / 0003 の fn_claim_warmup を create or replace で復元
+--   ④ revoke execute on function public.fn_finalize_day(date) from public, anon, authenticated;
+--      （0002 が grant しているので、復元しただけだと剥奪が外れる）
 --
 -- ⚠️ 本ファイルの3関数の本体は、既存マイグレーション
 --    (0002 の fn_apply_growth / 0012 の fn_finalize_day / 0003 の fn_claim_warmup)
@@ -48,8 +61,8 @@
 --    置換したのは ★0016 と注記した箇所のみ。
 --
 -- 冪等: 関数は create or replace / drop は if exists / 権限は再実行安全。
--- 適用: .github/workflows/db-apply-v11.yml (0013→0014→0015→0016 の順)
--- 前提: 0001〜0015 適用済み。
+-- 適用: .github/workflows/db-apply-v11.yml (0013→0014→0015→0016 を1トランザクションで適用)
+-- 前提: 0001〜0012 適用済み。0013〜0015 と同時に当たる。
 -- ============================================================================
 
 

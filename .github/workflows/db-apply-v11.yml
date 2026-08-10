@@ -58,10 +58,13 @@ jobs:
             if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is null then
               raise exception '適用中止: 0011 が未適用（fn_submit_and_finalize_day が無い）。先に db-apply-0011 を実行すること。';
             end if;
-            if (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                 where n.nspname='public' and p.proname='fn_finalize_day')
+            -- coalesce が要る: 関数が存在しないと副問い合わせが NULL になり、
+            -- `NULL not like ...` は NULL ＝ plpgsql の IF では偽扱いになって
+            -- 「0012 未適用」を**素通り**させてしまう。
+            if coalesce((select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                          where n.nspname='public' and p.proname='fn_finalize_day'), '')
                not like '%and is_finalized = true%' then
-              raise exception '適用中止: 0012 が未適用（fn_finalize_day の基準値クエリに is_finalized=true が無い）。';
+              raise exception '適用中止: 0012 が未適用、または fn_finalize_day が存在しない（基準値クエリに is_finalized=true が無い）。';
             end if;
             raise notice '=== 前提ゲート PASS（0011/0012 適用済み）===';
           end $$;
@@ -73,50 +76,76 @@ jobs:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           echo "### 停止対象クエストの現状（reward_granted=true があれば不正取得の実績）"
-          psql "$DB_URL" -c "select quest_id, is_completed, reward_granted, count(*) from public.user_quests where quest_id='daily_tiktok_under_20' group by 1,2,3 order by 1,2,3;"
-          echo "### 0015 の影響見積: per_app が空で確定した日（reduce_total の 50pt が出ていた日）"
-          psql "$DB_URL" -c "select count(*) as empty_per_app_finalized_days from public.usage_daily where is_finalized and total_minutes = 0 and coalesce(per_app_minutes,'{}'::jsonb) = '{}'::jsonb;"
-          echo "### 0015 の影響見積: 孵化済み卵と、updated_at が直近7日の卵（farm の痕跡になりうる）"
-          psql "$DB_URL" -c "select count(*) filter (where location='hatched') as hatched_total, count(*) filter (where location='hatched' and updated_at > now() - interval '7 days') as touched_last_7d from public.eggs;"
-          echo "### 0016 の影響見積: 同一日に複数ソースの加算があった回数（= ptが消えた可能性のある日）"
-          psql "$DB_URL" -c "select count(*) from (select user_id, ledger_date from public.point_ledger where amount > 0 group by 1,2 having count(distinct source) > 1) t;"
+          psql "$DB_URL" -c "select quest_id, is_completed, reward_granted, count(*) from public.user_quests where quest_id='daily_tiktok_under_20' group by 1,2,3 order by 1,2,3;" || true
+          echo "### 0015 の影響見積: 計測ゼロで確定した日（iOS の reduce_total 50pt が出ていた日）"
+          psql "$DB_URL" -c "select source_mode, count(*) from public.usage_daily where is_finalized and total_minutes = 0 group by 1 order by 1;" || true
+          echo "### 適用前の孵化済み卵（0015 は updated_at を孵化日時に採用しない。記録用）"
+          psql "$DB_URL" -c "select count(*) filter (where location='hatched') as hatched_total, count(*) filter (where location='hatched' and updated_at > now() - interval '7 days') as touched_last_7d from public.eggs;" || true
+          echo "### 0016 の影響見積: 同一日に確定とwarmupの両方があった回数（= ptが消えた日）"
+          psql "$DB_URL" -c "select count(*) from (select user_id, ledger_date from public.point_ledger where amount > 0 and source in ('reduction','warmup') group by 1,2 having count(distinct source) > 1) t;" || true
 
       # 残高は「1ptも動かさない」ことが 0016 の約束。適用の前後で全行を突き合わせる。
-      - name: Snapshot balances BEFORE
+      # ⚠️ 不可逆な変更（0013 の user_quests DELETE / 0015 の eggs バックフィル）の前に
+      #    必ず適用前スナップショットを取り、**artifact として保存**する。
+      #    --single-transaction が守るのは「途中で失敗した」ケースだけで、
+      #    「成功したが内容が間違っていた」は守らない。そのとき比較対象が無いと調査できない。
+      - name: Snapshot BEFORE (artifact に保存する)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          mkdir -p snapshot
           psql "$DB_URL" -At -F '|' \
             -c "select id, point_balance, pooled_points, gem_balance from public.profiles order by id;" \
-            > /tmp/balances_before.txt
-          echo "### 適用前の残高（先頭20行）"
-          head -20 /tmp/balances_before.txt
-          wc -l /tmp/balances_before.txt
+            > snapshot/balances_before.txt
+          psql "$DB_URL" -At -F '|' \
+            -c "select id, user_id, quest_id, kind, period_start, is_completed, reward_granted, completed_at from public.user_quests where quest_id='daily_tiktok_under_20' order by id;" \
+            > snapshot/user_quests_tiktok_before.txt
+          psql "$DB_URL" -At -F '|' \
+            -c "select id, user_id, location, created_at, updated_at, hatched_into from public.eggs where location='hatched' order by id;" \
+            > snapshot/eggs_hatched_before.txt
+          wc -l snapshot/*
+          cp snapshot/balances_before.txt /tmp/balances_before.txt
+
+      - name: Upload snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-apply-v11-snapshot
+          path: snapshot/
+          retention-days: 90
 
       # --- 本体: 4本を1トランザクションで適用 ------------------------------------
+      # lock_timeout: 0015 の add column が eggs に ACCESS EXCLUSIVE を取り、
+      #   --single-transaction なのでコミットまで保持する。待ちの入口が塞がると
+      #   本番の卵まわりが止まるため、5秒で諦めて全体をロールバックさせる。
       - name: Apply 0013 to 0016 (single transaction)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           psql "$DB_URL" -v ON_ERROR_STOP=1 --single-transaction \
+            -c "set lock_timeout = '5s'; set statement_timeout = '180s';" \
             -f supabase/migrations/0013_disable_tiktok_quest_fail_closed.sql \
             -f supabase/migrations/0014_profile_stats_rpc.sql \
             -f supabase/migrations/0015_quest_condition_hardening.sql \
             -f supabase/migrations/0016_ledger_source_key.sql
 
-      # --- 残高が動いていないことの証跡 ------------------------------------------
-      - name: Verify balances UNCHANGED
+      # --- 残高の前後比較（異常判定ではなく、人間が見る材料） --------------------
+      # ⚠️ ここを exit 1 にしてはいけない。この時点で適用は既に COMMIT 済みなので
+      #    落としても何もロールバックされず、「異常」の赤を見た運用者が誤って
+      #    巻き戻す判断をするだけになる。しかも両ストア公開中は、適用中に走った
+      #    実ユーザーの通常操作（日次確定 / warmup 受取 / クエスト受取 /
+      #    新規サインインによる profiles 行追加）だけで差分が出る＝偽陽性が常態。
+      - name: Compare balances (warning only)
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           psql "$DB_URL" -At -F '|' \
             -c "select id, point_balance, pooled_points, gem_balance from public.profiles order by id;" \
             > /tmp/balances_after.txt
-          if diff -u /tmp/balances_before.txt /tmp/balances_after.txt; then
-            echo "=== 残高は1ptも動いていない（0016 の約束どおり）==="
+          if diff -u /tmp/balances_before.txt /tmp/balances_after.txt > /tmp/balances_diff.txt; then
+            echo "=== 残高は1ptも動いていない ==="
           else
-            echo "::error::残高が変化した。0016 は既存データを書き換えない設計なので、これは異常。上の diff を確認すること。"
-            exit 1
+            echo "::warning::残高に差分がある。0013-0016 は残高列を1つも書かないので、通常は適用中の実ユーザー操作による正当な変化。数行〜数十行なら通常トラフィック、全行が動いていれば異常。"
+            head -50 /tmp/balances_diff.txt || true
           fi
 
       # ⚠️ 必ず「失敗したら落ちる」形にすること。
@@ -169,8 +198,8 @@ jobs:
                 raise warning '[FAIL] anon が fn_profile_stats を実行できる（未認証に開いている）';
                 v_fail := v_fail + 1;
               end if;
-              if (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                   where n.nspname='public' and p.proname='fn_profile_stats')
+              if coalesce((select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                            where n.nspname='public' and p.proname='fn_profile_stats'), '')
                  not like '%is_finalized = true%' then
                 raise warning '[FAIL] fn_profile_stats が確定日(is_finalized=true)に限定していない';
                 v_fail := v_fail + 1;
@@ -219,8 +248,9 @@ jobs:
                 v_fail := v_fail + 1;
               end if;
             end if;
-            if has_function_privilege('authenticated',
-                 'public.quest_condition_met(uuid, jsonb, public.quest_kind, date)','execute') then
+            if to_regprocedure('public.quest_condition_met(uuid, jsonb, public.quest_kind, date)') is not null
+               and has_function_privilege('authenticated',
+                     'public.quest_condition_met(uuid, jsonb, public.quest_kind, date)','execute') then
               raise warning '[FAIL] authenticated が quest_condition_met を直接実行できる';
               v_fail := v_fail + 1;
             end if;
@@ -246,6 +276,27 @@ jobs:
               raise warning '[FAIL] 孵化済みなのに hatched_at が null の卵が残っている（バックフィル漏れ）';
               v_fail := v_fail + 1;
             end if;
+            -- ★バックフィルが updated_at を壊していないこと。
+            --   set_updated_at（無条件 now()）を一時的に外して実行する設計なので、
+            --   全孵化卵の updated_at が「たった今」に揃っていたら外し忘れ＝
+            --   farm 調査の唯一の材料が消えたことを意味する（不可逆）。
+            if exists (select 1 from public.eggs
+                        where location = 'hatched'
+                          and updated_at > now() - interval '2 minutes')
+               and not exists (select 1 from public.eggs
+                                where location = 'hatched'
+                                  and updated_at <= now() - interval '2 minutes') then
+              raise warning '[FAIL] 全孵化卵の updated_at が適用時刻に揃っている（バックフィルがトリガーを発火させた＝痕跡の破壊）';
+              v_fail := v_fail + 1;
+            end if;
+            -- hatched_at が「未来」や「created_at より前」になっていないこと（採用元の妥当性）。
+            if exists (select 1 from public.eggs
+                        where location = 'hatched'
+                          and (hatched_at > now() + interval '1 minute'
+                               or hatched_at < created_at - interval '1 minute')) then
+              raise warning '[FAIL] hatched_at が created_at より前、または未来になっている卵がある';
+              v_fail := v_fail + 1;
+            end if;
 
             -- ============ 0016: 台帳キーの細粒度化 ============
             if to_regprocedure('public.fn_apply_growth(uuid,integer,date,text)') is null then
@@ -256,34 +307,58 @@ jobs:
               raise warning '[FAIL] 旧3引数版 fn_apply_growth が残っている（解決が紛らわしい）';
               v_fail := v_fail + 1;
             end if;
-            if has_function_privilege('authenticated','public.fn_apply_growth(uuid,integer,date,text)','execute') then
+            if to_regprocedure('public.fn_apply_growth(uuid,integer,date,text)') is not null
+               and has_function_privilege('authenticated','public.fn_apply_growth(uuid,integer,date,text)','execute') then
               raise warning '[FAIL] authenticated が fn_apply_growth を直接実行できる（成長度を任意に加算できる）';
               v_fail := v_fail + 1;
             end if;
             -- 呼び出し側が発生源キーを渡していること。
-            if (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                 where n.nspname='public' and p.proname='fn_finalize_day')
+            if coalesce((select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                          where n.nspname='public' and p.proname='fn_finalize_day'), '')
                not like '%fn_apply_growth(null, v_final_points, p_date, v_idem)%' then
               raise warning '[FAIL] fn_finalize_day が発生源キーを渡していない（削減ptが消える問題が残る）';
               v_fail := v_fail + 1;
             end if;
-            if (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-                 where n.nspname='public' and p.proname='fn_claim_warmup')
+            if coalesce((select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                          where n.nspname='public' and p.proname='fn_claim_warmup'), '')
                not like '%fn_apply_growth(v_egg_id, v_grant, v_today, v_idem)%' then
               raise warning '[FAIL] fn_claim_warmup が発生源キーを渡していない';
               v_fail := v_fail + 1;
             end if;
             -- 0012 の剥奪が巻き戻っていないこと（0002 が grant しているので要再掲）。
-            if has_function_privilege('authenticated','public.fn_finalize_day(date)','execute') then
+            if to_regprocedure('public.fn_finalize_day(date)') is not null
+               and has_function_privilege('authenticated','public.fn_finalize_day(date)','execute') then
               raise warning '[FAIL] authenticated が本体 fn_finalize_day を直接実行できる（日付境界ガードの迂回が復活）';
               v_fail := v_fail + 1;
             end if;
+            -- ★0016 は fn_finalize_day を全文置換する。0012 が入れた「基準値を確定済み日
+            --   だけに絞る」ガードが欠落していないかを**適用後にも**確認する
+            --   （適用前ゲートだけだと、置換で消えたことを検出できない）。
+            if coalesce((select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                          where n.nspname='public' and p.proname='fn_finalize_day'), '')
+               not like '%and is_finalized = true%' then
+              raise warning '[FAIL] fn_finalize_day から 0012 の is_finalized=true が消えた（基準値の注入脆弱性が復活）';
+              v_fail := v_fail + 1;
+            end if;
+            -- 新設4引数版の所有者が既存関数と一致すること。definer 権限が変わると
+            -- profiles.pooled_points / eggs.growth_points への UPDATE が落ちる。
+            if to_regprocedure('public.fn_apply_growth(uuid,integer,date,text)') is not null
+               and to_regprocedure('public.fn_finalize_day(date)') is not null
+               and (select proowner from pg_proc where oid = to_regprocedure('public.fn_apply_growth(uuid,integer,date,text)'))
+                   is distinct from
+                   (select proowner from pg_proc where oid = to_regprocedure('public.fn_finalize_day(date)')) then
+              raise warning '[FAIL] 新設 fn_apply_growth の所有者が fn_finalize_day と違う（definer 権限が変わる）';
+              v_fail := v_fail + 1;
+            end if;
+
             -- 提出経路の入口は生きていること（塞ぎすぎの検出）。
-            if not has_function_privilege('authenticated','public.fn_submit_and_finalize_day(date,integer,jsonb,text)','execute') then
+            if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is null
+               or not has_function_privilege('authenticated','public.fn_submit_and_finalize_day(date,integer,jsonb,text)','execute') then
               raise warning '[FAIL] authenticated が fn_submit_and_finalize_day を実行できない（提出経路が死ぬ）';
               v_fail := v_fail + 1;
             end if;
-            if not has_function_privilege('authenticated','public.fn_claim_warmup(integer)','execute') then
+            if to_regprocedure('public.fn_claim_warmup(integer)') is null
+               or not has_function_privilege('authenticated','public.fn_claim_warmup(integer)','execute') then
               raise warning '[FAIL] authenticated が fn_claim_warmup を実行できない（初回ボーナスが死ぬ）';
               v_fail := v_fail + 1;
             end if;

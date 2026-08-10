@@ -25,18 +25,21 @@
 --     `'{"k":null}'::jsonb ? 'k'` は true で、`->>` は SQL NULL を返し coalesce で
 --     0 になる ＝ 0 < 20 で達成。さらに `'{"k":"abc"}'` では `::integer` キャストが
 --     v_has_key 判定より先に評価されて 22P02 (invalid_text_representation) で落ちる。
---     `jsonb_typeof(...) = 'number'` に一本化すると、両方が同時に解決する。
---     入力側 (0011:174-177) は per_app_minutes の中身を一切検証せず格納するため、
---     読み取り側で型を要求するのが正しい防御位置。
+--     `jsonb_typeof(...) = 'number'` で**文字列と null は**解決する。ただし jsonb の
+--     number は numeric なので `{"k":0.5}` は型チェックを通り `'0.5'::integer` が
+--     やはり 22P02 になる ＝ **非整数は numeric 経由の範囲検証と切り捨てが別途必要**。
+--     入力側 (0011) は per_app_minutes の中身を一切検証せず格納するため、
+--     読み取り側で型と範囲を要求するのが正しい防御位置。
 --
--- (2) reduce_total — 「何も計測できていない日」に削減を認めない
---     iOS は DeviceActivity のしきい値が発火しない日、per_app も total も 0 で提出する
---     (ios_usage_provider.dart:93,140-143)。daily_submission.dart には 0 分を提出しない
---     分岐が無く、0012:167 が基準値を下限 30 分にクランプするため
---     `reduced = 30 - 0 = 30` となり `daily_reduce_30` (50pt) が毎日達成される。
---     これは「SNSを1分も使わなかった人」と区別できないが、**区別できない以上は
---     報酬を出さない**側に倒す (0005 C-2 と同じ判断。誤付与のほうが害が大きい)。
---     ※ 合計が 0 でも per_app に数値があれば計測はできているので達成を認める。
+-- (2) reduce_total — 「計測できていない日」に削減を認めない
+--     iOS は DeviceActivity のしきい値が発火しない日、total=0 で提出する。
+--     daily_submission.dart には 0 分を提出しない分岐が無く、0012:167 が基準値を
+--     下限 30 分にクランプするため `reduced = 30 - 0 = 30` となり
+--     `daily_reduce_30` (50pt) が毎日達成される。
+--     ⚠️ 判別子は **source_mode**（per_app の非空ではない）。両OSとも 0 分のアプリは
+--     キーごと落とすので `total=0 ⟺ per_app={}` が恒真になり、per_app では
+--     「計測できなかった日」と「1分も使わなかった日」を区別できない。per_app で弾くと
+--     最も報いたい「完全に断てた Android ユーザー」だけが 50pt を失う。
 --
 -- (3) streak_keep — 「切った日」を「維持した日」と数えない
 --     0012:245-263 は、削減が 0/マイナスでストリークをリセットする場合にも
@@ -71,11 +74,31 @@
 --     'daily_sns_under_60' として存在するが **DB には seed されていない**。
 --     seed する前に quest_condition_met の拡張が必要。
 --
+--   * 🔴 **基礎pt 経路は本 migration では未対処のまま残る**（v1.2 の必須項目）。
+--     0015 が塞ぐのは「クエスト報酬」だけ。同じ「計測できていない日」から出る
+--       - 基礎pt（fn_finalize_day: floor 30 - total 0 = 30pt/日 × ストリーク倍率・上限480）
+--       - ストリーク継続（→ streak_keep 20pt/日も 0015 の current_streak>0 を満たす）
+--     は出続ける。**金額としては 0015 が塞ぐ 50pt より大きい**。
+--     同梱しなかった理由: (a) 0002 以来の既存挙動で 0015/0016 が持ち込んだ回帰ではない
+--     (b) 修正は基準値の母集団から計測ゼロ日を除外する話まで含み、コアループの経済式
+--     そのものを変える＝本番適用の直前に入れる変更ではない
+--     (c) 何より 0016 の唯一の安全根拠「元定義から1行しか変えていない（機械抽出＋diffで
+--     検証可能）」を失う。
+--     ⚠️ 0016 適用後は、この phantom pt が**確実に卵へ届くようになる**
+--     （従来は冪等キー衝突で一部が消えていた）。v1.2 で必ず塞ぐこと。
+--
+--   * 攻撃者への防御ではない点の明示: source_mode も per_app_minutes も等しく
+--     クライアント入力で、0011 は total と source_mode の**値域**しか検証しない。
+--     細工した端末は依然として通せる。入力側のホワイトリスト化／値型・範囲検証、
+--     またはサーバー専管の measured フラグが正しい防御位置で、これは別 migration の仕事。
+--     ここでいう fail-closed は「事故で誤付与しない」という意味であって耐攻撃性ではない。
+--
 -- 冪等: 関数は create or replace / 列は add column if not exists /
 --       バックフィルは where hatched_at is null / トリガーは drop if exists 先行。
--- 適用: .github/workflows/db-apply-v11.yml (0013→0014→0015→0016 を順に適用)
--- 前提: 0001〜0014 適用済み。**0013 より後に適用すること** (quest_condition_met を
---       全文置換するため、順序が逆だと 0013 の内容が復活して上書きされる)。
+-- 適用: .github/workflows/db-apply-v11.yml (0013→0014→0015→0016 を1トランザクションで適用)
+-- 前提: 0001〜0012 適用済み。0013〜0016 は db-apply-v11.yml が同時に当てる。
+--       **0013 より後に適用すること** (quest_condition_met を全文置換するため、
+--       順序が逆だと 0013 の内容が復活して上書きされる)。
 -- ============================================================================
 
 
@@ -88,13 +111,31 @@ alter table public.eggs
 comment on column public.eggs.hatched_at is
   '孵化が確定した時刻。トリガー trg_eggs_stamp_hatched_at のみが書く（列GRANT外＝クライアントは更新不可）。hatch_count クエストの計数はこの列だけを見る（updated_at は no-op UPDATE で動かせるため使わない / 0015）。';
 
--- 既存の孵化済み卵をバックフィルする。updated_at は上記のとおり汚染され得るが、
--- 過去の孵化について他に手がかりが無く、かつ「過去に孵化した」事実は動かない。
--- （今週の窓に入る値が入っていた場合は、それ自体が farm 済みの痕跡。Verify で件数を出す）
-update public.eggs
-   set hatched_at = updated_at
- where location = 'hatched'
-   and hatched_at is null;
+-- 既存の孵化済み卵をバックフィルする。
+--   * ★updated_at は使わない。no-op な PATCH {is_active} で now() に動かせるため、
+--     farm の痕跡を「正規の孵化日時」として権威列に昇格させてしまう
+--     （＝farm した人にだけ、もう1週ぶんの weekly_hatch_3 を配って締めることになる）。
+--   * 代わりにクライアントが書けない列だけを使う:
+--       ① hatched_into → mofi_collection.discovered_at（書くのは fn_hatch_egg のみ）
+--       ② 無ければ eggs.created_at（列GRANT外・not null / 孵化時刻より必ず古い）
+--     どちらも「実際の孵化より古い方向」にしかズレない＝週窓に入りにくい fail-closed 側。
+--   * ★この UPDATE は trg_eggs_updated_at（0001:265-267）を発火させ、
+--     set_updated_at（0001:27-35 の無条件 `new.updated_at = now()`）が
+--     **全孵化卵の updated_at を適用時刻で塗り潰す**。updated_at は事後調査の唯一の
+--     材料なので、バックフィルの間だけトリガーを外す。
+--     同一Tx・直前の add column が ACCESS EXCLUSIVE を保持中なので、他セッションから
+--     中間状態は見えない。所有者権限が無ければこの文で失敗し、適用ごとロールバックされる
+--     （安全側に倒れる）。
+alter table public.eggs disable trigger trg_eggs_updated_at;
+
+update public.eggs e
+   set hatched_at = coalesce(
+         (select c.discovered_at from public.mofi_collection c where c.id = e.hatched_into),
+         e.created_at)
+ where e.location = 'hatched'
+   and e.hatched_at is null;
+
+alter table public.eggs enable trigger trg_eggs_updated_at;
 
 
 -- ----------------------------------------------------------------------------
@@ -159,6 +200,8 @@ declare
   v_finalized boolean;
   v_per_app   jsonb;
   v_streak    integer;
+  v_source_mode text;
+  v_tz        text;
 begin
   if v_type is null then
     return false;
@@ -194,14 +237,22 @@ begin
       if jsonb_typeof(v_per_app -> v_package) is distinct from 'number' then
         return false;
       end if;
-      v_used := (v_per_app ->> v_package)::integer;
+      -- ★型が number でも整数とは限らない。jsonb の number は numeric なので
+      --   {"pkg": 0.5} は typeof='number' を通り、'0.5'::integer が 22P02 で落ちる
+      --   （落ちると受取が「受け取りに失敗しました」になり、その期間ずっと詰まる）。
+      --   numeric 経由で受けて範囲を検証し、切り捨てて整数化する。
+      if (v_per_app ->> v_package)::numeric
+           not between 0 and public.cfg_int('daily_minutes_max', 1440) then
+        return false;
+      end if;
+      v_used := floor((v_per_app ->> v_package)::numeric)::integer;
       return v_used < v_target;
 
     when 'reduce_total' then
       -- 削減量 = その日の適用基準(baselines.applied_minutes) - その日の利用(total_minutes)。
       -- fail-closed: usage_daily 行が確定済みで baselines も存在する場合のみ判定。
-      select b.applied_minutes, u.total_minutes, u.is_finalized, u.per_app_minutes
-        into v_baseline, v_today, v_finalized, v_per_app
+      select b.applied_minutes, u.total_minutes, u.is_finalized, u.source_mode
+        into v_baseline, v_today, v_finalized, v_source_mode
         from public.usage_daily u
         join public.baselines b
           on b.user_id = u.user_id and b.baseline_date = u.usage_date
@@ -210,12 +261,22 @@ begin
          or v_baseline is null or v_today is null then
         return false;
       end if;
-      -- ★0015: 「何も計測できていない日」を「利用 0 分の日」と読み替えない。
-      --   合計 0 かつ per_app も空 = OS から何も取れていない状態 (iOS でしきい値が
-      --   発火しない日の通常形)。基準値が下限 30 分にクランプされる (0012:167) ため、
-      --   このままだと毎日 30 分の削減が成立して 50pt が出てしまう。
-      --   合計が 0 でも per_app に数値があれば計測はできているので通す。
-      if v_today = 0 and coalesce(v_per_app, '{}'::jsonb) = '{}'::jsonb then
+      -- ★0015: 「計測できていない日」を「利用 0 分の日」と読み替えない。
+      --   判別子は per_app の非空**ではない**。両OSとも 0 分のアプリはキーごと落とす実装
+      --   （android_usage_provider.dart / ios_usage_provider.dart）なので
+      --   `total=0 ⟺ per_app={}` が恒真になり、per_app では
+      --   「計測できなかった日」と「対象SNSを1分も使わなかった日」を区別できない。
+      --   それで弾くと、アプリが最も報いたい「完全に断てた Android ユーザー」だけが
+      --   毎回 50pt を失う（しかも画面に理由が出ない）。
+      --   正しい判別子は source_mode:
+      --     * exact-minutes(Android)      … 0 分は「本当に使わなかった」＝達成させる
+      --     * threshold-achievement(iOS)  … 0 分は「しきい値が発火しなかった」＝
+      --       利用が無かった証拠にならない。基準値は下限30分にクランプされる(0012:167)ため
+      --       このままだと毎日 30 分の削減が成立して 50pt が出てしまう＝未達に倒す。
+      --   ⚠️ source_mode もクライアント入力なので、これは**細工した端末への防御ではない**
+      --      （入力側の検証は別 migration の仕事）。ここで直るのは
+      --      「正直なユーザーの誤爆」と「iOS の構造的な誤付与」。
+      if v_today = 0 and v_source_mode = 'threshold-achievement' then
         return false;
       end if;
       return greatest(v_baseline - v_today, 0) >= v_target;
@@ -237,12 +298,19 @@ begin
       --   is_active を UPDATE できる (0004:97) ため、no-op UPDATE 1回で過去の卵を
       --   「今週孵化した」ことにできた (weekly_hatch_3 = 100pt + 10ジェムの farm)。
       --   hatched_at はトリガー専管で列GRANT外＝クライアントから動かせない。
+      --   ★週窓はユーザーTZで切る。period 側は fn_sync_quests が
+      --     (now() at time zone <profiles.timezone>)::date を週初日にして作るのに、
+      --     判定を UTC 日付でしていたため JST 月曜 00:00〜09:00 の孵化が前週に落ちていた。
+      --     hatched_at が権威列になるぶん、このズレは恒久化する。
+      select coalesce(timezone, 'Asia/Tokyo') into v_tz
+        from public.profiles where id = p_uid;   -- definer なので RLS に妨げられない
       select count(*)::integer into v_val
         from public.eggs
        where user_id = p_uid
          and location = 'hatched'
          and hatched_at is not null
-         and (hatched_at at time zone 'UTC')::date between v_period_lo and v_period_hi;
+         and (hatched_at at time zone coalesce(v_tz, 'Asia/Tokyo'))::date
+             between v_period_lo and v_period_hi;
       return coalesce(v_val, 0) >= v_target;
 
     when 'points_earn' then

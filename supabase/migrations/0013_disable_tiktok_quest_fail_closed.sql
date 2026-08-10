@@ -26,7 +26,7 @@
 --      0 件でない場合は db-apply-0013 の Verify が警告する)。
 --
 -- 冪等: UPDATE/DELETE は再実行安全 (2回目は 0 行)。関数は create or replace。
--- 適用: .github/workflows/db-apply-0013.yml (手動 workflow_dispatch)。
+-- 適用: .github/workflows/db-apply-v11.yml (0013→0014→0015→0016 を1トランザクションで適用)。
 -- 前提: 0001〜0012 適用済み (moffy-prod)。
 -- ============================================================================
 
