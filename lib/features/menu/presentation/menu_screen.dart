@@ -23,9 +23,15 @@ import '../../profile/presentation/notification_settings_screen.dart';
 ///
 /// 5状態:
 ///   * ローディング: AsyncValue.loading → スケルトン。
-///   * エラー: 統計読み込み失敗 → ErrorView + リトライ。
+///   * エラー: 経済パラメータの取得失敗等（**統計の失敗はここに来ない**、下記）。
 ///   * ハッピー/空: data 内で統計表示（全0でも「これから集めよう」）。
 ///   * オフライン: 上端バー + 連携/退会導線のグレーアウト（オンライン必須 / S10,S12）。
+///
+/// ⚠️ **統計の取得失敗を画面全体の失敗にしないこと**（v1.1 で作り込んだ退行の再発防止）。
+/// この画面にはアカウント削除（S12 / 審査必須）・プライバシーポリシー・利用規約・
+/// 特定商取引法に基づく表記が同居している。統計 RPC がこけた程度でそれらへの到達を
+/// 断つと審査要件を満たせない。統計は [ProfileState.stats] が null になるだけで、
+/// カード1枚が縮退表示に変わる（[_StatsUnavailableCard]）。
 class MenuScreen extends ConsumerWidget {
   const MenuScreen({super.key});
 
@@ -62,6 +68,7 @@ class _MenuBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stats = state.stats;
     return Column(
       children: [
         if (state.isOffline) const OfflineBar(),
@@ -78,7 +85,11 @@ class _MenuBody extends StatelessWidget {
               ),
               const SizedBox(height: AppSpace.xl),
               // プロフィール統計（SCREEN_FLOWS §6 / 数字はBaloo）。
-              _StatsSection(stats: state.stats),
+              // 取得できていない（null）ときは 0 埋めせず縮退カードを出す。
+              if (stats == null)
+                const _StatsUnavailableCard()
+              else
+                _StatsSection(stats: stats),
               const SizedBox(height: AppSpace.xl),
 
               // アカウント（S10）。v1.0 は連携未対応（kAccountLinkingEnabled=false）。
@@ -108,12 +119,24 @@ class _MenuBody extends StatelessWidget {
               // 設定（S9 通知 / 法務 / フィードバック）。
               Text('設定', style: AppType.title),
               const SizedBox(height: AppSpace.md),
-              _MenuTile(
-                icon: Icons.notifications_none_rounded,
-                title: '通知設定',
-                subtitle: '5種類の通知を個別にON/OFF',
-                onTap: () => context.push(NotificationSettingsScreen.routePath),
-              ),
+              // 通知（S9）。v1.1 では未実装（送信側のコードが1行も無い＝空箱）。
+              // トグルだけ触れる状態は 2.1 App Completeness の対象になりうるため、
+              // 連携導線と同じく正直な案内に倒す（kNotificationsEnabled=false）。
+              if (kNotificationsEnabled)
+                _MenuTile(
+                  icon: Icons.notifications_none_rounded,
+                  title: '通知設定',
+                  subtitle: '5種類の通知を個別にON/OFF',
+                  onTap: () =>
+                      context.push(NotificationSettingsScreen.routePath),
+                )
+              else
+                const _MenuInfoTile(
+                  icon: Icons.notifications_none_rounded,
+                  title: '通知は今後のアップデートで',
+                  body: '現在このアプリは通知を送信していません。'
+                      'リマインドや達成のお知らせは、今後のアップデートで対応予定です。',
+                ),
               _MenuTile(
                 icon: Icons.workspace_premium_outlined,
                 title: isPremium ? 'プレミアム（加入中）' : 'プレミアムにする',
@@ -233,6 +256,39 @@ Future<void> _launchUrl(BuildContext context, String url) async {
   }
 }
 
+/// 統計が取得できなかったときの縮退表示（オフライン / RPC失敗 / 0014未適用）。
+///
+/// ⚠️ ここを 0 埋めの [_StatsSection] で代用してはいけない。[ProfileStats.isFresh]
+/// が真になり、実績のあるユーザーに「これから記録を集めていきましょう」と嘘をつく。
+class _StatsUnavailableCard extends ConsumerWidget {
+  const _StatsUnavailableCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('プロフィール', style: AppType.title),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            '統計を表示できませんでした。通信環境を確認してもう一度お試しください。',
+            style: AppType.caption,
+          ),
+          const SizedBox(height: AppSpace.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => ref.invalidate(profileStateProvider),
+              child: const Text('再試行'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// プロフィール統計セクション（5指標 / 数字はBaloo）。
 class _StatsSection extends StatelessWidget {
   const _StatsSection({required this.stats});
@@ -266,7 +322,9 @@ class _StatsSection extends StatelessWidget {
                 value: '${stats.dexDiscovered}/${stats.dexTotal}',
               ),
               _StatItem(label: '最長ストリーク', value: '${stats.longestStreak}日'),
-              _StatItem(label: '累計ポイント', value: '${stats.totalPoints}'),
+              // ホーム上部の「残高」(profiles.point_balance) とは別概念。
+              // これは台帳の正の記帳の総和＝これまでに稼いだ総量（減らない）。
+              _StatItem(label: '累計獲得pt', value: '${stats.totalPoints}'),
             ],
           ),
         ],

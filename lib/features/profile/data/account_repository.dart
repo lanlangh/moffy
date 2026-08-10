@@ -115,8 +115,13 @@ class SupabaseAccountRepository implements AccountRepository {
   }
 }
 
+/// アカウントリポジトリの DI。
+///
+/// ⚠️ `useSupabase` であること（`hasSupabase` ではない）。FORCE_MOCK のプレビュー配信は
+/// Supabase 設定を持つため hasSupabase では倒れず、**プレビューでの退会操作が本番の
+/// fn_delete_account を呼んで本物のアカウントを削除する**。
 final accountRepositoryProvider = Provider<AccountRepository>((ref) {
-  if (Env.hasSupabase) {
+  if (Env.useSupabase) {
     return SupabaseAccountRepository(ref, ref.read(supabaseClientProvider));
   }
   return MockAccountRepository(ref);

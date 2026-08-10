@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/config/env.dart';
 import '../../../core/constants/remote_config.dart';
-import '../../../core/error/failure.dart';
 import '../../../core/observability/log.dart';
 import '../../../core/providers/supabase_provider.dart';
 import '../../../core/sync/connectivity_provider.dart';
@@ -25,7 +24,10 @@ abstract interface class ProfileRepository {
 ///
 /// ⚠️ 本番ビルドでは使われないこと（S1 の教訓: 2026-08-06 に本 Provider が無条件で
 /// Mock を返しており、全ユーザーのメニュー統計が同一のダミー値で公開されていた。
-/// 分岐は [profileRepositoryProvider] の Env.hasSupabase 判定が唯一の正）。
+/// 分岐は [profileRepositoryProvider] の `Env.useSupabase` 判定が唯一の正。
+/// `hasSupabase` ではない: FORCE_MOCK のプレビュー配信は Supabase 設定を持つため
+/// `hasSupabase` では倒れず、プレビューが本番DBを読んでしまう
+/// / daily_submission.dart:129-131 の明文ルール）。
 class MockProfileRepository implements ProfileRepository {
   MockProfileRepository(this._ref);
 
@@ -71,45 +73,83 @@ class SupabaseProfileRepository implements ProfileRepository {
   @override
   Future<ProfileState> loadProfile({required int dexTotalEntries}) async {
     final isOnline = _ref.read(isOnlineProvider);
+    // アカウント状態は auth のローカルセッションから読めるので、通信の成否に依らず
+    // 常に確定する（退会導線の描画をこれ以上ブロックしない）。
+    final account = _accountFromAuth();
+
     if (!isOnline) {
-      // 統計はサーバー集計のみ（ローカルキャッシュ無し）。0 埋めで返すと isFresh 判定が
-      // 「これから記録を集めましょう」を誤表示する（= 偽の空状態）ため、オフラインは
-      // 正直にエラーにする（メニュー側に ErrorView + リトライ導線あり）。
-      throw const NetworkFailure('統計の取得には接続が必要です');
+      // 統計はサーバー集計のみ（ローカルキャッシュ無し）。ここで throw すると
+      // menu_screen の async.when(error:) が body 全体を ErrorView に差し替え、
+      // アカウント削除（S12 / 審査必須）と法務リンクごと画面から消える。
+      // 統計だけを欠落させ、画面は必ず描画する。
+      return ProfileState(stats: null, account: account, isOffline: true);
     }
     try {
       final res = await _client.rpc('fn_profile_stats');
-      final stats = ((res as Map?) ?? const {}).cast<String, Object?>();
-      int n(String key) => (stats[key] as num?)?.toInt() ?? 0;
+      // 0 埋めフォールバックは禁止（0 埋めは isFresh を真にして、実績のある
+      // ユーザーに「これから記録を集めていきましょう」と嘘をつく）。
+      // 姉妹実装 usage_sync_repository.dart の厳格パースに揃える。
+      if (res is! Map) {
+        Log.e('fn_profile_stats returned non-map: ${res.runtimeType}');
+        return ProfileState(stats: null, account: account, isOffline: false);
+      }
+      final raw = res.cast<String, Object?>();
+      int? n(String key) => (raw[key] as num?)?.toInt();
 
-      // アカウント状態は auth の現在ユーザーから（S10 / 表示用）。
-      // 匿名ユーザーの identities には provider='anonymous' が入るため除外する。
-      final user = _client.auth.currentUser;
-      final providers = <String>[
-        for (final identity in user?.identities ?? const <UserIdentity>[])
-          if (identity.provider != 'anonymous') identity.provider,
-      ];
+      final reduced = n('total_reduced_minutes');
+      final mofi = n('total_mofi');
+      final dex = n('dex_discovered');
+      final streak = n('longest_streak');
+      final points = n('total_points');
+      if (reduced == null ||
+          mofi == null ||
+          dex == null ||
+          streak == null ||
+          points == null) {
+        // 想定外の形（RPC の戻り値定義とズレた等）。欠けた指標を 0 と偽らない。
+        Log.e('fn_profile_stats missing keys: ${raw.keys.toList()}');
+        return ProfileState(stats: null, account: account, isOffline: false);
+      }
 
       return ProfileState(
         stats: ProfileStats(
-          totalReducedMinutes: n('total_reduced_minutes'),
-          totalMofi: n('total_mofi'),
-          dexDiscovered: n('dex_discovered'),
+          totalReducedMinutes: reduced,
+          totalMofi: mofi,
+          dexDiscovered: dex,
           dexTotal: dexTotalEntries,
-          longestStreak: n('longest_streak'),
-          totalPoints: n('total_points'),
+          longestStreak: streak,
+          totalPoints: points,
         ),
-        account: AccountState(
-          isAnonymous: user?.isAnonymous ?? true,
-          linkedProviders: providers,
-          displayIdentifier: user?.email,
-        ),
+        account: account,
         isOffline: false,
       );
     } on PostgrestException catch (e, st) {
+      // 0014 未適用（42883 / PGRST202）や権限欠落（42501）もここに来る。
+      // 統計カード1枚が出ないだけで、メニュー全体の失敗ではない。
       Log.e('fn_profile_stats failed: ${e.code}', error: e, stack: st);
-      throw const ServerFailure('統計の取得に失敗しました。時間をおいて再度お試しください');
+      return ProfileState(stats: null, account: account, isOffline: false);
+    } catch (e, st) {
+      // 通信断・タイムアウト等。ここでも画面は落とさない。
+      Log.e('fn_profile_stats unexpected failure', error: e, stack: st);
+      return ProfileState(stats: null, account: account, isOffline: false);
     }
+  }
+
+  /// auth の現在ユーザーからアカウント状態を作る（S10 / 表示用）。
+  ///
+  /// 匿名ユーザーは identity 行を持たない想定だが、将来 provider='anonymous' が
+  /// 入る実装に変わっても「連携済み」に見えないよう防御的に除外する
+  /// （実際の挙動は未検証。除外は no-op で害が無い側に倒してある）。
+  AccountState _accountFromAuth() {
+    final user = _client.auth.currentUser;
+    return AccountState(
+      isAnonymous: user?.isAnonymous ?? true,
+      linkedProviders: <String>[
+        for (final identity in user?.identities ?? const <UserIdentity>[])
+          if (identity.provider != 'anonymous') identity.provider,
+      ],
+      displayIdentifier: user?.email,
+    );
   }
 }
 
@@ -117,7 +157,7 @@ class SupabaseProfileRepository implements ProfileRepository {
 /// Supabase 設定済みなら本実装、未設定/PoC時はモックにフォールバック
 /// （quest_repository.dart / account_repository.dart と同一パターン）。
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  if (Env.hasSupabase) {
+  if (Env.useSupabase) {
     return SupabaseProfileRepository(ref, ref.read(supabaseClientProvider));
   }
   return MockProfileRepository(ref);
@@ -125,6 +165,9 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
 
 /// プロフィール画面の状態（経済パラメータの dex_total_entries に依存）。
 final profileStateProvider = FutureProvider<ProfileState>((ref) async {
+  // 接続状態が変わったら取り直す（オフラインで欠落した統計を復帰時に埋め、
+  // OfflineBar の表示も追従させる）。watch なので復帰エッジで再評価される。
+  ref.watch(isOnlineProvider);
   final params = await ref.watch(economyParamsProvider.future);
   final repo = ref.read(profileRepositoryProvider);
   return repo.loadProfile(dexTotalEntries: params.dexTotalEntries);

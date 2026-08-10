@@ -117,9 +117,13 @@ class MockUsageSyncRepository implements UsageSyncRepository {
   }
 }
 
-/// DI（ARCHITECTURE §1-3）。Supabase 設定済みなら本実装、未設定はモックへフォールバック。
+/// DI（ARCHITECTURE §1-3）。実バックエンドを使う設定なら本実装、それ以外はモックへ。
+///
+/// `useSupabase` であること（`hasSupabase` ではない）。FORCE_MOCK のプレビュー配信は
+/// Supabase 設定を持つため hasSupabase では倒れず、プレビューの操作が本番DBの
+/// usage_daily を確定させてしまう（daily_submission.dart:129-131 と同じ原則）。
 final usageSyncRepositoryProvider = Provider<UsageSyncRepository>((ref) {
-  if (Env.hasSupabase) {
+  if (Env.useSupabase) {
     return SupabaseUsageSyncRepository(ref.read(supabaseClientProvider));
   }
   return const MockUsageSyncRepository();
