@@ -184,18 +184,37 @@ class StreakState {
     required this.tiers,
   });
 
-  /// 現在の倍率（×1.0〜×2.0 / S14: 間の日数は直下段）。
+  /// 記録済みの連続日数に対応する倍率（×1.0〜×2.0 / S14: 間の日数は直下段）。
+  ///
+  /// ⚠️ 表示には [todayMultiplier] を使うこと。こちらは「昨日までの実績」に対する値で、
+  /// 今日の削減ptに実際に掛かる倍率とは1日ズレる。
   double get multiplier => StreakTier.multiplierFor(current, tiers);
 
-  /// 次のマイルストーン段（7日/30日等）。最高段に達していれば null。
+  /// **今日達成したときに実際に掛かる倍率**。
+  ///
+  /// サーバー（fn_finalize_day）は `streak_multiplier(current_streak + 1)` で計算する
+  /// ＝今日を含めた段。UI が [multiplier]（current のまま）を出していたため、
+  /// 例えば current=2 の日は実際には ×1.2 が付くのに画面は「×1.0」と表示していた
+  /// （ユーザーに不利な側の嘘）。サーバーと同じ基準に揃える。
+  double get todayMultiplier => StreakTier.multiplierFor(current + 1, tiers);
+
+  /// 次に**倍率が上がる**マイルストーン段。最高段に達していれば null。
+  ///
+  /// ⚠️ 単に `current < t.days` の最初の段を返してはいけない。tiers の先頭は
+  /// `(days:1, mult:1.0)` ＝倍率なしの段なので、current=0 のときそれが選ばれて
+  /// 「あと1日で ×1.0」という無意味な表示になっていた（現在のバッジと同じ値）。
+  /// 「今日の倍率より大きくなる段」だけを次の目標とする。
   StreakTier? get nextTier {
+    final today = todayMultiplier;
     for (final t in tiers) {
-      if (current < t.days) return t;
+      if (t.days > current + 1 && t.mult > today) return t;
     }
     return null;
   }
 
   /// 次マイルストーンまでの残り日数（無ければ null）。
+  ///
+  /// 今日を1日目として数える（[todayMultiplier] と同じ「current + 1」基準）。
   int? get daysToNextTier {
     final n = nextTier;
     return n == null ? null : (n.days - current).clamp(0, n.days);

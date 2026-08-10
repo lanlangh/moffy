@@ -57,8 +57,11 @@ class StreakHeader extends StatelessWidget {
                       color: AppColors.primary,
                     ),
                     const SizedBox(width: AppSpace.xs),
+                    // 「今日達成したときに掛かる倍率」を出す（サーバー fn_finalize_day の
+                    // streak_multiplier(current + 1) と同じ基準）。streak.multiplier は
+                    // 昨日までの実績に対する値で、実際の付与より低く表示されていた。
                     Text(
-                      '×${streak.multiplier.toStringAsFixed(1)}',
+                      '×${streak.todayMultiplier.toStringAsFixed(1)}',
                       style: AppType.numLabel,
                     ),
                   ],
@@ -68,9 +71,10 @@ class StreakHeader extends StatelessWidget {
           ),
           const SizedBox(height: AppSpace.sm),
           // 次マイルストーンまで（最高段なら最大表示）。
+          // 今日を1日目として数えた残り日数（nextTier は「倍率が実際に上がる段」だけを返す）。
           if (next != null && toNext != null)
             Text(
-              'あと$toNext日で ×${next.mult.toStringAsFixed(1)}',
+              '今日から$toNext日続けると ×${next.mult.toStringAsFixed(1)}',
               style: AppType.caption,
             )
           else

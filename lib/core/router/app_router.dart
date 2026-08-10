@@ -13,6 +13,7 @@ import '../../features/paywall/presentation/paywall_screen.dart';
 import '../../features/profile/presentation/account_link_screen.dart';
 import '../../features/profile/presentation/delete_account_screen.dart';
 import '../../features/profile/presentation/notification_settings_screen.dart';
+import '../../features/profile/presentation/target_apps_screen.dart';
 import '../../features/quests/presentation/quests_screen.dart';
 import '../navigation/app_tab.dart';
 import '../navigation/bottom_nav_scaffold.dart';
@@ -132,6 +133,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: NotificationSettingsScreen.routePath,
         name: NotificationSettingsScreen.routeName,
         builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      // 対象アプリ設定（S12 / v1.1 新設）。iOS ではここが「見守るアプリ」を
+      // 選び直す唯一の入口＝恒久的な計測ゼロからの脱出口になる。
+      GoRoute(
+        path: TargetAppsScreen.routePath,
+        name: TargetAppsScreen.routeName,
+        builder: (context, state) => const TargetAppsScreen(),
       ),
       GoRoute(
         path: DeleteAccountScreen.routePath,

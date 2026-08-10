@@ -2,17 +2,37 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/economy.dart';
 import '../../../../core/theme/tokens.dart';
+import '../../../../core/usage/usage_models.dart';
 
 /// 対象4アプリ別の時間チップ（SCREEN_FLOWS §2-5）。
 /// 各アプリ（TikTok/Instagram/YouTube/X）の利用分を表示。0分も正常表示（§5-1）。
+///
+/// ⚠️ **アプリ別の内訳が取れるのは Android だけ**。iOS の Screen Time
+/// （FamilyControls）はプライバシー保護のため不透明トークンでしかアプリを扱えず、
+/// 個別アプリを識別できない（docs/IOS_SCREENTIME.md）。iOS の利用時間は
+/// `ios.screentime` という合成バケット1本に集約されるため、ここに渡しても
+/// 全アプリが「0分」として並ぶ＝**削減できているのに0分と表示する嘘**になる。
+/// 呼び出し側の分岐だけに頼ると再発するので、ウィジェット自身にも契約を持たせて
+/// [UsageMode.exactMinutes] 以外では何も描かない。
 class AppUsageChips extends StatelessWidget {
-  const AppUsageChips({super.key, required this.perAppMinutes});
+  const AppUsageChips({
+    super.key,
+    required this.perAppMinutes,
+    required this.mode,
+  });
 
   /// パッケージ名 -> 利用分。
   final Map<String, int> perAppMinutes;
 
+  /// 計測モード。[UsageMode.exactMinutes]（Android）以外では内訳を描かない。
+  final UsageMode mode;
+
   @override
   Widget build(BuildContext context) {
+    if (mode != UsageMode.exactMinutes) {
+      // iOS 等: アプリ別内訳が存在しない。呼び出し側が分岐を忘れても嘘を出さない。
+      return const SizedBox.shrink();
+    }
     return Wrap(
       spacing: AppSpace.sm,
       runSpacing: AppSpace.sm,

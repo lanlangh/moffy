@@ -18,6 +18,7 @@ import '../../profile/domain/profile_models.dart';
 import '../../profile/presentation/account_link_screen.dart';
 import '../../profile/presentation/delete_account_screen.dart';
 import '../../profile/presentation/notification_settings_screen.dart';
+import '../../profile/presentation/target_apps_screen.dart';
 
 /// メニュー画面（SCREEN_FLOWS §6）。プロフィール統計 + 設定 + アカウント連携 + 退会導線。
 ///
@@ -119,6 +120,16 @@ class _MenuBody extends StatelessWidget {
               // 設定（S9 通知 / 法務 / フィードバック）。
               Text('設定', style: AppType.title),
               const SizedBox(height: AppSpace.md),
+              // 対象アプリ（S12 / v1.1 新設）。iOS ではここが「見守るアプリ」を
+              // 選び直す唯一の入口。オンボで選択をスキップした人はこれが無いと
+              // 永久に計測されないままだった。
+              _MenuTile(
+                icon: Icons.apps_rounded,
+                title: '対象アプリ',
+                subtitle: '見守るアプリを確認・変更する',
+                onTap: () => context.push(TargetAppsScreen.routePath),
+              ),
+
               // 通知（S9）。v1.1 では未実装（送信側のコードが1行も無い＝空箱）。
               // トグルだけ触れる状態は 2.1 App Completeness の対象になりうるため、
               // 連携導線と同じく正直な案内に倒す（kNotificationsEnabled=false）。
