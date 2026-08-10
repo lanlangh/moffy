@@ -53,11 +53,15 @@ class _TargetAppsScreenState extends ConsumerState<TargetAppsScreen> {
   }
 
   /// iOS の選択状態を読み直す（`hasAppSelection` は今まで誰も呼んでいなかった）。
+  ///
+  /// ※ [ScreenTimeAppSelection] は [UsageProvider] のサブタイプではない（別の
+  ///   capability インターフェース）ため型プロモーションが効かない。明示キャストする。
   Future<void> _refreshSelection() async {
     final provider = ref.read(usageProviderProvider);
     if (provider is! ScreenTimeAppSelection) return;
+    final selection = provider as ScreenTimeAppSelection;
     try {
-      final has = await provider.hasAppSelection();
+      final has = await selection.hasAppSelection();
       if (!mounted) return;
       setState(() => _hasSelection = has);
     } catch (e, st) {
@@ -71,11 +75,12 @@ class _TargetAppsScreenState extends ConsumerState<TargetAppsScreen> {
   Future<void> _pickApps() async {
     final provider = ref.read(usageProviderProvider);
     if (provider is! ScreenTimeAppSelection) return;
+    final selection = provider as ScreenTimeAppSelection;
     if (_picking) return;
     setState(() => _picking = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final result = await provider.presentAppPicker();
+      final result = await selection.presentAppPicker();
       if (!mounted) return;
       setState(() {
         _picking = false;
@@ -174,16 +179,21 @@ class _TargetAppsScreenState extends ConsumerState<TargetAppsScreen> {
           children: [
             Text('見守るアプリ', style: AppType.title),
             const SizedBox(height: AppSpace.sm),
-            Text('次のアプリの利用時間を合計して、削減ポイントを計算します。',
-                style: AppType.body),
+            Text(
+              '次のアプリの利用時間を合計して、削減ポイントを計算します。',
+              style: AppType.body,
+            ),
             const SizedBox(height: AppSpace.lg),
             for (final def in AppConstants.defaultAndroidTargets)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpace.sm),
                 child: Row(
                   children: [
-                    const Icon(Icons.check_rounded,
-                        size: 18, color: AppColors.primary),
+                    const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
                     const SizedBox(width: AppSpace.sm),
                     Text(def.label, style: AppType.body),
                   ],

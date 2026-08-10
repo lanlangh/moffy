@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
+import '../../../core/usage/usage_models.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../paywall/presentation/paywall_screen.dart';
