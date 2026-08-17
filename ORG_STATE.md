@@ -3,29 +3,87 @@
 > プロジェクトルートの単一の状態置き場。AI 8 部署がセッションを跨いで「いま何をしているか」を思い出すための場所。
 > `/app-dev-org:kickoff` が作成し、`/app-dev-org:weekly-brief` と各部署が更新する。
 
-## ▶ RESUME / 現在地（2026-08-10更新・/clear後はここから読む）
+## ▶ RESUME / 現在地（2026-08-17更新・/clear後はここから読む）
 
 > **⚠️ ブランチ注意**: 作業ブランチは **`v1.1-fixes`（未マージ）**。main には
 > `db-apply-v11.yml` と `asc-rename-version.yml`（ワークフロー2本）だけが入っている。
 > アプリのコードとマイグレーション 0013〜0016 は v1.1-fixes にしか無い。
-> **審査が通って公開されたら v1.1-fixes を main にマージすること。**
+> **Android は既に v1.1 で公開済み。それでも v1.1-fixes は未マージ＝main は公開中の実体と食い違っている。
+> iOS の再審査が片付いたらマージすること。**
 
-### 🎉 v1.1 は **Android・iOS とも審査提出まで完了**（2026-08-10）。以降は審査結果待ち
+### 🔴 v1.1 の結果は **Android 公開成功 / iOS リジェクト**（2026-08-17 実測で確定）
 
 | プラットフォーム | 状態 | 詳細 |
 |---|---|---|
-| **Android** | ✅ **審査中** | Play Console「変更内容は現在審査中です」/ 製品版 1.1.0 / versionCode 26（実広告ON） |
-| **iOS** | ✅ **審査待ち** | ASC `state=WAITING_FOR_REVIEW` / 1.1.0 / build 26 / API でも確認済み |
+| **Android** | ✅ **公開済み** | Play 公開ページの最終更新日=**2026/08/10**・「新機能」欄が v1.1 のリリースノートに置き換わっているのを実測。＝審査通過して世に出ている |
+| **iOS** | 🔴 **REJECTED** | ASC `1.1.0 state=REJECTED`。提出物 `cbafabe3-ea6c-4dae-aa75-0991852d3593`（提出 2026-08-10T07:17Z）が `UNRESOLVED_ISSUES` / その item が `REJECTED` |
+| **公開中の iOS 1.0.2** | ✅ **無傷** | 提出物 `2bb0b880` は `COMPLETE` のまま。落ちたのは新しい 1.1.0 だけで、公開中のアプリは巻き込まれていない |
 | **DB** | ✅ **適用済み** | 0013〜0016 を1トランザクションで適用・検証PASS・警告0件。`ops` 掃除も完了 |
 
-**⏭ 次にやること**
-1. **審査結果を待つ**（Android 1〜3日 / iOS 1〜2日が目安）
-2. **iOS は承認されても自動公開されない**（releaseType=MANUAL）。承認通知が来たら
-   オーナーが ASC で「このバージョンをリリース」を押す
-3. 公開後、実機で **退会→「新しく始める」** を確認（下記の未解明点）
-4. Apple へ次に返信する機会に、1.0.3→1.1.0 の改名を一報（文面は
-   `docs/asc/APPLE_REPLY_1_0_3_RESULT.md` 末尾に用意済み）
-5. **Android デベロッパー確認**（期限 2026-09-30 / 下記）
+> **📌 サブスク固着は今も継続**。`755e8857` は変わらず `UNRESOLVED_ISSUES` で、
+> 中のサブスク3件は `READY_FOR_REVIEW` のまま居座っている（2026-08-17 実測）。
+
+### ✅ リジェクトの真因＝**Guideline 5.1.1(iv)**（2026-08-17 解決センターで全文取得・確定）
+
+> Review date: August 10, 2026 / Review Device: iPhone 17 Pro Max and iPad Air 11-inch (M3) / Version reviewed: 1.1.0 (26)
+> 添付証拠: `Screenshot-0810-110924.png`
+
+**Apple の指摘（原文の要点・**2点とも「ボタン」の話**。説明文そのものは問題視されていない）**:
+
+> The app encourages or directs users to allow the app to access the Screen Time API.
+> - A custom message appears before the permission request, and to proceed users press a **「許可する」** button. **Use words like "Continue" or "Next" on the button instead.**
+> - A custom message appears before the permission request, and the user can close the message and **delay the permission request with the「あとで」button**. **The user should always proceed to the permission request after the message.**
+
+**該当コード（特定済み）**: `onboarding_screen.dart` の `_PermissionGrantPage`
+＝ OS の許可ダイアログを出す前の「前置き画面」に ①「許可する」ボタン ②「あとで設定する」で
+要求自体を先送りできる導線 があった。**Screen Time / Family Controls 系アプリの定番の落とし穴。**
+
+**📌 これは v1.1 の新規バグではない。1.0 の頃から同じ画面がある**（過去4回の審査では
+指摘されなかった＝審査官によって当たり外れがある論点）。事前仮説だった「今後のアップデートで
+＝coming soon」は**外れ**。指摘は一切ない（＝あの文言はこのままでよい）。
+
+**🎁 Apple が「Bug Fix Submissions」を明示的に提案してきている（最重要）**
+
+> The issues we've identified below are eligible to be resolved on your **next update**.
+> If this submission includes bug fixes and you'd like to have it **approved at this time, reply to
+> this message and let us know. You do not need to resubmit your app for us to proceed.**
+
+＝ **v1.1 は返信1本で今すぐ承認してもらえる。**再ビルドも再提出も不要。
+v1.1 は 100% バグ修正リリース（whatsNew 全項目が不具合修正）なので条件を満たす。
+
+**✅ 5.1.1(iv) の修正は実装済み（branch `v1.1-fixes` / 未コミット）**
+
+| ファイル | 変更 |
+|---|---|
+| `onboarding_screen.dart` `_PermissionGrantPage` | ボタン「許可する」→ **iOS「次へ」/ Android「設定を開く」**。**「あとで設定する」を撤去**。`onSkip` パラメータごと削除 |
+| `onboarding_screen.dart` `_requestPermission` | **例外を握りつぶして必ず `_next()` する**ようにした。⚠️これが無いと「あとで」撤去で**行き止まり**が生まれ、次は 2.1 で落ちる |
+| `reduction_card.dart` | ホームの権限なしカードも同じ導線なので `retryLabel` 「許可する」→**「続ける」** |
+
+> **⚠️ もし再度 5.1.1(iv) で落ちたときの次の一手**: 画面タイトル
+> 「スクリーンタイムを**許可**」も directive に読める。Apple が列挙したのは2点だけなので
+> 今回は**触っていない**（指摘外を弄ると「何を直したか」の説明が濁るため）。次はここを直す。
+
+**⏭ 次にやること（この順）**
+1. 🔴 **オーナーが App Review に返信して Bug Fix Submissions を依頼** → v1.1 が承認される
+   （返信文は作成済み。⚠️**「提出をキャンセル」は絶対に押さない**＝この承認経路を失う）
+2. 承認されたら ASC で「このバージョンをリリース」（releaseType=MANUAL＝自動公開されない）
+3. 5.1.1(iv) 修正を **1.1.1** として出す（CI緑 → iOSビルド → 提出）
+4. 🍎 Apple ケース `20000121488355`（サブスク固着）は**別軸で継続**
+5. 公開後、実機で **退会→「新しく始める」** を確認（下記の未解明点）
+6. **v1.1-fixes を main にマージ**
+7. **Android デベロッパー確認**（期限 2026-09-30 / 下記）
+
+### 🍎 Apple ケース 20000121488355：8/11 に桐畑さんから着信（要返信）
+
+- **本文は 8/4 のものと同一**（「本日、8/4、当部門にて…」と書かれている）だが、**受信日は 8/11**
+  ＝ オーナーが 8/7 に送った返信（動画アップロード込み）が**先方に登録されていない可能性がある**。
+- **アップロードリンクも別途着信済み**。Apple のリンクは **7日間有効**＝ 8/11 着なら **8/18 頃に失効**。
+- **返信に盛り込むべき新事実（8/7 時点には無かったもの）**:
+  1. 8/7 の検証結果（「審査用に追加」がグレーアウト）に**変更なし**
+  2. 1.0.3 の下書きは**バージョン番号を 1.1.0 に変更して使用**した（下書き自体は存続）
+  3. **1.1.0 を 8/10 に提出したが、サブスクは今回も同梱できなかった**
+  4. サブスク2件は 8/17 現在も `755e8857` の中で審査中のまま
+- 文面の土台 → `docs/asc/APPLE_REPLY_1_0_3_RESULT.md`（末尾に 1.0.3→1.1.0 改名の一文を用意済み）
 
 <details><summary>（記録）v1.1 の作業経緯</summary>
 

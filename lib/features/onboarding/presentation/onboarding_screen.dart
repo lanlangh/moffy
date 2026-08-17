@@ -86,18 +86,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       final usage = ref.read(usageProviderProvider);
       final status = await usage.requestPermission();
-      if (!mounted) return;
-      setState(() => _permission = status);
-      // ファネル: 利用時間権限の許可（PRD §5-5）。許可された時のみ発火。
-      if (status.isGranted) {
-        ref
-            .read(analyticsProvider)
-            .capture(AnalyticsEvents.usagePermissionGranted);
+      if (mounted) {
+        setState(() => _permission = status);
+        // ファネル: 利用時間権限の許可（PRD §5-5）。許可された時のみ発火。
+        if (status.isGranted) {
+          ref
+              .read(analyticsProvider)
+              .capture(AnalyticsEvents.usagePermissionGranted);
+        }
       }
+    } catch (_) {
+      // 【5.1.1(iv) 対応で必須】この画面から「あとで設定する」を撤去したため、
+      // ここで例外が抜けると先へ進む手段が消えて**行き止まり**になる（＝今度は 2.1 で落ちる）。
+      // 権限が無くてもボーナス卵で開始できる設計なので、握りつぶして必ず次へ進める。
     } finally {
       if (mounted) setState(() => _requesting = false);
     }
-    _next(); // 許可/拒否どちらでも次へ（拒否はボーナス卵で吸収 / SCREEN_FLOWS §1）。
+    if (!mounted) return;
+    _next(); // 許可/拒否/失敗のどれでも次へ（拒否はボーナス卵で吸収 / SCREEN_FLOWS §1）。
   }
 
   /// iOS: OS の FamilyActivityPicker を開いて対象アプリを選ばせ、選択数を反映する。
@@ -155,7 +161,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   permission: _permission,
                   isIOS: _isIOS,
                   onGrant: _requesting ? null : _requestPermission,
-                  onSkip: _next,
                 ),
                 if (_isIOS)
                   _IOSAppPickerPage(
@@ -220,20 +225,29 @@ class _PermissionInfoPage extends StatelessWidget {
 }
 
 /// 権限付与（OS設定誘導 + 未許可フォールバック / SCREEN_FLOWS §1）。
+///
+/// 【v1.1.1 / App Store Guideline 5.1.1(iv) 対応】2026-08-10 の審査で、この画面が
+/// 「OSの許可ダイアログを出す前に、アプリ側が許可を促している」として却下された。
+/// Apple の指摘は次の2点で、いずれもボタンの話である（説明文そのものは問題視されていない）:
+///   1. 前置き画面のボタンが **「許可する」** だった
+///      → Apple の指定どおり "Continue"/"Next" 相当の **「次へ」** にする。
+///      （Android は OS 設定アプリへ飛ばすので「設定を開く」＝実態どおりの表現）
+///   2. **「あとで設定する」** で OS の要求そのものを先送りできた
+///      → 撤去。説明を読んだら必ず OS の要求まで進む。
+/// 撤去しても行き止まりにならないのは `_requestPermission` が許可/拒否/失敗の
+/// どの場合でも `_next()` するため（例外の握りつぶしも同メソッドで担保している）。
 class _PermissionGrantPage extends StatelessWidget {
   const _PermissionGrantPage({
     required this.requesting,
     required this.permission,
     required this.isIOS,
     required this.onGrant,
-    required this.onSkip,
   });
 
   final bool requesting;
   final UsagePermissionStatus? permission;
   final bool isIOS;
   final VoidCallback? onGrant;
-  final VoidCallback onSkip;
 
   @override
   Widget build(BuildContext context) {
@@ -257,25 +271,16 @@ class _PermissionGrantPage extends StatelessWidget {
                   '減らした時間がポイントになります。'
               : '設定画面が開いたら Moffy をオンにしてください。'
                   '正確な削減ポイントの計算に使います。'),
-      cta: Column(
-        children: [
-          if (requesting)
-            const NestSkeleton(diameter: 80, label: '確認しています')
-          else
-            PrimaryButton(
-              label: denied ? 'もう一度ひらく' : '許可する',
+      cta: requesting
+          ? const NestSkeleton(diameter: 80, label: '確認しています')
+          : PrimaryButton(
+              // 5.1.1(iv): OSの要求前に「許可」を促す語を使わない。
+              // denied は要求が済んだ**後**の状態なので再試行の語でよい。
+              label: denied
+                  ? 'もう一度ひらく'
+                  : (isIOS ? '次へ' : '設定を開く'),
               onPressed: onGrant,
             ),
-          const SizedBox(height: AppSpace.sm),
-          TextButton(
-            onPressed: onSkip,
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.textSecondary,
-            ),
-            child: const Text('あとで設定する'),
-          ),
-        ],
-      ),
     );
   }
 }
