@@ -11,7 +11,7 @@ publish_to: "none"
 #    ASC 側は下書きの versionString を 1.0.3 → 1.1.0 に書き換える（下書きなら変更可）。
 # ⚠️ 後半（build-number）は CI が --build-number=${{ github.run_number }} で上書きする。
 #    ここの +1 はローカル実行時の既定値でしかない。
-version: 1.1.0+1
+version: 1.1.1+1
 
 environment:
   # Dart 3 系 / Flutter 3.22 以降を前提（後日SDK導入時にこの範囲で固定）
