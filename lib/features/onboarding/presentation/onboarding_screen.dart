@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/economy.dart';
 import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/log.dart';
 import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/theme/tokens.dart';
@@ -64,6 +65,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _iosSelectedCount = 0;
   bool _iosPicked = false;
 
+  /// 権限要求が済んで許可されたか。未要求・失敗時は false。
+  /// iOS のピッカーは未許可だとネイティブ側が無言で空を返すため、その判別に使う。
+  bool get _permissionGranted => _permission?.isGranted ?? false;
+
   static const int _pageCount = 4; // OB1 / OB2 / 権限 / 対象選択
 
   @override
@@ -85,7 +90,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     setState(() => _requesting = true);
     try {
       final usage = ref.read(usageProviderProvider);
-      final status = await usage.requestPermission();
+      // 【B-1 / 第三者レビュー指摘】タイムアウト必須。
+      // 「あとで設定する」を撤去したため、要求中の画面には押せる要素が1つも無い
+      // （cta は NestSkeleton＝装飾のみ）。OS 側の要求が返らないと _requesting が
+      // true のまま固まり、**逃げ道ゼロの行き止まり**になる＝今度は 2.1 で落ちる。
+      // TimeoutException は下の catch が拾い、必ず _next() まで進む。
+      final status = await usage
+          .requestPermission()
+          .timeout(const Duration(seconds: 30));
       if (mounted) {
         setState(() => _permission = status);
         // ファネル: 利用時間権限の許可（PRD §5-5）。許可された時のみ発火。
@@ -95,10 +107,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               .capture(AnalyticsEvents.usagePermissionGranted);
         }
       }
-    } catch (_) {
-      // 【5.1.1(iv) 対応で必須】この画面から「あとで設定する」を撤去したため、
-      // ここで例外が抜けると先へ進む手段が消えて**行き止まり**になる（＝今度は 2.1 で落ちる）。
-      // 権限が無くてもボーナス卵で開始できる設計なので、握りつぶして必ず次へ進める。
+    } catch (e, st) {
+      // 【5.1.1(iv) 対応で必須】「あとで設定する」を撤去したため、ここで例外が抜けると
+      // 先へ進む手段が消えて行き止まりになる（＝今度は 2.1 で落ちる）。よって握りつぶす。
+      // ただし**無言にはしない**（B-7 / 第三者レビュー指摘）。
+      // 通常のユーザー拒否は例外ではなく UsagePermissionStatus として返るため、ここに
+      // 来るのは MissingPluginException・DI 障害・タイムアウトといった**本物の異常**だけ。
+      // 広告の no-fill のような「正常系の大量発生」とは性質が違うので Log.e で拾う。
+      // 黙らせると、チャネルが丸ごと壊れてもコアループの入口の崩壊に誰も気づけない。
+      Log.e('usage requestPermission failed', error: e, stack: st);
     } finally {
       if (mounted) setState(() => _requesting = false);
     }
@@ -114,6 +131,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // ScreenTimeAppSelection は UsageProvider のサブタイプではない（独立 capability）ため
     // 型 promotion が効かない。is! ガード済みなので明示キャストは安全。
     final screenTime = provider as ScreenTimeAppSelection;
+    // await をまたぐので context は先に解決しておく（use_build_context_synchronously）。
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _requesting = true);
     try {
       final result = await screenTime.presentAppPicker();
@@ -122,6 +141,32 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         _iosSelectedCount = result.count;
         _iosPicked = result.selected;
       });
+      // 【B-2 / 第三者レビュー指摘・重要】ネイティブ側は未許可だとピッカーを出さずに
+      // selected:false を即返す（ScreenTimeHandler.swift の `guard status == .approved`）。
+      // 無言で終わると**押しても何も起きないボタン**にしか見えず、2.1 を招く。
+      // しかも「あとで設定する」を撤去した結果、権限を拒否した人は全員ここへ来る
+      // （審査員はわざと拒否して挙動を見る）。理由と次の手を必ず出す。
+      if (!result.selected) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              _permissionGranted
+                  ? 'アプリが選ばれていません。1つ以上選ぶと計測がはじまります。'
+                  : 'スクリーンタイムが許可されていないため、アプリを選べません。'
+                      'このまま始められます（最初のボーナス卵で育てられます）。'
+                      'あとで「設定 > スクリーンタイム」から許可すると選べるようになります。',
+            ),
+          ),
+        );
+      }
+    } catch (e, st) {
+      // profile 側の同じ導線（target_apps_screen.dart）と作法をそろえる。
+      Log.e('presentAppPicker failed (onboarding)', error: e, stack: st);
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('アプリを選ぶ画面を開けませんでした。')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _requesting = false);
     }
@@ -167,6 +212,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     requesting: _requesting,
                     selectedCount: _iosSelectedCount,
                     picked: _iosPicked,
+                    permissionGranted: _permissionGranted,
                     onPick: _requesting ? null : _pickIOSApps,
                     onFinish: isOnline ? _finish : null,
                   )
@@ -259,7 +305,11 @@ class _PermissionGrantPage extends StatelessWidget {
         Icons.bar_chart_rounded,
         color: AppColors.primary,
       ),
-      title: isIOS ? 'スクリーンタイムを許可' : '「使用状況へのアクセス」を許可',
+      // 【B-6 / 第三者レビュー指摘】見出しと本文から「許可」の誘導語を外す。
+      // Apple が列挙したのはボタン2点だが、指摘冒頭の
+      // "encourages or directs users to allow" は見出し「スクリーンタイムを許可」にも
+      // 当たりうる。書き換えは数分、二度目の 5.1.1(iv) は審査1サイクル＝期待コストが非対称。
+      title: isIOS ? 'スクリーンタイムについて' : '「使用状況へのアクセス」について',
       body: denied
           ? (isIOS
               ? '今は許可されていません。設定 > スクリーンタイム からあとで許可できます。'
@@ -267,10 +317,13 @@ class _PermissionGrantPage extends StatelessWidget {
               : '今は許可されていません。あとで設定から許可できます。'
                   '許可がなくても、最初のボーナス卵でMofiを育て始められます。')
           : (isIOS
-              ? '次にAppleの確認が出ます。「許可」を押すと、'
-                  '減らした時間がポイントになります。'
-              : '設定画面が開いたら Moffy をオンにしてください。'
-                  '正確な削減ポイントの計算に使います。'),
+              // システム側ボタン名の引用と「押せ」という指示を除去（B-6）。
+              // 「『許可』を押すと報酬になる」は、システムダイアログへの回答を
+              // アプリ内の報酬で誘導する形になっており 5.1.1(iv) の核心に触れる。
+              ? '次にAppleの確認画面が表示されます。'
+                  '計測を有効にすると、減らした時間がポイントになります。'
+              : '次に端末の設定画面が開きます。'
+                  'Moffy を有効にすると、正確な削減ポイントを計算できます。'),
       cta: requesting
           ? const NestSkeleton(diameter: 80, label: '確認しています')
           : PrimaryButton(
@@ -346,6 +399,7 @@ class _IOSAppPickerPage extends StatelessWidget {
     required this.requesting,
     required this.selectedCount,
     required this.picked,
+    required this.permissionGranted,
     required this.onPick,
     required this.onFinish,
   });
@@ -353,6 +407,11 @@ class _IOSAppPickerPage extends StatelessWidget {
   final bool requesting;
   final int selectedCount;
   final bool picked;
+
+  /// スクリーンタイムが許可済みか。false のときピッカーは開かない（ネイティブが
+  /// 無言で空を返す）ため、理由と「このまま始められる」ことを**常設で**示す。
+  /// SnackBar だけだと消えてしまい、行き止まりに見える（B-2 / B-3）。
+  final bool permissionGranted;
   final VoidCallback? onPick;
 
   /// オフライン時は null（匿名認証オンライン必須 / グレーアウト）。
@@ -369,9 +428,17 @@ class _IOSAppPickerPage extends StatelessWidget {
           Text('見守るアプリを選ぼう', style: AppType.title),
           const SizedBox(height: AppSpace.sm),
           Text(
-            'ボタンを押すとAppleの画面が開きます。Instagram・TikTok・YouTube など、'
-            '減らしたいアプリにチェックしてください。'
-            '選んだアプリの利用時間だけが対象です（あとで変更できます）。',
+            permissionGranted
+                ? 'ボタンを押すとAppleの画面が開きます。Instagram・TikTok・YouTube など、'
+                    '減らしたいアプリにチェックしてください。'
+                    '選んだアプリの利用時間だけが対象です（あとで変更できます）。'
+                // 【B-3 / 第三者レビュー指摘】拒否した人向けの安心文言は、
+                // 権限ページが自動で次へ進むため**誰にも読まれない死にコード**だった。
+                // 実際に拒否した人が着地するこのページへ移す。
+                : 'スクリーンタイムが許可されていないため、いまはアプリを選べません。'
+                    'このまま始められます（最初のボーナス卵でMofiを育てられます）。'
+                    'あとで「設定 > スクリーンタイム」から許可し、'
+                    'メニューの「対象アプリ」で選べます。',
             style: AppType.caption,
           ),
           const SizedBox(height: AppSpace.xl),
