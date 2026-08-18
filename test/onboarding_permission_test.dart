@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart'
     show TargetPlatform, debugDefaultTargetPlatformOverride;
-import 'package:flutter/material.dart';
+// `Baseline` は Flutter のウィジェット名と衝突する（material が export している）。
+// ここで欲しいのは point_calculator の基準値モデルなので material 側を隠す。
+import 'package:flutter/material.dart' hide Baseline;
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
