@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_session.dart';
 import '../../../core/error/failure.dart';
+import '../../../core/local/local_reset.dart';
+import '../../../core/providers/supabase_provider.dart';
 import '../../../core/sync/connectivity_provider.dart';
+import '../../../core/sync/sync_queue.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../eggs/presentation/eggs_controller.dart';
+import '../../home/presentation/home_controller.dart';
+import '../../onboarding/presentation/onboarding_screen.dart';
+import '../../quests/data/quest_repository.dart';
 import '../data/account_repository.dart';
+import '../data/profile_repository.dart';
 import '../domain/legal_links.dart';
 
 /// 退会導線（S12 / 審査必須）。SCREEN_FLOWS §6 のフローを実装。
@@ -38,6 +48,9 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   final TextEditingController _confirmText = TextEditingController();
   bool _deleting = false;
 
+  /// 「新しく始める」の実行中（再サインイン待ち）。二重タップを防ぐ。
+  bool _restarting = false;
+
   /// 誤操作防止に入力を求めるキーワード（SCREEN_FLOWS §6）。
   static const String _confirmKeyword = '削除';
 
@@ -53,21 +66,33 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     super.dispose();
   }
 
+  /// 削除が成功した後か（サブスク案内・完了ステップ）。
+  ///
+  /// この状態では**元の画面に戻してはいけない**。戻り先はサインアウト済みのタブシェルで、
+  /// メニューは統計 RPC が anon 権限で弾かれてエラー表示になり、
+  /// 「アカウント削除」ボタン自体が消える（審査員が導線を再確認できない）。
+  bool get _isPostDeletion =>
+      _step == _DeleteStep.subscription || _step == _DeleteStep.done;
+
   @override
   Widget build(BuildContext context) {
     final isOnline = ref.watch(isOnlineProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      appBar: AppBar(
-        title: const Text('アカウント削除'),
-        automaticallyImplyLeading: !_deleting, // 削除中は戻れない（操作ロック）
-      ),
-      body: SafeArea(
-        top: false,
-        child: _deleting
-            ? const Center(child: NestSkeleton(label: '削除しています'))
-            : _buildStep(context, isOnline),
+    // 削除中と削除後は戻る操作を塞ぐ（AppBar の戻る / OS の戻るジェスチャの両方）。
+    return PopScope(
+      canPop: !_deleting && !_isPostDeletion,
+      child: Scaffold(
+        backgroundColor: AppColors.bg,
+        appBar: AppBar(
+          title: const Text('アカウント削除'),
+          automaticallyImplyLeading: !_deleting && !_isPostDeletion,
+        ),
+        body: SafeArea(
+          top: false,
+          child: _deleting
+              ? const Center(child: NestSkeleton(label: '削除しています'))
+              : _buildStep(context, isOnline),
+        ),
       ),
     );
   }
@@ -92,7 +117,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
           onDone: () => setState(() => _step = _DeleteStep.done),
         ),
       _DeleteStep.done => _DoneView(
-          onClose: () => Navigator.of(context).pop(),
+          isRestarting: _restarting,
+          onRestart: _restart,
         ),
     };
   }
@@ -102,6 +128,12 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(accountRepositoryProvider).deleteAccount();
+      // 端末に残る状態（オンボ完了フラグ / ウォームアップ初回起動日 / 送信キュー）を消す。
+      // 削除自体は成功しているので、ここが失敗しても throw しない（ログのみ）。
+      // 残したままだと、次に始める人がオンボと初回ボーナスをスキップした
+      // 「正規の新規より貧しい」状態で始まり、旧ユーザーの未送信データが
+      // 新ユーザーの記録として確定されうる。
+      await resetLocalUserState(ref.read(syncQueueProvider));
       if (!mounted) return;
       // 成功 → サブスク解約案内へ（S12: アプリから解約不可と明示）。
       setState(() {
@@ -120,6 +152,44 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         const SnackBar(content: Text('削除できませんでした。もう一度お試しください。')),
       );
     }
+  }
+
+  /// 完了画面の「新しく始める」（S12）。
+  ///
+  /// 退会直後はサインアウト済みで、元のタブシェルはどの画面もデータを引けない。
+  /// よって pop で戻さず、**新しい匿名ユーザーを作ってからオンボーディングへ
+  /// スタックごと置き換える**。
+  ///
+  /// このボタンを押さずにアプリを終了しても、次回起動時に main.dart の
+  /// `AuthSession.ensureAnonymous` が新しいセッションを作るので正常に始まる。
+  Future<void> _restart() async {
+    if (_restarting) return;
+    setState(() => _restarting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+
+    final client = ref.read(supabaseClientProvider);
+    final ok = await AuthSession.restartAsNewAnonymousUser(client);
+    if (!mounted) return;
+
+    if (!ok) {
+      // オフライン等で再サインインできなかった。**壊れたシェルには戻さない**
+      // （ここで pop すると、いま直したはずの症状がそのまま再現する）。
+      setState(() => _restarting = false);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('接続できませんでした。通信環境を確認してもう一度お試しください。')),
+      );
+      return;
+    }
+
+    // 旧ユーザーのデータ／エラーを抱えたままのキャッシュを捨てる。
+    // これをしないと「退会したのに前のユーザーの卵が見える」という最悪の見え方になる。
+    ref.invalidate(profileStateProvider);
+    ref.invalidate(eggsControllerProvider);
+    ref.invalidate(homeControllerProvider);
+    ref.invalidate(questsStateProvider);
+
+    router.go(OnboardingScreen.routePath);
   }
 }
 
@@ -298,19 +368,28 @@ class _SubscriptionNoticeView extends StatelessWidget {
   }
 }
 
-/// D7 完了。
+/// D7 完了（S12）。
+///
+/// ⚠️ ここに「閉じる → pop」を置いてはいけない。戻り先はサインアウト済みのタブシェルで、
+/// メニューはエラー表示になり退会導線ごと消える。必ず新しい匿名ユーザーを作って
+/// オンボーディングへ送り出す。
 class _DoneView extends StatelessWidget {
-  const _DoneView({required this.onClose});
-  final VoidCallback onClose;
+  const _DoneView({required this.isRestarting, required this.onRestart});
+  final bool isRestarting;
+  final VoidCallback onRestart;
 
   @override
   Widget build(BuildContext context) {
+    if (isRestarting) {
+      return const Center(child: NestSkeleton(label: '準備しています'));
+    }
     return EmptyState(
       icon: Icons.check_rounded,
       message: '削除を受け付けました',
-      subMessage: 'ご利用ありがとうございました。',
-      ctaLabel: '閉じる',
-      onCta: onClose,
+      subMessage: 'ご利用ありがとうございました。\n'
+          'このまま新しく始めることもできます。',
+      ctaLabel: '新しく始める',
+      onCta: onRestart,
     );
   }
 }

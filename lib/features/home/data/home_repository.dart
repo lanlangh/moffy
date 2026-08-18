@@ -203,7 +203,12 @@ class HomeRepository {
   /// Supabase 未設定（Mock 時）/ オフライン時は no-op で null を返し、画面を落とさない
   /// （PoC/UI 確認では warmup はサーバー責務のため何もしない）。失敗時も例外を投げず null。
   Future<WarmupClaimResult?> claimWarmupIfNeeded(int day) async {
-    if (!Env.hasSupabase || !_ref.read(isOnlineProvider)) {
+    // ⚠️ `useSupabase` であること（`hasSupabase` ではない）。FORCE_MOCK のプレビュー配信は
+    //    Supabase 設定を持つため hasSupabase では倒れず、残高はモック表示のまま
+    //    **実サーバーの fn_claim_warmup を叩いて生涯1回のウォームアップ枠を焼き切る**。
+    //    同クラスの loadServerSnapshot は useSupabase で正しくモックに倒れており、
+    //    ここだけ判定が食い違っていた（daily_submission.dart:129-131 の明文ルール）。
+    if (!Env.useSupabase || !_ref.read(isOnlineProvider)) {
       return null; // Mock/オフラインは no-op（サーバー責務）。
     }
     try {

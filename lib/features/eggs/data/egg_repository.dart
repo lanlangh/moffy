@@ -454,7 +454,8 @@ class SupabaseEggRepository implements EggRepository {
 }
 
 /// 卵リポジトリの DI（ARCHITECTURE §1-3）。テストでは override 可能。
-/// Supabase 設定済み（Env.hasSupabase）なら本実装、未設定/PoC時はモックにフォールバック。
+/// 実バックエンドを使う設定（Env.useSupabase）なら本実装、未設定/PoC/FORCE_MOCK時は
+/// モックにフォールバック（分岐は元から useSupabase。コメントだけ古かった）。
 final eggRepositoryProvider = Provider<EggRepository>((ref) {
   if (Env.useSupabase) {
     return SupabaseEggRepository(ref, ref.read(supabaseClientProvider));

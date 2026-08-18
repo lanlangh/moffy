@@ -38,7 +38,9 @@ class WarmupTracker {
   WarmupTracker();
 
   /// 初回起動日（ISO8601・日付のみ）の保存キー。
-  static const String _firstLaunchKey = 'warmup_first_launch_v1';
+  /// 初回起動日（ISO8601・日付のみ）の保存キー。退会時のローカル初期化
+  /// （core/local/local_reset.dart）が参照するため公開する。
+  static const String firstLaunchPrefsKey = 'warmup_first_launch_v1';
 
   /// 初回起動日を取得する。未記録なら [now] を初回起動日として記録して返す。
   ///
@@ -46,14 +48,14 @@ class WarmupTracker {
   Future<DateTime> firstLaunchDate(DateTime now) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final stored = prefs.getString(_firstLaunchKey);
+      final stored = prefs.getString(firstLaunchPrefsKey);
       if (stored != null) {
         final parsed = DateTime.tryParse(stored);
         if (parsed != null) return parsed;
       }
       // 初回: 当日を暦日で記録（時刻成分は持たない）。
       final today = DateTime(now.year, now.month, now.day);
-      await prefs.setString(_firstLaunchKey, today.toIso8601String());
+      await prefs.setString(firstLaunchPrefsKey, today.toIso8601String());
       return today;
     } catch (e, st) {
       // 永続化に失敗しても体験を止めない（Day1 相当の now を返す）。

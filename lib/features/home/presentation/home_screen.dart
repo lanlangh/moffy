@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
+import '../../../core/usage/usage_models.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../paywall/presentation/paywall_screen.dart';
@@ -122,15 +123,29 @@ class _HomeBody extends StatelessWidget {
                 ),
 
                 // 対象4アプリ別の利用時間（権限ありかつ取得済みのみ）。
+                // ⚠️ アプリ別内訳が取れるのは Android（exactMinutes）だけ。iOS は
+                //    アプリを識別できず全アプリ0分のチップが4枚並んでいた
+                //    （削減できているのに「0分」と出る嘘 / docs/IOS_SCREENTIME.md）。
+                //    Platform.isIOS ではなく計測モードで分岐する（Web/テストでも壊れない）。
                 if (!state.isPermissionMissing &&
                     !state.isWarmup &&
                     state.todayUsage != null) ...[
-                  Text('アプリ別', style: AppType.bodyStrong),
-                  const SizedBox(height: AppSpace.sm),
-                  AppUsageChips(
-                    perAppMinutes: state.todayUsage!.perAppMinutes,
-                  ),
-                  const SizedBox(height: AppSpace.lg),
+                  if (state.todayUsage!.mode == UsageMode.exactMinutes) ...[
+                    Text('アプリ別', style: AppType.bodyStrong),
+                    const SizedBox(height: AppSpace.sm),
+                    AppUsageChips(
+                      perAppMinutes: state.todayUsage!.perAppMinutes,
+                      mode: state.todayUsage!.mode,
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                  ] else ...[
+                    Text(
+                      'iPhoneではスクリーンタイムの仕組み上、アプリごとの内訳は取得できません。'
+                      '合計時間だけを見ています。',
+                      style: AppType.caption,
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                  ],
                 ],
                 // 「卵を育てる」CTAは撤去（下タブ「たまご」＋空状態の「卵をセットする」と
                 // 重複していたため / ユーザーFB）。育成はたまごタブに集約。

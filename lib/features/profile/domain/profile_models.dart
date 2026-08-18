@@ -52,7 +52,8 @@ class ProfileStats {
   /// 図鑑達成率の分子（発見済みエントリ数）。
   final int dexDiscovered;
 
-  /// 図鑑総数（分母 / app_config.dex_total_entries = 30）。
+  /// 図鑑総数（分母 / app_config.dex_total_entries = 40。0008 で 30→40 に更新済み
+  /// ＝20種×2色。collection 画面の分母と同じ値を使う）。
   final int dexTotal;
 
   /// 最長ストリーク（streaks.longest_streak / S14）。
@@ -90,7 +91,17 @@ class ProfileStats {
 
 /// プロフィール画面のスナップショット（統計 + アカウント状態 + オフライン）。
 class ProfileState {
-  final ProfileStats stats;
+  /// 統計。**null = 取得できていない**（オフライン / RPC失敗 / 0014未適用）。
+  ///
+  /// ⚠️ 統計の取得失敗を画面全体の失敗にしてはいけない。メニューには
+  /// アカウント削除（S12 / 審査必須）・プライバシーポリシー・利用規約・
+  /// 特定商取引法に基づく表記が同居しており、統計が無いという理由でそれらへの
+  /// 到達を断つと審査要件を満たせなくなる（v1.1 で作り込んだ退行の再発防止）。
+  ///
+  /// ⚠️ 0 埋めで代用してもいけない。[ProfileStats.isFresh] が真になり、
+  /// 実績のあるユーザーに「これから記録を集めていきましょう」と嘘をつく。
+  final ProfileStats? stats;
+
   final AccountState account;
 
   /// オフライン中か（連携・退会導線をグレーアウト / S10,S12）。

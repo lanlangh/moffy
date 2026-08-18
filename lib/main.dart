@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/ads/ads.dart';
+import 'core/auth/auth_session.dart';
 import 'core/config/env.dart';
 import 'core/observability/crash_reporter.dart';
 import 'core/observability/log.dart';
@@ -37,10 +38,8 @@ Future<void> main() async {
       // これが無いと warmup卵・クエスト等のサーバー機能が unauthorized(28000) で失敗し、
       // 「空の巣」「クエスト画面エラー」になる。セッションは supabase_flutter が永続化するため
       // 初回のみサインインし、以降は currentSession で再利用する（匿名ユーザーは端末ごとに1人）。
-      if (client.auth.currentSession == null) {
-        await client.auth.signInAnonymously();
-        Log.d('anonymous sign-in completed');
-      }
+      // 実体は AuthSession に集約（認証状態を変える操作を散らさない / S12 退会と共通の入口）。
+      await AuthSession.ensureAnonymous(client);
       Log.d('Supabase initialized (session ready)');
     } catch (e, st) {
       // 初期化/認証失敗でもアプリは起動させる（オフライン専用 / クラッシュさせない）。

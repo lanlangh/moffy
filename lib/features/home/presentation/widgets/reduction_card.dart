@@ -20,12 +20,14 @@ class ReductionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 権限なし: 削減カードのみフォールバック（卵/通貨は通常表示 / §5-1）。
+    // 【5.1.1(iv)】ここもボタンを押すと OS の権限要求が出る導線なので、
+    // オンボと同じくアプリ側が「許可」を促す語を使わない（Apple 指定は Continue/Next 相当）。
     if (state.isPermissionMissing) {
       return AppCard(
         child: ErrorView(
           message: '時間を計るには「使用状況へのアクセス」の許可が必要です。'
               '許可すると今日の削減ポイントが計算されます。',
-          retryLabel: '許可する',
+          retryLabel: '続ける',
           onRetry: onRequestPermission,
           compact: true,
         ),

@@ -313,9 +313,11 @@ class SupabaseQuestRepository implements QuestRepository {
 }
 
 /// クエストリポジトリの DI（ARCHITECTURE §1-3）。テストでは override 可能。
-/// Supabase 設定済みなら本実装、未設定/PoC時はモックにフォールバック。
+/// 実バックエンドを使う設定なら本実装、未設定/PoC/FORCE_MOCK時はモックにフォールバック
+/// （`hasSupabase` ではなく `useSupabase`: プレビューの受取要求が本番の報酬付与
+/// RPC を叩かないようにする / daily_submission.dart:129-131）。
 final questRepositoryProvider = Provider<QuestRepository>((ref) {
-  if (Env.hasSupabase) {
+  if (Env.useSupabase) {
     return SupabaseQuestRepository(ref, ref.read(supabaseClientProvider));
   }
   return MockQuestRepository(ref);

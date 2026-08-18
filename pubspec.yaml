@@ -2,7 +2,16 @@ name: moffy
 description: "Moffy - SNS利用時間を削減してかわいいMofiを育てる収集ゲーム"
 publish_to: "none"
 # version は <semver>+<buildNumber>。CIで buildNumber を付け替える運用。
-version: 1.0.2+1
+# v1.1: バグ修正の本丸（クエストの不正達成封鎖 / メニュー統計の実データ化 /
+# 消えていた削減ptの修復 / 退会後の着地 / iOS対象アプリの再選択導線）。
+# ⚠️ 前半（build-name）は App Store Connect の versionString と一致させること。
+#    ASC には 1.0.3 の下書きが既にあり（Apple のサブスク調査で作成済み・
+#    下書きは同時に1つしか持てない）、v1.1 はその下書きに載せる。
+#    内容が「バグ修正」の域を超えて機能が動き出すため 1.1.0 とし、
+#    ASC 側は下書きの versionString を 1.0.3 → 1.1.0 に書き換える（下書きなら変更可）。
+# ⚠️ 後半（build-number）は CI が --build-number=${{ github.run_number }} で上書きする。
+#    ここの +1 はローカル実行時の既定値でしかない。
+version: 1.1.1+1
 
 environment:
   # Dart 3 系 / Flutter 3.22 以降を前提（後日SDK導入時にこの範囲で固定）
