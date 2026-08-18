@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/tokens.dart';
+import '../../../../core/usage/usage_models.dart';
 import '../../../../core/widgets/common_widgets.dart';
 import '../../../../core/widgets/state_views.dart';
 import '../../domain/home_state.dart';
@@ -20,15 +23,37 @@ class ReductionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 権限なし: 削減カードのみフォールバック（卵/通貨は通常表示 / §5-1）。
+    //
     // 【5.1.1(iv)】ここもボタンを押すと OS の権限要求が出る導線なので、
-    // オンボと同じくアプリ側が「許可」を促す語を使わない（Apple 指定は Continue/Next 相当）。
+    // アプリ側が「許可」を促す語を使わない（Apple 指定は Continue/Next 相当）。
+    //
+    // 【B-4 / B-5 / B-9 第三者レビュー指摘】以前はここに OS 分岐が無く、
+    //   * iOS のユーザーにも Android 専用の設定名「使用状況へのアクセス」を出していた
+    //     （iOS にその設定は存在しない）
+    //   * 恒久拒否（iOS で一度拒否すると OS は二度と確認画面を出さない）でも
+    //     ボタンを出しており、**押しても何も起きない**状態だった
+    // ＝「続ける」と書いてあるのに前進しない。押せないボタンは出荷しない。
     if (state.isPermissionMissing) {
+      final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+      final permanent =
+          state.permission == UsagePermissionStatus.permanentlyDenied;
       return AppCard(
         child: ErrorView(
-          message: '時間を計るには「使用状況へのアクセス」の許可が必要です。'
-              '許可すると今日の削減ポイントが計算されます。',
-          retryLabel: '続ける',
-          onRetry: onRequestPermission,
+          message: permanent
+              ? (isIOS
+                  ? '計測を再開するには、端末の「設定 > スクリーンタイム」で'
+                      'Moffy を有効にしてください。'
+                  : '計測を再開するには、端末の設定の「使用状況へのアクセス」で'
+                      'Moffy を有効にしてください。')
+              : (isIOS
+                  ? '時間を計るにはスクリーンタイムの利用が必要です。'
+                      '有効にすると今日の削減ポイントが計算されます。'
+                  : '時間を計るには「使用状況へのアクセス」が必要です。'
+                      '有効にすると今日の削減ポイントが計算されます。'),
+          // 恒久拒否では OS 要求が出ないので、ボタン自体を出さない
+          // （ErrorView は onRetry=null でボタンを描画しない）。案内文だけ残す。
+          retryLabel: isIOS ? '続ける' : '設定を開く',
+          onRetry: permanent ? null : onRequestPermission,
           compact: true,
         ),
       );
