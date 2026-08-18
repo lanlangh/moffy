@@ -1,3 +1,8 @@
+[Version 1.1.1]
+This build resolves the Guideline 5.1.1(iv) issue from 1.1.0. On the screen before
+the Screen Time permission request, the button is now "Next" (was "Allow"), and the
+"Set up later" option was removed so the user always proceeds to the system request.
+
 【Family Controls / Screen Time の用途について】
 
 本アプリは、ユーザー自身が「減らしたい」と選んだアプリの利用削減量を、
