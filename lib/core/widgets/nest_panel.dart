@@ -149,6 +149,7 @@ class NestPanel extends StatelessWidget {
     this.dimmed = false,
     this.caption,
     this.footer,
+    this.showWorldBackground = false,
   });
 
   /// 中央被写体（卵/Mofi/空枠アイコン）。
@@ -163,8 +164,29 @@ class NestPanel extends StatelessWidget {
   /// パネル下部に置く要素（プログレスバー等）。
   final Widget? footer;
 
+  /// 砂色ベタの代わりに「Moffy の世界」の風景を敷くか。
+  ///
+  /// 既定 false。**ホームの主役パネルだけ true** にする。NestPanel はたまご画面・
+  /// 詳細シート・ペイウォールでも使われており、全部に背景が付くと情報画面が読みにくくなる。
+  /// false のままなら見た目は一切変わらない＝**この機能を丸ごと戻すのは1行**。
+  final bool showWorldBackground;
+
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      children: [
+        if (caption != null) ...[
+          caption!,
+          const SizedBox(height: AppSpace.md),
+        ],
+        NestRing(diameter: diameter, glow: glow, dimmed: dimmed, child: subject),
+        if (footer != null) ...[
+          const SizedBox(height: AppSpace.lg),
+          footer!,
+        ],
+      ],
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
@@ -172,21 +194,56 @@ class NestPanel extends StatelessWidget {
         horizontal: AppSpace.lg,
       ),
       decoration: const BoxDecoration(
+        // 画像を読めなかったときの地でもある（= フォールバックが既定の見た目に戻る）。
         color: AppColors.surfaceNest,
         borderRadius: AppRadius.lgR,
       ),
-      child: Column(
-        children: [
-          if (caption != null) ...[
-            caption!,
-            const SizedBox(height: AppSpace.md),
-          ],
-          NestRing(diameter: diameter, glow: glow, dimmed: dimmed, child: subject),
-          if (footer != null) ...[
-            const SizedBox(height: AppSpace.lg),
-            footer!,
-          ],
-        ],
+      // 背景画像を角丸からはみ出させない。
+      clipBehavior: showWorldBackground ? Clip.antiAlias : Clip.none,
+      child: showWorldBackground
+          ? Stack(
+              alignment: Alignment.center,
+              children: [
+                const Positioned.fill(child: _WorldBackground()),
+                content,
+              ],
+            )
+          : content,
+    );
+  }
+}
+
+/// ホーム主役パネルの背景（風景 + 下端を砂色へ溶かすスクリム）。
+///
+/// スクリムが要る理由: 下端には進捗バーと「68%」の文字が乗る。草地の上に直接置くと
+/// コントラストが落ちて読みにくい。**下へいくほど砂色に戻す**ことで、
+/// 文字は今までどおりの地の上に乗り、風景は卵の後ろだけで効く。
+class _WorldBackground extends StatelessWidget {
+  const _WorldBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    // 表示解像度でデコードする。元画像は 1254px 角あり、指定しないと
+    // 端末に関係なくフルサイズの GPU テクスチャが常駐する。
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final w = MediaQuery.sizeOf(context).width;
+    return ShaderMask(
+      shaderCallback: (rect) => const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        // 上半分はそのまま、下へいくほど透明にしてパネルの砂色を出す。
+        colors: [Colors.white, Colors.white, Colors.transparent],
+        stops: [0.0, 0.55, 1.0],
+      ).createShader(rect),
+      blendMode: BlendMode.dstIn,
+      child: Image.asset(
+        'assets/images/bg/home_stage.jpg',
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+        filterQuality: FilterQuality.medium,
+        cacheWidth: (w * dpr).round(),
+        // 画像が無い/壊れている場合は何も描かない = 従来どおりの砂色パネルになる。
+        errorBuilder: (context, error, stack) => const SizedBox.shrink(),
       ),
     );
   }

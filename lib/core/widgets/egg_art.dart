@@ -30,6 +30,7 @@ class EggArt extends StatelessWidget {
     required this.rarity,
     this.progress = 0,
     this.size = 120,
+    this.animated = false,
   });
 
   final RarityToken rarity;
@@ -40,10 +41,16 @@ class EggArt extends StatelessWidget {
   /// 描画サイズ（NestRing 内では FittedBox で拡縮される）。
   final double size;
 
+  /// 「生きている」動きを付けるか（[_LivingEgg]）。
+  ///
+  /// 既定 false。**ホームの主役卵だけ true** にする想定で、図鑑グリッドのように
+  /// 同時に何個も並ぶ場所では付けない（ティッカーが個数分走って無駄になる）。
+  final bool animated;
+
   @override
   Widget build(BuildContext context) {
     final p = progress.clamp(0.0, 1.0);
-    return SizedBox(
+    final still = SizedBox(
       width: size,
       height: size,
       child: Stack(
@@ -64,6 +71,88 @@ class EggArt extends StatelessWidget {
             CustomPaint(painter: _CrackOverlayPainter(progress: p)),
         ],
       ),
+    );
+    if (!animated) return still;
+    // OS の「視差効果を減らす」を尊重する（アクセシビリティ。審査でも見られる項目）。
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return still;
+    return _LivingEgg(progress: p, child: still);
+  }
+}
+
+/// 卵に「生きている」感じを与える動き。
+///
+/// なぜ要るか: ホームの卵は静止画で、**数字を読まないと育っているのか止まっているのか
+/// 分からなかった**。育成アプリとしてここが一番弱い。動きで「読まなくても分かる」状態にする。
+///
+/// 進捗で動きを切り替える（しきい値はヒビ表示と同じ [_crackStartThreshold] を使い回す。
+/// 新しいマジックナンバーを作らない＝見た目と動きが必ず一致する）:
+///   * ヒビ前: ゆっくり呼吸（scale）。「生きている・順調」
+///   * ヒビ後: 左右にゆれる（rotate）。「もうすぐ孵る」
+///
+/// 電池: タブは `StatefulShellRoute.indexedStack` で裏に残るが、go_router が非アクティブ枝を
+/// `TickerMode(enabled: false)` で包むためティッカーは止まる。アプリがバックグラウンドに
+/// 入ればエンジンがフレーム生成を止める。＝常時描画にはならない。
+class _LivingEgg extends StatefulWidget {
+  const _LivingEgg({required this.progress, required this.child});
+
+  final double progress;
+  final Widget child;
+
+  @override
+  State<_LivingEgg> createState() => _LivingEggState();
+}
+
+class _LivingEggState extends State<_LivingEgg>
+    with SingleTickerProviderStateMixin {
+  /// 呼吸はゆっくり、ゆれは速い。人が「息」と「そわそわ」を区別できる速度差にする。
+  static const _breathe = Duration(milliseconds: 2600);
+  static const _wobble = Duration(milliseconds: 700);
+
+  static Duration _durationFor(double p) =>
+      p >= _crackStartThreshold ? _wobble : _breathe;
+
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: _durationFor(widget.progress),
+  )..repeat(reverse: true);
+
+  @override
+  void didUpdateWidget(covariant _LivingEgg old) {
+    super.didUpdateWidget(old);
+    // ポイントが入ってヒビが入った瞬間に、呼吸 → ゆれ へ切り替える。
+    final next = _durationFor(widget.progress);
+    if (_c.duration != next) {
+      _c.duration = next;
+      _c.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cracked = widget.progress >= _crackStartThreshold;
+    return AnimatedBuilder(
+      animation: _c,
+      // child を外から渡すのが要点。毎フレーム作り直されるのは Transform だけで、
+      // 中身（画像 + ヒビの CustomPaint）は再構築されない。
+      child: widget.child,
+      builder: (context, child) {
+        final t = Curves.easeInOut.transform(_c.value);
+        if (!cracked) {
+          return Transform.scale(scale: 0.985 + 0.03 * t, child: child);
+        }
+        // 巣に接している底を支点にする。中心で回すと卵が巣から浮いて見える。
+        return Transform.rotate(
+          angle: (t - 0.5) * 0.05, // ±約1.4°
+          alignment: Alignment.bottomCenter,
+          child: child,
+        );
+      },
     );
   }
 }

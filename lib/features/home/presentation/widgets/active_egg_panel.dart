@@ -26,6 +26,7 @@ class ActiveEggPanel extends StatelessWidget {
     if (egg == null) {
       return NestPanel(
         diameter: 160,
+        showWorldBackground: true,
         subject: const EmptyNestEgg(),
         caption: Text('巣が空いています', style: AppType.title),
         footer: Column(
@@ -49,12 +50,14 @@ class ActiveEggPanel extends StatelessWidget {
     final rarity = _rarityToken(egg.rarityLabel);
     return NestPanel(
       diameter: 180,
+      showWorldBackground: true,
       glow: egg.isNearHatch ? rarity.glow : null,
       caption: Text(
         egg.remaining > 0 ? '孵化まであと ${egg.remaining}pt' : 'まもなく孵化',
         style: AppType.title,
       ),
-      subject: EggArt(rarity: rarity, progress: egg.progress),
+      // ホームの主役卵だけ動かす（図鑑グリッド等は静止のまま）。
+      subject: EggArt(rarity: rarity, progress: egg.progress, animated: true),
       footer: Column(
         children: [
           GrowthProgressBar(value: egg.progress),
