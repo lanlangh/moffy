@@ -687,9 +687,12 @@ class _HatchedStage extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final stageHeight = math.min(size.width * 1.15, size.height * 0.58);
     // 進化した回は大きく見せる（オーナー要望 2026-08-19）。
-    // 姿が変わったことを、並べて比べなくても分かるようにする。
+    // 1.28倍では「大きくなったと思えない」と言われたので、
+    // **はみ出さない上限いっぱい**まで使う。
+    // 文字・余白の取り分(約145px)を引いた残りが、巣が置ける最大。
     final base = ((stageHeight - 180) / 1.12).clamp(96.0, 210.0);
-    final ringDiameter = justEvolved ? base * 1.28 : base;
+    final maxFit = ((stageHeight - 145) / 1.12).clamp(96.0, 320.0);
+    final ringDiameter = justEvolved ? math.min(base * 1.6, maxFit) : base;
     final rarity = RarityVisuals.ofMofi(result.species.rarity);
 
     return SizedBox(
@@ -718,7 +721,7 @@ class _HatchedStage extends StatelessWidget {
                       if (justEvolved) ...[
                         const SizedBox(height: 2),
                         Text(
-                          '進化！ おとなのすがたに',
+                          '進化しました！',
                           style: AppType.caption
                               .copyWith(color: AppColors.primaryDeep),
                         ),

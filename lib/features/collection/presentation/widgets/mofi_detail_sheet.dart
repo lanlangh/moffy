@@ -105,6 +105,12 @@ class MofiDetailSheet extends StatelessWidget {
             if (discovered) ...[
               _DetailRow(label: 'レアリティ', value: entry.species.rarity.label),
               _DetailRow(label: '種族', value: entry.species.family.label),
+              // 進化ライン（docs/EVOLUTION.md §5。仕様にあったが未実装だった）。
+              // 進化すると こどもの姿が二度と見られないのは収集ゲームとして
+              // もったいない、というオーナー指摘への対応でもある。
+              const SizedBox(height: AppSpace.md),
+              _EvolutionLine(entry: entry, stage2Count: stage2Count),
+              const SizedBox(height: AppSpace.md),
               _DetailRow(
                 label: '進化',
                 value: entry.evolutionStage(stage2Count) >= 2
@@ -148,6 +154,103 @@ class MofiDetailSheet extends StatelessWidget {
 }
 
 /// ボトムシート上端のつまみ（共通の見た目）。
+/// 進化ライン（こども → おとな）。
+///
+/// `docs/EVOLUTION.md` §5 に「詳細シートに進化ラインを表示」と書かれていたが
+/// 未実装だった。実装すると両方向に効く:
+///   * 進化済み → **前の姿も見られる**（集めた記録として残る。進化すると
+///     こどもの姿が二度と見られないのは、収集ゲームとしてもったいない）
+///   * 未進化   → **これから何になるかが分かる**（同じ子を集める動機）
+///
+/// ただし未進化のときに完成形をそのまま見せるとネタバレになるので、
+/// おとなの姿は**シルエット**にする（図鑑の未発見と同じ扱い）。
+class _EvolutionLine extends StatelessWidget {
+  const _EvolutionLine({required this.entry, required this.stage2Count});
+
+  final MofiDexEntry entry;
+  final int stage2Count;
+
+  @override
+  Widget build(BuildContext context) {
+    final evolved = entry.evolutionStage(stage2Count) >= 2;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _EvolutionStep(
+          entry: entry,
+          stage: 1,
+          label: 'こども',
+          silhouette: false,
+          dimmed: evolved, // 進化後は「今の姿」でない側を控えめに
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+          child: Icon(
+            Icons.arrow_forward_rounded,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        _EvolutionStep(
+          entry: entry,
+          stage: 2,
+          label: evolved ? 'おとな' : '？？？',
+          // 未進化のうちは完成形を伏せる（発見の驚きを先に漏らさない）。
+          silhouette: !evolved,
+          dimmed: !evolved,
+        ),
+      ],
+    );
+  }
+}
+
+class _EvolutionStep extends StatelessWidget {
+  const _EvolutionStep({
+    required this.entry,
+    required this.stage,
+    required this.label,
+    required this.silhouette,
+    required this.dimmed,
+  });
+
+  final MofiDexEntry entry;
+  final int stage;
+  final String label;
+  final bool silhouette;
+  final bool dimmed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Opacity(
+          opacity: dimmed ? 0.55 : 1.0,
+          child: SizedBox(
+            width: 64,
+            height: 64,
+            child: MofiSubject(
+              speciesId: entry.species.id,
+              family: entry.species.family,
+              rarity: entry.species.rarity,
+              stage: stage,
+              silhouette: silhouette,
+              isShiny: entry.isShiny,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpace.xs),
+        Text(
+          label,
+          style: AppType.caption.copyWith(
+            color: dimmed ? AppColors.textSecondary : AppColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SheetGrip extends StatelessWidget {
   const _SheetGrip();
 

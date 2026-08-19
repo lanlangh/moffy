@@ -322,7 +322,7 @@ class _ResultView extends StatelessWidget {
                 borderRadius: AppRadius.pillR,
               ),
               child: Text(
-                '進化！　おとなのすがたに',
+                '進化しました！',
                 style: AppType.bodyStrong
                     .copyWith(color: AppColors.onPrimary),
               ),
