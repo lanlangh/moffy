@@ -686,7 +686,10 @@ class _HatchedStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final stageHeight = math.min(size.width * 1.15, size.height * 0.58);
-    final ringDiameter = ((stageHeight - 180) / 1.12).clamp(96.0, 210.0);
+    // 進化した回は大きく見せる（オーナー要望 2026-08-19）。
+    // 姿が変わったことを、並べて比べなくても分かるようにする。
+    final base = ((stageHeight - 180) / 1.12).clamp(96.0, 210.0);
+    final ringDiameter = justEvolved ? base * 1.28 : base;
     final rarity = RarityVisuals.ofMofi(result.species.rarity);
 
     return SizedBox(
@@ -715,7 +718,7 @@ class _HatchedStage extends StatelessWidget {
                       if (justEvolved) ...[
                         const SizedBox(height: 2),
                         Text(
-                          '進化！ アダルトになった',
+                          '進化！ おとなのすがたに',
                           style: AppType.caption
                               .copyWith(color: AppColors.primaryDeep),
                         ),

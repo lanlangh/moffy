@@ -84,9 +84,11 @@ class _HatchOverlayState extends State<HatchOverlay>
     vsync: this,
     duration: const Duration(milliseconds: 600),
   );
+  /// 進化到達の回は光を長く見せる。尺が同じだと通常の孵化と区別がつかず、
+  /// 「何日もかけた到達点」という手応えが出ない（オーナー指摘 2026-08-19）。
   late final AnimationController _reveal = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: Duration(milliseconds: widget.justEvolved ? 1600 : 900),
   );
 
   /// 演出フェーズ。shaking（卵が揺れる）→ revealed（Mofi登場 + 結果）。
@@ -184,6 +186,19 @@ class _HatchOverlayState extends State<HatchOverlay>
                     )
                   : _ShakingEgg(animation: _shake, rarity: eggToken),
             ),
+            // 進化到達だけの光。色違い演出とは別の画にして、
+            // 「色違い」と「進化」の喜びを取り違えさせない。
+            if (_revealed && widget.justEvolved)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _reveal,
+                    builder: (context, _) => CustomPaint(
+                      painter: _EvolveBurstPainter(progress: _reveal.value),
+                    ),
+                  ),
+                ),
+              ),
             // 色違いキラリ演出: 割れる瞬間のホワイトフラッシュ + 虹粒子。
             if (_revealed && isShiny)
               Positioned.fill(
@@ -307,7 +322,7 @@ class _ResultView extends StatelessWidget {
                 borderRadius: AppRadius.pillR,
               ),
               child: Text(
-                '進化！　アダルトになった',
+                '進化！　おとなのすがたに',
                 style: AppType.bodyStrong
                     .copyWith(color: AppColors.onPrimary),
               ),
@@ -488,6 +503,70 @@ class _HatchShareCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 進化到達のときだけ流す光の演出。
+///
+/// なぜ要るか（オーナー指摘 2026-08-19「進化の演出が同じなので、もう少し派手に」）:
+///   進化は「同じ子を3体そろえた」という**何日もかけた到達点**なのに、
+///   通常の孵化とまったく同じ画で終わっていた。一番うれしい瞬間が埋もれていた。
+///
+/// 色違い演出（[_ShinySparklePainter]）とは意図的に別の画にしてある。
+/// 同じ絵にすると「色違い」と「進化」の区別がつかず、どちらの喜びも薄まるため:
+///   * 色違い = 細かい虹の粒子（レアさ＝きらめき）
+///   * 進化   = **中心から広がる同心円の波と放射光**（成長＝内側から外へ）
+class _EvolveBurstPainter extends CustomPainter {
+  const _EvolveBurstPainter({required this.progress});
+
+  /// 0..1。_reveal の進行に同期する。
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0) return;
+    final center = Offset(size.width / 2, size.height * 0.42);
+    final maxR = size.longestSide * 0.62;
+
+    // ① 広がる同心円の波を3枚、時間差で。「内側から外へ育つ」感じを出す。
+    for (var i = 0; i < 3; i++) {
+      final delay = i * 0.16;
+      final t = ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
+      if (t <= 0) continue;
+      final r = maxR * Curves.easeOutCubic.transform(t);
+      final fade = (1 - t).clamp(0.0, 1.0);
+      canvas.drawCircle(
+        center,
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.0 * fade + 0.5
+          ..color = AppColors.primary.withValues(alpha: 0.45 * fade),
+      );
+    }
+
+    // ② 放射光。回転させず、太さと長さだけ変える（派手だが騒がしくならない）。
+    const rays = 12;
+    final rayT = Curves.easeOutCubic.transform(progress);
+    final fade = (1 - progress).clamp(0.0, 1.0);
+    final paint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..color = AppColors.primary.withValues(alpha: 0.35 * fade);
+    for (var i = 0; i < rays; i++) {
+      final a = (math.pi * 2 / rays) * i;
+      final inner = maxR * 0.18 * rayT;
+      final outer = maxR * (0.35 + 0.55 * rayT);
+      paint.strokeWidth = 6.0 * fade + 1;
+      canvas.drawLine(
+        center + Offset(math.cos(a) * inner, math.sin(a) * inner),
+        center + Offset(math.cos(a) * outer, math.sin(a) * outer),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _EvolveBurstPainter old) =>
+      old.progress != progress;
 }
 
 /// 色違い専用「キラリ」: 巣リングから舞う虹色粒子 + ホワイトフラッシュ（S13）。

@@ -108,10 +108,10 @@ class MofiDetailSheet extends StatelessWidget {
               _DetailRow(
                 label: '進化',
                 value: entry.evolutionStage(stage2Count) >= 2
-                    ? 'アダルト（進化済み）'
+                    ? 'おとな（進化済み）'
                     : (entry.toNextEvolution(stage2Count) > 0
-                        ? 'ベビー・あと${entry.toNextEvolution(stage2Count)}体で進化'
-                        : 'ベビー'),
+                        ? 'こども・あと${entry.toNextEvolution(stage2Count)}体で進化'
+                        : 'こども'),
               ),
               _DetailRow(
                 label: '色違い',
