@@ -26,14 +26,22 @@ for (const [k, v] of Object.entries({ ASC_KEY_ID: KEY_ID, ASC_ISSUER_ID: ISSUER_
 // Metadata to set (ja). Confirmed 2026-07-15. iOS v1.0 = no ads -> no "ad-free"
 // bullet in the description.
 // ---------------------------------------------------------------------------
+// ⚠️ このスクリプトを起動するワークフローは存在しない（2026-08-19 時点）。
+// 実行手段が無いまま定数だけが古くなると、将来誰かが動かしたときに
+// tools/asc/ios_store_*.txt 側の最新版を**巻き戻す**地雷になる。
+// そのため下の定数は .txt と同じ内容に揃えてある。片方だけ直さないこと。
+// keywords / promotionalText / description / whatsNew の正は **.txt ファイル**で、
+// 実際に流し込むのは asc_prepare_version.mjs（asc-prepare-version.yml）。
 const META_JA = {
-  // appInfoLocalizations
-  name: 'Moffy - SNS減らして卵を育てる',
-  subtitle: 'スマホ時間でかわいいキャラを収集',
+  // appInfoLocalizations（=名前とサブタイトル。バージョンではなく App 単位）
+  // 「モフィ」はここにしか置けない: App Store の検索は説明文をインデックスしないため、
+  // カタカナで検索したユーザーに届く唯一の場所が name / subtitle / keywords の3つ。
+  name: 'Moffy（モフィ）- SNS減らして卵を育てる',
+  subtitle: 'スクリーンタイムが、かわいい図鑑になる育成ゲーム',
   privacyPolicyUrl: 'https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a805f8af3d7c7b8ee5753',
   // appStoreVersionLocalizations
-  keywords: 'スクリーンタイム,スマホ依存,デジタルデトックス,習慣化,集中,勉強,ポモドーロ,タイマー,育成ゲーム,コレクション,ペット,たまご,図鑑,癒し,時間管理,記録,やめたい,SNS断ち,モンスター',
-  promotionalText: 'かわいいMofiを集めながら、スマホ時間を"ごほうび"に。減らした時間で卵が育ち、孵化して図鑑が埋まる習慣化ゲーム。今日からあなただけのMofiコレクションを始めよう。',
+  keywords: 'スマホ依存,デジタルデトックス,習慣化,集中,勉強,コレクション,ペット,たまご,色違い,癒し,時間管理,記録,やめたい,夜スマホ,SNS断ち,ごほうび,我慢,使いすぎ,見すぎ,スマホ制限,スマホ断ち',
+  promotionalText: '卵が動くようになりました。育つほど呼吸が変わり、ヒビが入ると揺れはじめます。Moffyは、制限じゃなく、ごほうび型の育成×収集ゲーム。ふだん（直近7日の平均）より減らせた分が、Mofiを集めるポイントになります。図鑑は全40ページ、出現率1/50の色違いには専用イラストも。',
   supportUrl: 'https://mud-nectarine-0f9.notion.site/Moffy-38a1efa9943a80a8b569d2102a2eb48a', // 特商法ページ（連絡先あり）
   description: `スマホを見すぎる毎日を、責めずに変える。
 Moffy（モフィ）は、SNSを見ない時間が「かわいいキャラ集め」のごほうびになる育成×収集ゲームです。
