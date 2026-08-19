@@ -347,9 +347,9 @@ class _EggStage extends StatelessWidget {
               ),
               // 上端: AppBar 側の地色へ溶かす（画面の途中から急に絵が始まらない）。
               // 下端: 下のカード群の地色へ溶かす（角で切れた板に見えない）。
-              Positioned.fill(
+              const Positioned.fill(
                 child: DecoratedBox(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
