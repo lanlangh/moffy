@@ -20,12 +20,20 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
-const [, , P8, KEY_ID, ISSUER, MODE = 'list', KEEP_RAW = '1'] = process.argv;
+const [, , P8, KEY_ID, ISSUER, MODE = 'list', KEEP_RAW = '1', IDS_RAW = ''] =
+  process.argv;
 if (!P8 || !KEY_ID || !ISSUER) {
   console.error('args: <p8> <keyId> <issuerId> [list|revoke] [keep]');
   process.exit(2);
 }
 const KEEP = Math.max(1, Number.parseInt(KEEP_RAW, 10) || 1);
+/// 失効する証明書を**ID で明示指定**する（カンマ区切り）。空なら keep 方式。
+///
+/// なぜ要るか（2026-08-19）: このアカウントには Moffy 以外に4アプリがあり、
+/// 開発証明書はアカウント単位なので**他アプリのCIが作ったものが混ざる**。
+/// 「古い順に消す」だと他アプリの証明書を巻き込む。Moffy のビルド時刻と
+/// 突き合わせて特定した ID だけを消せるようにする。
+const IDS = IDS_RAW.split(',').map((x) => x.trim()).filter(Boolean);
 
 const b64url = (b) =>
   Buffer.from(b).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -94,8 +102,16 @@ const isDevelopment = (type) => String(type || '').toUpperCase().includes('DEVEL
     .filter((c) => isDevelopment(c.type))
     // 期限が新しい = 直近に発行された。新しい順に並べ、先頭 KEEP 本を残す。
     .sort((a, b) => String(b.expires).localeCompare(String(a.expires)));
-  const keep = dev.slice(0, KEEP);
-  const target = dev.slice(KEEP);
+  // ID 指定があればそれだけを対象にする（他アプリの証明書を巻き込まないため）。
+  const keep = IDS.length > 0 ? dev.filter((c) => !IDS.includes(c.id)) : dev.slice(0, KEEP);
+  const target = IDS.length > 0 ? dev.filter((c) => IDS.includes(c.id)) : dev.slice(KEEP);
+  if (IDS.length > 0) {
+    const missing = IDS.filter((id) => !dev.some((c) => c.id === id));
+    if (missing.length > 0) {
+      console.error('❌ 指定IDが見つからない(または開発証明書でない): ' + missing.join(','));
+      process.exit(1);
+    }
+  }
 
   console.log('');
   console.log(`開発証明書 ${dev.length} 件 / 残す ${keep.length} 件 / 失効対象 ${target.length} 件`);

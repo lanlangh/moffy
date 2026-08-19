@@ -18,9 +18,14 @@ on:
         type: choice
         options: [list, revoke]
       keep:
-        description: "残す開発証明書の本数（新しい順）"
+        description: "残す開発証明書の本数（新しい順）※ids未指定のときだけ使う"
         required: false
         default: "1"
+        type: string
+      ids:
+        description: "失効する証明書ID（カンマ区切り）。指定するとこれだけを消す（他アプリの巻き込み防止）"
+        required: false
+        default: ""
         type: string
 
 jobs:
@@ -41,7 +46,7 @@ jobs:
         run: |
           node tools/asc/asc_certs.mjs "$RUNNER_TEMP/asc/key.p8" \
             "$ASC_KEY_ID" "$ASC_ISSUER_ID" \
-            "${{ inputs.mode }}" "${{ inputs.keep }}"
+            "${{ inputs.mode }}" "${{ inputs.keep }}" "${{ inputs.ids }}"
       - name: Clean up key
         if: always()
         run: rm -f "$RUNNER_TEMP/asc/key.p8"
