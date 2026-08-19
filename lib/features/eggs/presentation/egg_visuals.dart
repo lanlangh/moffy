@@ -36,10 +36,15 @@ class EggSubject extends StatelessWidget {
     super.key,
     required this.rarity,
     required this.stage,
+    this.animated = false,
   });
 
   final EggRarity rarity;
   final EggGrowthStage stage;
+
+  /// 「生きている」動きを付けるか（主役として大きく出す場所だけ true）。
+  /// 保管庫グリッドのように同時に何個も並ぶ場所では付けない。
+  final bool animated;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +55,11 @@ class EggSubject extends StatelessWidget {
       EggGrowthStage.crack2 => 0.6,
       EggGrowthStage.ready => 0.95,
     };
-    return EggArt(rarity: RarityVisuals.ofEgg(rarity), progress: progress);
+    return EggArt(
+      rarity: RarityVisuals.ofEgg(rarity),
+      progress: progress,
+      animated: animated,
+    );
   }
 }
 

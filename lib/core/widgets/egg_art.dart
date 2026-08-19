@@ -144,7 +144,18 @@ class _LivingEggState extends State<_LivingEgg>
       builder: (context, child) {
         final t = Curves.easeInOut.transform(_c.value);
         if (!cracked) {
-          return Transform.scale(scale: 0.985 + 0.03 * t, child: child);
+          // 初版は 0.985↔1.015（±1.5%）にしたが、実機で「動いていない」と判定された
+          // （2026-08-19 オーナー確認）。呼吸は**気づける**必要があるので倍にする。
+          // 上下にもわずかに動かすと「息をしている」感が出て、拡縮だけより伝わる。
+          final scale = 0.97 + 0.06 * t;
+          return Transform.translate(
+            offset: Offset(0, (1 - t) * 3),
+            child: Transform.scale(
+              scale: scale,
+              alignment: Alignment.bottomCenter, // 底は地面に接したまま膨らむ
+              child: child,
+            ),
+          );
         }
         // 巣に接している底を支点にする。中心で回すと卵が巣から浮いて見える。
         return Transform.rotate(

@@ -92,39 +92,51 @@ class _EggsBody extends ConsumerWidget {
           child: RefreshIndicator(
             onRefresh: controller.refresh,
             color: AppColors.primary,
+            // padding は 0。**主役ステージを画面の左右いっぱいに出す**ため
+            // （2026-08-19 オーナー指摘「上部のみ背景を左右上部全面に」）。
+            // 余白は下のカード群だけに付け直す。
             child: ListView(
-              padding: const EdgeInsets.all(AppSpace.lg),
+              padding: EdgeInsets.zero,
               children: [
-                // 育成枠3スロット（アクティブ強調 / S6）。
-                Text('育成枠', style: AppType.bodyStrong),
-                const SizedBox(height: AppSpace.md),
-                IncubatorSlots(
-                  state: state,
-                  onSelectSlot: (egg) => _openDetail(context, ref, egg),
-                ),
-                const SizedBox(height: AppSpace.xl),
-
-                // アクティブ卵の詳細パネル or 空枠誘導（§5-2）。
+                // ① 主役ステージ（全面背景 + 卵）。画面最上部に置き、
+                //    背景画像の上端が単色なので AppBar 側の地色と自然につながる。
                 if (active != null)
-                  _ActiveEggPanel(
+                  _EggStage(
                     egg: active,
                     state: state,
                     onTap: () => _openDetail(context, ref, active),
                   )
                 else
                   _NoActiveEggPanel(pooledPoints: state.pooledPoints),
-                const SizedBox(height: AppSpace.xl),
 
-                // 保管枠グリッド。
-                Text('保管庫', style: AppType.bodyStrong),
-                const SizedBox(height: AppSpace.md),
-                // 保管枠アップセル（無料上限に近づいたら表示。プレミアムは非表示）。
-                _StorageUpsell(storageCount: state.storage.length),
-                StorageGrid(
-                  state: state,
-                  onSelect: (egg) => _openDetail(context, ref, egg),
+                // ② ここから下は従来どおり余白付きのカード群。
+                Padding(
+                  padding: const EdgeInsets.all(AppSpace.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 育成枠3スロット（アクティブ強調 / S6）。
+                      Text('育成枠', style: AppType.bodyStrong),
+                      const SizedBox(height: AppSpace.md),
+                      IncubatorSlots(
+                        state: state,
+                        onSelectSlot: (egg) => _openDetail(context, ref, egg),
+                      ),
+                      const SizedBox(height: AppSpace.xl),
+
+                      // 保管枠グリッド。
+                      Text('保管庫', style: AppType.bodyStrong),
+                      const SizedBox(height: AppSpace.md),
+                      // 保管枠アップセル（無料上限に近づいたら表示。プレミアムは非表示）。
+                      _StorageUpsell(storageCount: state.storage.length),
+                      StorageGrid(
+                        state: state,
+                        onSelect: (egg) => _openDetail(context, ref, egg),
+                      ),
+                      const SizedBox(height: AppSpace.xl),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: AppSpace.xl),
               ],
             ),
           ),
@@ -277,6 +289,101 @@ class _EggsBody extends ConsumerWidget {
 }
 
 /// アクティブ卵の主役パネル（孵化進捗 + 孵化ボタン）。
+/// たまごタブの主役ステージ（画面上部・左右いっぱい）。
+///
+/// なぜ既存の [_ActiveEggPanel]（角丸カード）と別物にしたか:
+///   1. 角丸カードだと左右に余白が残り「四角で囲われて」見える（オーナー指摘）
+///   2. 砂色の円台（[NestRing] の既定）を風景の上に出すと**貼り紙のように浮く**
+///      → [NestRing.showBase] = false にして、卵と藁の巣を草に直接置き、影だけ残す
+///
+/// 背景画像は**上端が単色**である前提。AppBar 側の地色と境目なくつながるので、
+/// 画面の途中から急に絵が始まる違和感が出ない。
+/// 画像が読めない場合は何も描かず、従来どおりの単色地になる（フォールバック）。
+class _EggStage extends StatelessWidget {
+  const _EggStage({
+    required this.egg,
+    required this.state,
+    required this.onTap,
+  });
+
+  final Egg egg;
+  final EggsState state;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final params = state.params;
+    final stage = egg.stage(params);
+    final rarity = RarityVisuals.ofEgg(egg.rarity);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final w = MediaQuery.sizeOf(context).width;
+
+    return Semantics(
+      button: true,
+      container: true,
+      label: '育成中の卵の詳細を開く',
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: double.infinity,
+          // 正方形に近い比率。背景画像（1:1）を切り取り過ぎない。
+          height: w * 1.02,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/images/bg/home_stage.jpg',
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+                filterQuality: FilterQuality.medium,
+                // 表示解像度でデコードする（フルサイズのテクスチャを常駐させない）。
+                cacheWidth: (w * dpr).round(),
+                errorBuilder: (context, error, stack) => const SizedBox.shrink(),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.lg,
+                  vertical: AppSpace.lg,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      egg.canHatch(params)
+                          ? 'まもなく孵化'
+                          : '孵化まであと ${egg.remaining(params)}pt',
+                      style: AppType.title,
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    NestRing(
+                      diameter: 180,
+                      glow: egg.isNearHatch(params) ? rarity.glow : null,
+                      // 風景の上なので砂色の円台は出さない（影だけ残す）。
+                      showBase: false,
+                      child: EggSubject(
+                        rarity: egg.rarity,
+                        stage: stage,
+                        animated: true,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.lg),
+                    GrowthProgressBar(value: egg.progress(params)),
+                    const SizedBox(height: AppSpace.sm),
+                    Text(
+                      '${stage.label}・${(egg.progress(params) * 100).round()}%',
+                      style: AppType.numLabel,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ActiveEggPanel extends StatelessWidget {
   const _ActiveEggPanel({
     required this.egg,

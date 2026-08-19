@@ -20,6 +20,7 @@ class NestRing extends StatelessWidget {
     this.borderColor,
     this.inset = 0.14,
     this.rimGradient,
+    this.showBase = true,
   });
 
   /// リングの直径（円形被写体の土台サイズ）。
@@ -45,6 +46,15 @@ class NestRing extends StatelessWidget {
   /// 外周を虹色などのグラデーションで縁取る（色違い表現など）。null=通常の nest.bark 縁取り。
   /// リングと完全同心に描くため、外側に別の円を重ねる方式（中心ズレの原因）を使わない。
   final Gradient? rimGradient;
+
+  /// 砂色の円台（+縁取り）を描くか。既定 true。
+  ///
+  /// **風景の上に置くときは false にする。** 砂色の円は本来「クリーム地の上に被写体を
+  /// 置く」ための土台で、風景の上に出すと**世界から浮いて貼り紙のように見える**
+  /// （2026-08-19 オーナー指摘「そのまま背景を入れただけになっている」）。
+  /// false でも**地面の楕円影は残す**ので、卵は草に「置かれている」ように見える。
+  /// 卵アセット自体が藁の巣を含んでいるため、円台が無くても土台は絵として成立する。
+  final bool showBase;
 
   @override
   Widget build(BuildContext context) {
@@ -76,24 +86,25 @@ class NestRing extends StatelessWidget {
             ),
           // 巣リング本体（nest.sand 地 + nest.bark 縁取り = 署名の輪郭）。虹リムがある時は
           // 縁取りを消し、リムぶん内側に寄せて「リング状」に見せる（同心）。
-          Positioned.fill(
-            child: Padding(
-              padding: EdgeInsets.all(rimGradient != null ? 3 : 0),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.surfaceNest,
-                  border: rimGradient != null
-                      ? null
-                      : Border.all(
-                          color: borderColor ?? AppColors.nestBark,
-                          width: borderColor != null ? 3 : 2,
-                        ),
-                  boxShadow: rimGradient == null ? glowShadow : null,
+          if (showBase)
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.all(rimGradient != null ? 3 : 0),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surfaceNest,
+                    border: rimGradient != null
+                        ? null
+                        : Border.all(
+                            color: borderColor ?? AppColors.nestBark,
+                            width: borderColor != null ? 3 : 2,
+                          ),
+                    boxShadow: rimGradient == null ? glowShadow : null,
+                  ),
                 ),
               ),
             ),
-          ),
           // 中央の被写体（円内に収める）。Positioned.fill で FittedBox に確定サイズを与え、
           // サイズ指定の無いアイコン(24px)でも枠いっぱいに拡大する（円に対して小さく見える問題の修正）。
           Positioned.fill(
@@ -123,7 +134,8 @@ class NestRing extends StatelessWidget {
           )
         else
           ring,
-        const SizedBox(height: AppSpace.sm),
+        // 円台を出さないときは影を卵に寄せる（浮いて見えないように）。
+        SizedBox(height: showBase ? AppSpace.sm : 0),
         // 地面の楕円影（elev.ground / 被写体を地面に「置く」）
         Container(
           width: diameter * 0.62,
