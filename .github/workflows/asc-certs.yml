@@ -1,0 +1,47 @@
+name: ASC Certs (署名証明書の一覧 / 失効)
+
+# 自動プロビジョニングはビルドのたびに開発証明書を作るため、CI を回し続けると
+# Apple のアカウント上限に達してビルドが失敗する（2026-08-19 build 33 で発生）。
+# 古い開発証明書を失効させて枠を空けるためのツール。
+#
+# 安全装置:
+#   * 既定は list（読むだけ）。失効は mode=revoke を明示したときだけ。
+#   * 失効対象は DEVELOPMENT 系のみ。DISTRIBUTION（ストア提出用）はスクリプトが弾く。
+#   * 最新の keep 本は必ず残す（既定1）。
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "list(読むだけ) / revoke(古い開発証明書を失効)"
+        required: true
+        default: "list"
+        type: choice
+        options: [list, revoke]
+      keep:
+        description: "残す開発証明書の本数（新しい順）"
+        required: false
+        default: "1"
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode ASC API key (.p8)
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+      - name: Run
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          node tools/asc/asc_certs.mjs "$RUNNER_TEMP/asc/key.p8" \
+            "$ASC_KEY_ID" "$ASC_ISSUER_ID" \
+            "${{ inputs.mode }}" "${{ inputs.keep }}"
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
