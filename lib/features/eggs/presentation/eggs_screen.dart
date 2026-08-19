@@ -332,8 +332,15 @@ class _EggsBody extends ConsumerWidget {
     // （DB を変えずに済ませるための設計 / docs/EVOLUTION.md）。
     await ref.read(collectionControllerProvider.notifier).refresh();
     final dex = ref.read(collectionControllerProvider).valueOrNull;
+    // 🔴 図鑑は「通常」と「色違い」を**別エントリ**で持つ（全40 = 20種 × 2）。
+    // 種族IDだけで照合すると、色違いを孵化したのに通常（未発見）を拾ってしまい、
+    // 「未発見だから進化情報なし」となって何も出なかった（2026-08-19 実機で発覚）。
     final entry = dex?.entries
-        .where((e) => e.species.id == hatched.species.id)
+        .where(
+          (e) =>
+              e.species.id == hatched.species.id &&
+              e.isShiny == hatched.isShiny,
+        )
         .firstOrNull;
     final stage2 = dex?.evolveStage2Count ?? 3;
     final stage = entry?.evolutionStage(stage2) ?? 1;
@@ -360,6 +367,7 @@ class _EggsBody extends ConsumerWidget {
         barrierColor: Colors.transparent,
         pageBuilder: (_, __, ___) => HatchOverlay(
           result: hatched,
+          eggRarity: egg.rarity,
           stage: stage,
           justEvolved: justEvolved,
           toNextEvolution: toNext,

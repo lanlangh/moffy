@@ -32,7 +32,16 @@ class HatchOverlay extends StatefulWidget {
     this.stage = 1,
     this.justEvolved = false,
     this.toNextEvolution = 0,
+    this.eggRarity,
   });
+
+  /// 割った**卵**のレア度。演出で揺れる卵の色に使う。
+  ///
+  /// 🔴 以前はここが無く、揺れる卵に「出てきた Mofi のレア度の色」を当てていた。
+  /// レアの卵（水色）を割ったのに SR の Mofi が出ると、演出では紫の卵が揺れる、
+  /// という矛盾が起きていた（オーナー実機確認 2026-08-19）。
+  /// 卵の色は**卵**で決まる。null のときだけ従来どおり Mofi 側に倒す。
+  final EggRarity? eggRarity;
 
   final HatchResult result;
 
@@ -149,6 +158,10 @@ class _HatchOverlayState extends State<HatchOverlay>
   Widget build(BuildContext context) {
     final isShiny = widget.result.isShiny;
     final rarity = RarityVisuals.ofMofi(widget.result.species.rarity);
+    // 揺れる卵は「割った卵」の色。結果の Mofi の色ではない（上のコメント参照）。
+    final eggToken = widget.eggRarity != null
+        ? RarityVisuals.ofEgg(widget.eggRarity!)
+        : rarity;
 
     return Material(
       // 演出中の操作ロック（背景タップは結果表示後のみ閉じる）。
@@ -169,7 +182,7 @@ class _HatchOverlayState extends State<HatchOverlay>
                       onShare: _handleShare,
                       onClose: widget.onClose,
                     )
-                  : _ShakingEgg(animation: _shake, rarity: rarity),
+                  : _ShakingEgg(animation: _shake, rarity: eggToken),
             ),
             // 色違いキラリ演出: 割れる瞬間のホワイトフラッシュ + 虹粒子。
             if (_revealed && isShiny)
