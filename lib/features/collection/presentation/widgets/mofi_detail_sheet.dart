@@ -114,10 +114,10 @@ class MofiDetailSheet extends StatelessWidget {
               _DetailRow(
                 label: '進化',
                 value: entry.evolutionStage(stage2Count) >= 2
-                    ? 'おとな（進化済み）'
+                    ? '進化済み'
                     : (entry.toNextEvolution(stage2Count) > 0
-                        ? 'こども・あと${entry.toNextEvolution(stage2Count)}体で進化'
-                        : 'こども'),
+                        ? 'あと${entry.toNextEvolution(stage2Count)}体で進化'
+                        : '進化前'),
               ),
               _DetailRow(
                 label: '色違い',
@@ -179,7 +179,7 @@ class _EvolutionLine extends StatelessWidget {
         _EvolutionStep(
           entry: entry,
           stage: 1,
-          label: 'こども',
+          label: '進化前',
           silhouette: false,
           dimmed: evolved, // 進化後は「今の姿」でない側を控えめに
         ),
@@ -194,7 +194,7 @@ class _EvolutionLine extends StatelessWidget {
         _EvolutionStep(
           entry: entry,
           stage: 2,
-          label: evolved ? 'おとな' : '？？？',
+          label: evolved ? '進化後' : '？？？',
           // 未進化のうちは完成形を伏せる（発見の驚きを先に漏らさない）。
           silhouette: !evolved,
           dimmed: !evolved,

@@ -272,32 +272,48 @@ class _FilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 44,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+      // 🔴 全部を横スクロールの ListView に入れていたため、末尾のチップが
+      // 画面外に出て**存在に気づけなかった**（オーナー指摘 2026-08-19）。
+      // 絞り込み（スクロールしてよい）と、表示の切替（常に見えるべき）は
+      // 役割が違うので分ける。切替は右端に固定する。
+      child: Row(
         children: [
-          for (final r in MofiRarity.values) ...[
-            _FilterChip(
-              label: r.label,
-              color: RarityVisuals.ofMofi(r).main,
-              selected: filter.rarity == r,
-              onTap: () => onRarity(r),
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: AppSpace.lg),
+              children: [
+                for (final r in MofiRarity.values) ...[
+                  _FilterChip(
+                    label: r.label,
+                    color: RarityVisuals.ofMofi(r).main,
+                    selected: filter.rarity == r,
+                    onTap: () => onRarity(r),
+                  ),
+                  const SizedBox(width: AppSpace.sm),
+                ],
+                _FilterChip(
+                  label: '色違い',
+                  color: AppColors.warn,
+                  selected: filter.shinyOnly,
+                  onTap: onShiny,
+                  icon: Icons.auto_awesome_rounded,
+                ),
+                const SizedBox(width: AppSpace.sm),
+              ],
             ),
-            const SizedBox(width: AppSpace.sm),
-          ],
-          _FilterChip(
-            label: '色違い',
-            color: AppColors.warn,
-            selected: filter.shinyOnly,
-            onTap: onShiny,
-            icon: Icons.auto_awesome_rounded,
           ),
-          const SizedBox(width: AppSpace.sm),
-          _FilterChip(
-            label: 'こどもの姿',
-            color: AppColors.primary,
-            selected: showBaby,
-            onTap: onToggleBaby,
+          Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpace.sm,
+              right: AppSpace.lg,
+            ),
+            child: _FilterChip(
+              label: '進化前',
+              color: AppColors.primary,
+              selected: showBaby,
+              onTap: onToggleBaby,
+            ),
           ),
         ],
       ),
