@@ -313,12 +313,29 @@ class _ResultView extends StatelessWidget {
               ),
             ),
           ] else if (toNextEvolution > 0) ...[
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.lg),
             // 重複入手はいま何の手応えも無く「ハズレ」に見える。
             // あと何体かが見えると、ダブりが前進に変わる。
-            Text(
-              'あと$toNextEvolution体で進化',
-              style: AppType.caption.copyWith(color: AppColors.onPrimary),
+            //
+            // 暗い背景に素の文字を置くと「浮いた注記」にしか見えず、
+            // せっかくの前進が伝わらない（オーナー指摘 2026-08-19「小さく出る」）。
+            // 面を敷いて、結果カードと同じ強さの要素として見せる。
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.lg,
+                vertical: AppSpace.sm,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.onPrimary.withValues(alpha: 0.16),
+                borderRadius: AppRadius.pillR,
+                border: Border.all(
+                  color: AppColors.onPrimary.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Text(
+                'あと$toNextEvolution体そろえると進化',
+                style: AppType.bodyStrong.copyWith(color: AppColors.onPrimary),
+              ),
             ),
           ],
           const SizedBox(height: AppSpace.xl),
