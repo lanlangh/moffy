@@ -30,18 +30,22 @@ class MofiDetailSheet extends StatelessWidget {
         color: AppColors.bg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       ),
-      padding: const EdgeInsets.all(AppSpace.xl),
+      // シート全体に padding を掛けると背景ステージにも左右の余白が付き、
+      // 絵が狭く見える（オーナー指摘 2026-08-19「左右はまだ余裕がある」）。
+      // padding はステージより下の文章側にだけ掛ける。
+      clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(height: AppSpace.md),
             const _SheetGrip(),
-            const SizedBox(height: AppSpace.lg),
+            const SizedBox(height: AppSpace.md),
             // 発見済みの子だけ「世界の風景」の上に立たせる。未発見はシルエットで
             // 正体を伏せる場面なので、背景を出すと発見の驚きが先に漏れる。
             // 砂色の円台は出さない（風景の上だと貼り紙のように浮くため）。
             SizedBox(
-              height: 200,
+              height: 240,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -64,6 +68,11 @@ class MofiDetailSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpace.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
             Text(
               discovered ? entry.species.name : '？？？',
               style: AppType.display,
@@ -117,6 +126,9 @@ class MofiDetailSheet extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: AppSpace.lg),
+                ],
+              ),
+            ),
           ],
         ),
       ),

@@ -83,6 +83,17 @@ class MockEggRepository implements EggRepository {
       isActive: false,
       acquiredSource: 'quest',
     ),
+    // 孵化を試せる卵（プレビュー確認用）。しきい値到達済みなので
+    // たまごタブ → この卵 → 孵化 で、孵化演出と「Mofiがステージに残る」を確認できる。
+    const Egg(
+      id: 'egg_hatchable',
+      rarity: EggRarity.rare,
+      growthPoints: 520, // しきい値(500)超え＝孵化可能
+      location: EggLocation.incubating,
+      slotIndex: 3,
+      isActive: false,
+      acquiredSource: 'quest',
+    ),
     // 保管3つ（レア違い＋近孵化）＝セット/戻す・孵化ボタンの確認用。
     const Egg(
       id: 'egg_storage_ready',

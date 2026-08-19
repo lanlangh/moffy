@@ -107,11 +107,13 @@ class _QuestRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final completed = quest.isCompleted;
-    final label = quest.isClaimable
-        ? '受け取れる！'
-        : completed
-            ? '達成'
-            : '進行中';
+    // 【2026-08-19 是正】以前は claimable のとき「受け取れる！」と出していたが、
+    // (a) この行にタップ処理が無く押せない
+    // (b) そもそもクエストの受取は循環デッドロックで**永久に受け取れない**
+    //     （ORG_STATE の S3。自動評価が0件で is_completed が立たない。v1.2 で対応）
+    // ＝ 動かない操作を「できる」と表示していた。二重の嘘なので「達成」に統一する。
+    // クエスト配線が直ったら、ここを「受け取れる！」に戻し、行をタップ可能にする。
+    final label = completed ? '達成' : '進行中';
     final labelColor = (quest.isClaimable || completed)
         ? AppColors.successDeep
         : AppColors.textSecondary;
