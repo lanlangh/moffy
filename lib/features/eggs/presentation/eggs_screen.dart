@@ -296,8 +296,13 @@ class _EggsBody extends ConsumerWidget {
 ///   2. 砂色の円台（[NestRing] の既定）を風景の上に出すと**貼り紙のように浮く**
 ///      → [NestRing.showBase] = false にして、卵と藁の巣を草に直接置き、影だけ残す
 ///
-/// 背景画像は**上端が単色**である前提。AppBar 側の地色と境目なくつながるので、
-/// 画面の途中から急に絵が始まる違和感が出ない。
+/// 上下の境目は**コード側**で処理する（画像に単色帯を持たせない）。
+/// 初版は「上端を単色にした画像」を発注したが、それは空と雲まで消してしまい
+/// 絵が暗く平板になった（2026-08-19 オーナー指摘「もっと明るいのをイメージしていた」
+/// 「雲がないのはあえてか」）。**明るい空のある絵をそのまま使い、
+/// 境目だけアプリ側のグラデーションで溶かす**のが正しい分担。
+/// この作りなら、将来「雲を流す」ときも雲だけの透過画像を重ねれば済む。
+///
 /// 画像が読めない場合は何も描かず、従来どおりの単色地になる（フォールバック）。
 class _EggStage extends StatelessWidget {
   const _EggStage({
@@ -339,6 +344,25 @@ class _EggStage extends StatelessWidget {
                 // 表示解像度でデコードする（フルサイズのテクスチャを常駐させない）。
                 cacheWidth: (w * dpr).round(),
                 errorBuilder: (context, error, stack) => const SizedBox.shrink(),
+              ),
+              // 上端: AppBar 側の地色へ溶かす（画面の途中から急に絵が始まらない）。
+              // 下端: 下のカード群の地色へ溶かす（角で切れた板に見えない）。
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.bg,
+                        Color(0x00FBF6EA),
+                        Color(0x00FBF6EA),
+                        AppColors.bg,
+                      ],
+                      stops: [0.0, 0.16, 0.88, 1.0],
+                    ),
+                  ),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(
