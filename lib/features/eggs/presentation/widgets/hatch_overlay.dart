@@ -433,7 +433,7 @@ class _HatchShareCard extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpace.xs),
                   Text(
-                    '色違い！',
+                    '色違い',
                     style: AppType.bodyStrong
                         .copyWith(color: AppColors.primaryDeep),
                   ),
