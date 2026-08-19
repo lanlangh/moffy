@@ -183,8 +183,8 @@ class _EvolutionLine extends StatelessWidget {
           silhouette: false,
           dimmed: evolved, // 進化後は「今の姿」でない側を控えめに
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpace.sm),
           child: Icon(
             Icons.arrow_forward_rounded,
             size: 18,
