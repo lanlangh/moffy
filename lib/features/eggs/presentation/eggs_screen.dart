@@ -220,10 +220,12 @@ class _EggsBody extends ConsumerWidget {
         state: state,
         onSetActive: () {
           _clearPendingHatch(ref);
-          unawaited(_runEggAction(
-            context,
-            () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
-          ));
+          unawaited(
+            _runEggAction(
+              context,
+              () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
+            ),
+          );
         },
         onMoveToStorage: () => _runEggAction(
           context,
