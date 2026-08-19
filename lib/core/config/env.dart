@@ -26,6 +26,17 @@ abstract final class Env {
   static const forceMock =
       bool.fromEnvironment('FORCE_MOCK', defaultValue: false);
 
+  /// 【お試しビルド専用】卵の成長段階を手で切り替える操作を出すか。
+  ///
+  /// オーナーが実機で「ヒビ割れ」「孵化直前」「孵化演出」を確認するためだけのもの。
+  /// 本番のポイントを貯めないとこれらの状態に到達できず、見た目の確認ができないため。
+  ///
+  /// 🔒 **ストア提出ビルドには原理的に入らない**: 既定 false で、
+  /// `ios-build.yml` の `preview_stages` 入力（既定 false）を明示的に true に
+  /// したときだけ `--dart-define` で渡る。提出用の実行では渡らないので必ず false。
+  static const previewStages =
+      bool.fromEnvironment('PREVIEW_STAGES', defaultValue: false);
+
   /// 実バックエンド（Supabase）を使うか。forceMock 時はモックに倒す。
   static bool get useSupabase => hasSupabase && !forceMock;
 

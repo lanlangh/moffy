@@ -27,6 +27,10 @@ on:
         description: "本番の実広告を出す（=審査提出/公開ビルドのみ true。通常は false でテスト広告）"
         type: boolean
         default: false
+      preview_stages:
+        description: "【お試し用】卵の成長段階を手で切り替える操作を出す（⚠️提出ビルドでは必ず false）"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -107,7 +111,8 @@ jobs:
             --build-number=${{ github.run_number }} \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }}
+            --dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }} \
+            --dart-define=PREVIEW_STAGES=${{ inputs.preview_stages }}
 
       - name: Write ExportOptions.plist
         if: inputs.mode != 'compile'
