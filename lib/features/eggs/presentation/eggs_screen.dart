@@ -19,6 +19,7 @@ import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../../core/widgets/world_stage.dart';
 import '../../collection/domain/mofi_models.dart';
+import '../../collection/presentation/collection_controller.dart';
 import '../../paywall/presentation/paywall_screen.dart';
 import '../data/hatch_share_service.dart';
 import '../domain/egg_models.dart';
@@ -135,8 +136,9 @@ class _EggsBody extends ConsumerWidget {
                 //    （育てた子を眺める間を作る / オーナー提案 2026-08-19）。
                 if (pending != null)
                   _HatchedStage(
-                    result: pending,
-                    stage: 1,
+                    result: pending.result,
+                    stage: pending.stage,
+                    justEvolved: pending.justEvolved,
                     onSendToDex: () =>
                         ref.read(pendingHatchProvider.notifier).state = null,
                   )
@@ -325,9 +327,31 @@ class _EggsBody extends ConsumerWidget {
       );
     }
 
+    // 進化の判定材料を取る。サーバーの fn_hatch_egg は「どの Mofi か」までしか
+    // 返さず**所持数を返さない**ので、図鑑を読み直して所持数を得る
+    // （DB を変えずに済ませるための設計 / docs/EVOLUTION.md）。
+    await ref.read(collectionControllerProvider.notifier).refresh();
+    final dex = ref.read(collectionControllerProvider).valueOrNull;
+    final entry = dex?.entries
+        .where((e) => e.species.id == hatched.species.id)
+        .firstOrNull;
+    final stage2 = dex?.evolveStage2Count ?? 3;
+    final stage = entry?.evolutionStage(stage2) ?? 1;
+    final toNext = entry?.toNextEvolution(stage2) ?? 0;
+    // 「この孵化で跨いだか」＝ ちょうどしきい値に到達した回だけ true。
+    // すでにアダルトの子をもう1体引いても毎回は出さない。
+    final justEvolved = entry != null && entry.obtainedCount == stage2;
+
+    final presentation = HatchPresentation(
+      result: hatched,
+      stage: stage,
+      justEvolved: justEvolved,
+      toNextEvolution: toNext,
+    );
+
     // 演出のあともステージに残して眺められるようにする（オーナー提案 2026-08-19）。
     // 図鑑への登録は孵化時にサーバーが済ませているので、これは表示のための状態。
-    ref.read(pendingHatchProvider.notifier).state = hatched;
+    ref.read(pendingHatchProvider.notifier).state = presentation;
 
     // 孵化演出オーバーレイ（操作ロック / スキップ可）。
     await navigator.push<void>(
@@ -336,6 +360,9 @@ class _EggsBody extends ConsumerWidget {
         barrierColor: Colors.transparent,
         pageBuilder: (_, __, ___) => HatchOverlay(
           result: hatched,
+          stage: stage,
+          justEvolved: justEvolved,
+          toNextEvolution: toNext,
           onClose: () => navigator.maybePop(),
           onGoToDex: () {
             navigator.maybePop();
@@ -631,13 +658,18 @@ class _HatchedStage extends StatelessWidget {
   const _HatchedStage({
     required this.result,
     required this.stage,
+    required this.justEvolved,
     required this.onSendToDex,
   });
 
   final HatchResult result;
 
-  /// 進化段階（1=ベビー / 2=アダルト）。C の実装で実データが入る。
+  /// 進化段階（1=ベビー / 2=アダルト）。孵化後の所持数から算出した実データ。
   final int stage;
+
+  /// この孵化で進化に到達したか。到達した回は**アダルトの姿がここに残る**ので、
+  /// 「重ねて育てると姿が変わる」という仕組みが目で分かる。
+  final bool justEvolved;
 
   /// 「図鑑に送る」＝この表示を終える。
   final VoidCallback onSendToDex;
@@ -672,6 +704,14 @@ class _HatchedStage extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(result.species.name, style: AppType.title),
+                      if (justEvolved) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '進化！ アダルトになった',
+                          style: AppType.caption
+                              .copyWith(color: AppColors.primaryDeep),
+                        ),
+                      ],
                       if (result.isShiny) ...[
                         const SizedBox(height: 2),
                         Text(

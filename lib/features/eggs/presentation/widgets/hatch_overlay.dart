@@ -29,9 +29,29 @@ class HatchOverlay extends StatefulWidget {
     required this.onClose,
     required this.onGoToDex,
     required this.onShare,
+    this.stage = 1,
+    this.justEvolved = false,
+    this.toNextEvolution = 0,
   });
 
   final HatchResult result;
+
+  /// 進化段階（1=ベビー / 2=アダルト）。孵化後の所持数から算出した実データ。
+  ///
+  /// 以前はここに何も渡しておらず、**常にベビーが表示されていた**。
+  /// 図鑑ではアダルトなのに演出ではベビー、というズレが起きていた
+  /// （docs/EVOLUTION.md §6 が求める「進化」の出し分けも未実装だった）。
+  final int stage;
+
+  /// **この孵化で**進化のしきい値を跨いだか。true のとき「進化！」を出す。
+  /// すでにアダルトの子をもう1体引いた場合は false（毎回は出さない）。
+  final bool justEvolved;
+
+  /// 進化まであと何体か。0 なら進化済み。>0 のとき「あと○体で進化」を添える。
+  ///
+  /// なぜ出すか: 重複入手はいま何の手応えも無く「ハズレ」に見える。
+  /// あと何体かが見えると、ダブりが前進に変わる（EVOLUTION.md の狙い）。
+  final int toNextEvolution;
 
   /// 演出を閉じる（× / 背景）。
   final VoidCallback onClose;
@@ -140,6 +160,9 @@ class _HatchOverlayState extends State<HatchOverlay>
               child: _revealed
                   ? _ResultView(
                       result: widget.result,
+                      stage: widget.stage,
+                      justEvolved: widget.justEvolved,
+                      toNextEvolution: widget.toNextEvolution,
                       shareBoundaryKey: _shareBoundaryKey,
                       sharing: _sharing,
                       onGoToDex: widget.onGoToDex,
@@ -218,6 +241,9 @@ class _ShakingEgg extends StatelessWidget {
 class _ResultView extends StatelessWidget {
   const _ResultView({
     required this.result,
+    required this.stage,
+    required this.justEvolved,
+    required this.toNextEvolution,
     required this.shareBoundaryKey,
     required this.sharing,
     required this.onGoToDex,
@@ -226,6 +252,9 @@ class _ResultView extends StatelessWidget {
   });
 
   final HatchResult result;
+  final int stage;
+  final bool justEvolved;
+  final int toNextEvolution;
 
   /// シェア画像としてキャプチャする結果カードの境界（S13）。
   final GlobalKey shareBoundaryKey;
@@ -249,8 +278,36 @@ class _ResultView extends StatelessWidget {
           // 明るいカードに載せることで、共有画像が単体でも見栄えする。
           RepaintBoundary(
             key: shareBoundaryKey,
-            child: _HatchShareCard(result: result),
+            child: _HatchShareCard(result: result, stage: stage),
           ),
+          // 進化の出し分け（docs/EVOLUTION.md §6。仕様にあったが未実装だった）。
+          // 装飾記号は使わず、面と色で出す（オーナー指摘 2026-08-19）。
+          if (justEvolved) ...[
+            const SizedBox(height: AppSpace.lg),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.lg,
+                vertical: AppSpace.sm,
+              ),
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: AppRadius.pillR,
+              ),
+              child: Text(
+                '進化！　アダルトになった',
+                style: AppType.bodyStrong
+                    .copyWith(color: AppColors.onPrimary),
+              ),
+            ),
+          ] else if (toNextEvolution > 0) ...[
+            const SizedBox(height: AppSpace.md),
+            // 重複入手はいま何の手応えも無く「ハズレ」に見える。
+            // あと何体かが見えると、ダブりが前進に変わる。
+            Text(
+              'あと${toNextEvolution}体で進化',
+              style: AppType.caption.copyWith(color: AppColors.onPrimary),
+            ),
+          ],
           const SizedBox(height: AppSpace.xl),
           // 色違いはシェアCTAを主役に（口コミ拡散 / S13）。
           if (isShiny) ...[
@@ -299,9 +356,12 @@ class _ResultView extends StatelessWidget {
 /// 暗いスクリム上の loose な列ではなく独立したカードにすることで、共有先（SNS）でも
 /// 1枚絵として成立させる。文字色はカード（明色）前提で textPrimary 系を使う。
 class _HatchShareCard extends StatelessWidget {
-  const _HatchShareCard({required this.result});
+  const _HatchShareCard({required this.result, required this.stage});
 
   final HatchResult result;
+
+  /// 進化段階。シェア画像にも**実際の姿**を出す（図鑑と食い違わせない）。
+  final int stage;
 
   @override
   Widget build(BuildContext context) {
@@ -365,6 +425,7 @@ class _HatchShareCard extends StatelessWidget {
               speciesId: result.species.id,
               family: result.species.family,
               rarity: result.species.rarity,
+              stage: stage,
               isShiny: result.isShiny,
             ),
           ),
