@@ -45,6 +45,9 @@ class MofiDetailSheet extends StatelessWidget {
             // 正体を伏せる場面なので、背景を出すと発見の驚きが先に漏れる。
             // 砂色の円台は出さない（風景の上だと貼り紙のように浮くため）。
             SizedBox(
+              // 🔴 幅を指定しないと中身の巣(160px)の幅に縮み、背景が左右に
+              // 余白を残したまま小さく出る（2026-08-19 の指摘の原因はこれ）。
+              width: double.infinity,
               height: 240,
               child: Stack(
                 alignment: Alignment.center,
@@ -78,21 +81,23 @@ class MofiDetailSheet extends StatelessWidget {
               style: AppType.display,
             ),
             if (discovered && entry.isShiny) ...[
-              const SizedBox(height: AppSpace.xs),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 16,
-                    color: AppColors.warn,
-                  ),
-                  const SizedBox(width: AppSpace.xs),
-                  Text(
-                    '色違い',
-                    style: AppType.bodyStrong.copyWith(color: AppColors.warn),
-                  ),
-                ],
+              const SizedBox(height: AppSpace.sm),
+              // キラキラのアイコンを添えるのはやめ、色付きのバッジにする
+              // （2026-08-19 オーナー指摘「絵文字は安っぽく見える」）。
+              // 装飾で特別さを出すのではなく、**面と色**で出す。
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.md,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.warn.withValues(alpha: 0.16),
+                  borderRadius: AppRadius.pillR,
+                ),
+                child: Text(
+                  '色違い',
+                  style: AppType.bodyStrong.copyWith(color: AppColors.warn),
+                ),
               ),
             ],
             const SizedBox(height: AppSpace.xl),

@@ -666,11 +666,21 @@ class _HatchedStage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 StageChip(
-                  child: Text(
-                    result.isShiny
-                        ? '✨ ${result.species.name}'
-                        : result.species.name,
-                    style: AppType.title,
+                  // 絵文字は使わない（安っぽく見える / オーナー指摘 2026-08-19）。
+                  // 色違いは名前の下に色付きバッジで示す。
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(result.species.name, style: AppType.title),
+                      if (result.isShiny) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '色違い',
+                          style: AppType.caption
+                              .copyWith(color: AppColors.warn),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: AppSpace.md),
