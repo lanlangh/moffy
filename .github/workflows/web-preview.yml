@@ -52,7 +52,11 @@ jobs:
   # build ジョブでビルド可否は検証できる。
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    # main への push に加えて、**手動実行なら任意のブランチ**を出せるようにする。
+    # プレビューの用途は「main に入れる前に見た目を確かめる」ことなので、
+    # main 限定だと実験ブランチを確認できず本来の目的を果たせなかった。
+    # ⚠️ 公開URLは1つしかない。実験ブランチを出したあとは main で出し直すこと。
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
