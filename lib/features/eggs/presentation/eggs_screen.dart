@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -219,10 +220,10 @@ class _EggsBody extends ConsumerWidget {
         state: state,
         onSetActive: () {
           _clearPendingHatch(ref);
-          return _runEggAction(
+          unawaited(_runEggAction(
             context,
             () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
-          );
+          ));
         },
         onMoveToStorage: () => _runEggAction(
           context,
@@ -411,7 +412,6 @@ class _EggStageState extends State<_EggStage> {
     final stage = _stageFor(progress);
     final rarity = RarityVisuals.ofEgg(widget.egg.rarity);
 
-    final dpr = MediaQuery.devicePixelRatioOf(context);
     final size = MediaQuery.sizeOf(context);
     final w = size.width;
     // 背景が「スマホに対してすごく小さく見える」との指摘を受け、画面高に対する
