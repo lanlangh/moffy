@@ -374,6 +374,12 @@ class _EggStageState extends State<_EggStage> {
   /// 【お試しビルド専用】表示だけ差し替える成長段階。null = 実データどおり。
   double? _previewProgress;
 
+  /// 【お試しビルド専用】卵の代わりに置く Mofi。null = 卵を表示。
+  int? _previewMofi;
+
+  /// 【お試しビルド専用】背景の寄り。既定は寄り（1.45）、引きは 1.0。
+  double _zoom = 1.45;
+
   @override
   Widget build(BuildContext context) {
     final params = widget.state.params;
@@ -390,6 +396,10 @@ class _EggStageState extends State<_EggStage> {
     final stageHeight = math.min(w * 1.15, size.height * 0.58);
     // 巣の直径はステージの高さから決める。固定値だと低い画面ではみ出す。
     final ringDiameter = ((stageHeight - 180) / 1.12).clamp(96.0, 210.0);
+
+    final mofi = _previewMofi == null
+        ? null
+        : _PreviewMofi.all[_previewMofi! % _PreviewMofi.all.length];
 
     return Semantics(
       button: true,
@@ -408,7 +418,7 @@ class _EggStageState extends State<_EggStage> {
                 // スマホでは小さく見える。拡大して切り取り、卵が乗る草地まわりを
                 // 大きく見せる。
                 Transform.scale(
-                  scale: 1.45,
+                  scale: _zoom,
                   alignment: const Alignment(0, 0.15),
                   child: Image.asset(
                     'assets/images/bg/home_stage.jpg',
@@ -449,9 +459,12 @@ class _EggStageState extends State<_EggStage> {
                       // 文字は必ず淡い座布団の上に置く（空や草の上だと読めない）。
                       _StageChip(
                         child: Text(
-                          widget.egg.canHatch(params)
-                              ? 'まもなく孵化'
-                              : '孵化まであと ${widget.egg.remaining(params)}pt',
+                          mofi != null
+                              ? '${mofi.label}（見本）'
+                              : widget.egg.canHatch(params)
+                                  ? 'まもなく孵化'
+                                  : '孵化まであと '
+                                      '${widget.egg.remaining(params)}pt',
                           style: AppType.title,
                         ),
                       ),
@@ -463,32 +476,52 @@ class _EggStageState extends State<_EggStage> {
                             : null,
                         // 風景の上なので砂色の円台は出さない（影だけ残す）。
                         showBase: false,
-                        child: EggSubject(
-                          rarity: widget.egg.rarity,
-                          stage: stage,
-                          animated: true,
-                        ),
+                        child: mofi != null
+                            ? MofiSubject(
+                                speciesId: mofi.speciesId,
+                                family: mofi.family,
+                                rarity: MofiRarity.rare,
+                              )
+                            : EggSubject(
+                                rarity: widget.egg.rarity,
+                                stage: stage,
+                                animated: true,
+                              ),
                       ),
                       const SizedBox(height: AppSpace.md),
-                      _StageChip(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GrowthProgressBar(value: progress),
-                            const SizedBox(height: AppSpace.sm),
-                            Text(
-                              '${stage.label}・${(progress * 100).round()}%',
-                              style: AppType.numLabel,
-                            ),
-                          ],
+                      if (mofi == null)
+                        _StageChip(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GrowthProgressBar(value: progress),
+                              const SizedBox(height: AppSpace.sm),
+                              Text(
+                                '${stage.label}・${(progress * 100).round()}%',
+                                style: AppType.numLabel,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
                       if (Env.previewStages) ...[
                         const SizedBox(height: AppSpace.sm),
                         _PreviewStageBar(
-                          onSelect: (p) => setState(() => _previewProgress = p),
-                          onReset: () => setState(() => _previewProgress = null),
+                          onSelect: (p) => setState(() {
+                            _previewProgress = p;
+                            _previewMofi = null;
+                          }),
+                          onReset: () => setState(() {
+                            _previewProgress = null;
+                            _previewMofi = null;
+                          }),
                           onHatch: widget.onPreviewHatch,
+                          onCycleMofi: () => setState(
+                            () => _previewMofi = (_previewMofi ?? -1) + 1,
+                          ),
+                          onToggleZoom: () => setState(
+                            () => _zoom = _zoom > 1.2 ? 1.0 : 1.45,
+                          ),
+                          zoomedIn: _zoom > 1.2,
                         ),
                       ],
                     ],
@@ -512,7 +545,28 @@ class _EggStageState extends State<_EggStage> {
   }
 }
 
-/// 【お試しビルド専用】成長段階を手で切り替える操作列。
+/// 【お試しビルド専用】「孵化した Mofi がこの背景の上でどう見えるか」の見本。
+///
+/// 現状のアプリに **Mofi を背景の上に出す画面は存在しない**（Mofi が出るのは
+/// 図鑑と孵化演出の中だけ）。「相棒として世界に置く」のは新機能で、作るかどうかを
+/// 決めるには**まず実物の見え方**が要る。種族でシルエットの大きさが違う
+/// （スライムは丸く小さい／ドラゴンは縦に長い）ので4種族を比べられるようにする。
+class _PreviewMofi {
+  const _PreviewMofi(this.speciesId, this.family, this.label);
+
+  final String speciesId;
+  final MofiFamily family;
+  final String label;
+
+  static const all = <_PreviewMofi>[
+    _PreviewMofi('slime_01', MofiFamily.slime, 'スライム'),
+    _PreviewMofi('critter_01', MofiFamily.critter, '小動物'),
+    _PreviewMofi('dragon_01', MofiFamily.dragon, 'ドラゴン'),
+    _PreviewMofi('beast_01', MofiFamily.beast, '獣'),
+  ];
+}
+
+/// 【お試しビルド専用】見た目を手で切り替える操作列。
 ///
 /// 本番のポイントを貯めないと「ヒビ割れ」「孵化直前」に到達できず、実機で
 /// 見た目を確認できないために用意した。`Env.previewStages` が true のときだけ
@@ -523,11 +577,17 @@ class _PreviewStageBar extends StatelessWidget {
     required this.onSelect,
     required this.onReset,
     required this.onHatch,
+    required this.onCycleMofi,
+    required this.onToggleZoom,
+    required this.zoomedIn,
   });
 
   final ValueChanged<double> onSelect;
   final VoidCallback onReset;
   final VoidCallback onHatch;
+  final VoidCallback onCycleMofi;
+  final VoidCallback onToggleZoom;
+  final bool zoomedIn;
 
   @override
   Widget build(BuildContext context) {
@@ -554,11 +614,14 @@ class _PreviewStageBar extends StatelessWidget {
         btn('ヒビ大', () => onSelect(0.7)),
         btn('孵化直前', () => onSelect(0.97)),
         btn('孵化演出', onHatch),
+        btn('Mofi切替', onCycleMofi),
+        btn(zoomedIn ? '背景を引く' : '背景を寄せる', onToggleZoom),
         btn('実データ', onReset),
       ],
     );
   }
 }
+
 
 
 /// 保管枠アップセル（無料上限に近づいたらペイウォールへ誘導）。
