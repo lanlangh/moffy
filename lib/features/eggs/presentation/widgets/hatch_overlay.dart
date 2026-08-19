@@ -304,7 +304,7 @@ class _ResultView extends StatelessWidget {
             // 重複入手はいま何の手応えも無く「ハズレ」に見える。
             // あと何体かが見えると、ダブりが前進に変わる。
             Text(
-              'あと${toNextEvolution}体で進化',
+              'あと$toNextEvolution体で進化',
               style: AppType.caption.copyWith(color: AppColors.onPrimary),
             ),
           ],
