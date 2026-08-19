@@ -92,6 +92,10 @@ class _CollectionBody extends ConsumerWidget {
           filter: filter,
           onRarity: filterNotifier.toggleRarity,
           onShiny: filterNotifier.toggleShiny,
+          showBaby: ref.watch(dexShowBabyProvider),
+          onToggleBaby: () => ref
+              .read(dexShowBabyProvider.notifier)
+              .update((v) => !v),
         ),
         Expanded(
           child: RefreshIndicator(
@@ -112,6 +116,7 @@ class _CollectionBody extends ConsumerWidget {
                 return MofiGridTile(
                   entry: entry,
                   stage2Count: state.evolveStage2Count,
+                  forceBabyStage: ref.watch(dexShowBabyProvider),
                   onTap: () =>
                       _openDetail(context, entry, state.evolveStage2Count),
                 );
@@ -237,16 +242,31 @@ class _CollectionPremiumHint extends ConsumerWidget {
 }
 
 /// フィルタバー: レアリティチップ + 色違いトグル（SCREEN_FLOWS §4）。
+/// 図鑑を「こどもの姿」で並べるか（オーナー提案 2026-08-19）。
+///
+/// なぜ**別マスにしない**か: 図鑑の総数40（20種 × 通常/色違い）は
+/// ストアの説明文とプロモーションテキストに「図鑑は全40ページ」と
+/// 公開済みで、こども/おとなを別マスにすると記載と食い違う。
+/// 総数を変えず、**同じマスの見た目を切り替える**方式にした。
+///
+/// 進化前の姿は、進化すると二度と一覧で見られなくなる。種類が多くないので
+/// 「今の姿」と「こどもの姿」を並べ替えて眺められるほうが、集めた実感が残る。
+final dexShowBabyProvider = StateProvider<bool>((ref) => false);
+
 class _FilterBar extends StatelessWidget {
   const _FilterBar({
     required this.filter,
     required this.onRarity,
     required this.onShiny,
+    required this.showBaby,
+    required this.onToggleBaby,
   });
 
   final CollectionFilter filter;
   final ValueChanged<MofiRarity> onRarity;
   final VoidCallback onShiny;
+  final bool showBaby;
+  final VoidCallback onToggleBaby;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +291,13 @@ class _FilterBar extends StatelessWidget {
             selected: filter.shinyOnly,
             onTap: onShiny,
             icon: Icons.auto_awesome_rounded,
+          ),
+          const SizedBox(width: AppSpace.sm),
+          _FilterChip(
+            label: 'こどもの姿',
+            color: AppColors.primary,
+            selected: showBaby,
+            onTap: onToggleBaby,
           ),
         ],
       ),

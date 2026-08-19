@@ -13,6 +13,7 @@ class MofiGridTile extends StatelessWidget {
     super.key,
     required this.entry,
     required this.stage2Count,
+    this.forceBabyStage = false,
     required this.onTap,
   });
 
@@ -20,6 +21,10 @@ class MofiGridTile extends StatelessWidget {
 
   /// 進化アダルト化の重複しきい値（CollectionState由来 / docs/EVOLUTION.md）。
   final int stage2Count;
+
+  /// true のとき、進化済みでも**こどもの姿**で描く（図鑑の切替）。
+  /// 進化すると前の姿が一覧から消えてしまうのを補う。
+  final bool forceBabyStage;
   final VoidCallback onTap;
 
   @override
@@ -44,7 +49,7 @@ class MofiGridTile extends StatelessWidget {
         speciesId: entry.species.id,
         family: entry.species.family,
         rarity: entry.species.rarity,
-        stage: entry.evolutionStage(stage2Count),
+        stage: forceBabyStage ? 1 : entry.evolutionStage(stage2Count),
         silhouette: !discovered,
         isShiny: entry.isShiny,
       ),
