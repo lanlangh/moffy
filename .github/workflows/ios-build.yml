@@ -27,6 +27,10 @@ on:
         description: "本番の実広告を出す（=審査提出/公開ビルドのみ true。通常は false でテスト広告）"
         type: boolean
         default: false
+      preview_stages:
+        description: "【お試し用】卵の成長段階を手で切り替える操作を出す（⚠️提出ビルドでは必ず false）"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -107,7 +111,8 @@ jobs:
             --build-number=${{ github.run_number }} \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }}
+            --dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }} \
+            --dart-define=PREVIEW_STAGES=${{ inputs.preview_stages }}
 
       - name: Write ExportOptions.plist
         if: inputs.mode != 'compile'
@@ -179,10 +184,27 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
+          # altool は「UPLOAD FAILED」を出しても**終了コード0を返すことがある**。
+          # 2026-08-19 に実害: バージョン 1.1.1 が公開済みのため
+          #   Validation failed (409) Invalid Pre-Release Train.
+          #   The train version '1.1.1' is closed for new build submissions
+          # で upload が失敗したのに、ジョブは success と表示された。
+          # その結果オーナーは「TestFlight に届いた」と思って**古いビルドを入れて確認**し、
+          # 「動いていない」と報告することになった。緑なのに届いていないのが最悪の形。
+          # → 出力を保存し、失敗の文言があれば明示的に落とす。
+          set -euo pipefail
+          log="$RUNNER_TEMP/altool.log"
+          : > "$log"
           xcrun altool --validate-app -f "$RUNNER_TEMP/export/"*.ipa --type ios \
-            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee -a "$log"
           xcrun altool --upload-app -f "$RUNNER_TEMP/export/"*.ipa --type ios \
-            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee -a "$log"
+          if grep -qiE 'UPLOAD FAILED|Validation failed|Failed to upload' "$log"; then
+            echo "::error::TestFlight へのアップロードに失敗しました（altool の終了コードは0でしたが、出力に失敗が含まれます）"
+            grep -iE 'UPLOAD FAILED|Validation failed|Failed to upload' "$log" | head -20
+            exit 1
+          fi
+          echo "TestFlight へのアップロードを確認しました"
 
       - name: Summary
         if: always()

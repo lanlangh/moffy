@@ -11,7 +11,7 @@ publish_to: "none"
 #    ASC 側は下書きの versionString を 1.0.3 → 1.1.0 に書き換える（下書きなら変更可）。
 # ⚠️ 後半（build-number）は CI が --build-number=${{ github.run_number }} で上書きする。
 #    ここの +1 はローカル実行時の既定値でしかない。
-version: 1.1.1+1
+version: 1.2.0+1
 
 environment:
   # Dart 3 系 / Flutter 3.22 以降を前提（後日SDK導入時にこの範囲で固定）
@@ -94,4 +94,7 @@ flutter:
     - assets/images/egg/
     # Mofi 個体イラスト（進化段階別 mofi_<id>_1/2.png・背景透過 / egg_visuals.dart MofiSubject）。
     - assets/images/mofi/
+    # ホーム主役パネルの世界背景（不透明なので JPEG。nest_panel.dart _WorldBackground）。
+    # ⚠️ bg_raw/ は元データ置き場なので**宣言しない**（宣言するとアプリに同梱されて肥大する）。
+    - assets/images/bg/
     # ui/ は未配置のため宣言しない（空ディレクトリ宣言は pub get 失敗）。

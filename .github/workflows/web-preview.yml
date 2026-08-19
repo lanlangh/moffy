@@ -52,7 +52,18 @@ jobs:
   # build ジョブでビルド可否は検証できる。
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    # main への push に加えて、**手動実行なら任意のブランチ**を出せるようにする。
+    # プレビューの用途は「main に入れる前に見た目を確かめる」ことなので、
+    # main 限定だと実験ブランチを確認できず本来の目的を果たせなかった。
+    # ⚠️ 公開URLは1つしかない。実験ブランチを出したあとは main で出し直すこと。
+    # 🔴 ただし**この条件を緩めても main 以外はまだ出せない**（2026-08-19 実測）:
+    #    GitHub の `github-pages` **環境**側にブランチ保護があり、deploy が
+    #    「Branch ... is not allowed to deploy to github-pages due to
+    #     environment protection rules」で弾かれる。
+    #    解除には**リポジトリ設定**（Settings > Environments > github-pages >
+    #    Deployment branches）の変更が必要で、ワークフローだけでは直せない。
+    #    実験ブランチの見た目確認は当面 TestFlight / プレビューAPK で行う。
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
