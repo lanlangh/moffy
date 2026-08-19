@@ -291,7 +291,7 @@ class _EggsBody extends ConsumerWidget {
 /// アクティブ卵の主役パネル（孵化進捗 + 孵化ボタン）。
 /// たまごタブの主役ステージ（画面上部・左右いっぱい）。
 ///
-/// なぜ既存の [_ActiveEggPanel]（角丸カード）と別物にしたか:
+/// なぜ従来の角丸カード（旧 `_ActiveEggPanel`・このコミットで削除）と別物にしたか:
 ///   1. 角丸カードだと左右に余白が残り「四角で囲われて」見える（オーナー指摘）
 ///   2. 砂色の円台（[NestRing] の既定）を風景の上に出すと**貼り紙のように浮く**
 ///      → [NestRing.showBase] = false にして、卵と藁の巣を草に直接置き、影だけ残す
@@ -399,55 +399,6 @@ class _EggStage extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ActiveEggPanel extends StatelessWidget {
-  const _ActiveEggPanel({
-    required this.egg,
-    required this.state,
-    required this.onTap,
-  });
-
-  final Egg egg;
-  final EggsState state;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final params = state.params;
-    final stage = egg.stage(params);
-    final rarity = RarityVisuals.ofEgg(egg.rarity);
-
-    return Semantics(
-      button: true,
-      container: true,
-      label: '育成中の卵の詳細を開く',
-      child: GestureDetector(
-        onTap: onTap,
-        child: NestPanel(
-          diameter: 180,
-          glow: egg.isNearHatch(params) ? rarity.glow : null,
-          caption: Text(
-            egg.canHatch(params)
-                ? 'まもなく孵化'
-                : '孵化まであと ${egg.remaining(params)}pt',
-            style: AppType.title,
-          ),
-          subject: EggSubject(rarity: egg.rarity, stage: stage),
-          footer: Column(
-            children: [
-              GrowthProgressBar(value: egg.progress(params)),
-              const SizedBox(height: AppSpace.sm),
-              Text(
-                '${stage.label}・${(egg.progress(params) * 100).round()}%',
-                style: AppType.numLabel,
               ),
             ],
           ),
