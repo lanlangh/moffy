@@ -8,7 +8,7 @@ import '../../domain/mofi_models.dart';
 
 /// Mofi詳細シート（SCREEN_FLOWS §4 / 要件: 名前・レア・種族・発見日時・色違い有無）。
 /// 未発見は項目を伏せ、「卵を育てて見つけよう」を案内する。
-class MofiDetailSheet extends StatelessWidget {
+class MofiDetailSheet extends StatefulWidget {
   const MofiDetailSheet({
     super.key,
     required this.entry,
@@ -21,9 +21,21 @@ class MofiDetailSheet extends StatelessWidget {
   final int stage2Count;
 
   @override
+  State<MofiDetailSheet> createState() => _MofiDetailSheetState();
+}
+
+class _MofiDetailSheetState extends State<MofiDetailSheet> {
+  /// 上の大きい表示に出す段階。null = その子の「今の姿」。
+  /// 進化ラインをタップすると切り替わる（オーナー提案 2026-08-19）。
+  int? _shownStage;
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final stage2Count = widget.stage2Count;
     final discovered = entry.discovered;
     final rarity = RarityVisuals.ofMofi(entry.species.rarity);
+    final shownStage = _shownStage ?? entry.evolutionStage(stage2Count);
 
     return Container(
       decoration: const BoxDecoration(
@@ -62,7 +74,7 @@ class MofiDetailSheet extends StatelessWidget {
                       speciesId: entry.species.id,
                       family: entry.species.family,
                       rarity: entry.species.rarity,
-                      stage: entry.evolutionStage(stage2Count),
+                      stage: shownStage,
                       silhouette: !discovered,
                       isShiny: entry.isShiny,
                     ),
@@ -109,7 +121,12 @@ class MofiDetailSheet extends StatelessWidget {
               // 進化すると こどもの姿が二度と見られないのは収集ゲームとして
               // もったいない、というオーナー指摘への対応でもある。
               const SizedBox(height: AppSpace.md),
-              _EvolutionLine(entry: entry, stage2Count: stage2Count),
+              _EvolutionLine(
+                entry: entry,
+                stage2Count: stage2Count,
+                shownStage: shownStage,
+                onSelectStage: (s) => setState(() => _shownStage = s),
+              ),
               const SizedBox(height: AppSpace.md),
               _DetailRow(
                 label: '進化',
@@ -165,10 +182,21 @@ class MofiDetailSheet extends StatelessWidget {
 /// ただし未進化のときに完成形をそのまま見せるとネタバレになるので、
 /// おとなの姿は**シルエット**にする（図鑑の未発見と同じ扱い）。
 class _EvolutionLine extends StatelessWidget {
-  const _EvolutionLine({required this.entry, required this.stage2Count});
+  const _EvolutionLine({
+    required this.entry,
+    required this.stage2Count,
+    required this.shownStage,
+    required this.onSelectStage,
+  });
 
   final MofiDexEntry entry;
   final int stage2Count;
+
+  /// いま上の大きい表示に出ている段階（選択中の枠を出すため）。
+  final int shownStage;
+
+  /// 段階を選ぶ（上の表示が切り替わる）。
+  final ValueChanged<int> onSelectStage;
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +209,10 @@ class _EvolutionLine extends StatelessWidget {
           stage: 1,
           label: '進化前',
           silhouette: false,
-          dimmed: evolved, // 進化後は「今の姿」でない側を控えめに
+          // 選択中でない側を控えめにする（どちらを見ているかが分かる）。
+          dimmed: shownStage != 1,
+          selected: shownStage == 1,
+          onTap: () => onSelectStage(1),
         ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpace.sm),
@@ -197,7 +228,10 @@ class _EvolutionLine extends StatelessWidget {
           label: evolved ? '進化後' : '？？？',
           // 未進化のうちは完成形を伏せる（発見の驚きを先に漏らさない）。
           silhouette: !evolved,
-          dimmed: !evolved,
+          dimmed: !evolved || shownStage != 2,
+          selected: evolved && shownStage == 2,
+          // まだ手に入れていない姿は選べない（シルエットを拡大しても意味が無い）。
+          onTap: evolved ? () => onSelectStage(2) : null,
         ),
       ],
     );
@@ -211,6 +245,8 @@ class _EvolutionStep extends StatelessWidget {
     required this.label,
     required this.silhouette,
     required this.dimmed,
+    required this.selected,
+    required this.onTap,
   });
 
   final MofiDexEntry entry;
@@ -219,34 +255,55 @@ class _EvolutionStep extends StatelessWidget {
   final bool silhouette;
   final bool dimmed;
 
+  /// いま上の大きい表示に出ている段階か（枠で示す）。
+  final bool selected;
+
+  /// タップで上の表示を切り替える。null なら押せない（未入手の姿）。
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Opacity(
-          opacity: dimmed ? 0.55 : 1.0,
-          child: SizedBox(
-            width: 64,
-            height: 64,
-            child: MofiSubject(
-              speciesId: entry.species.id,
-              family: entry.species.family,
-              rarity: entry.species.rarity,
-              stage: stage,
-              silhouette: silhouette,
-              isShiny: entry.isShiny,
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.primary.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: AppRadius.lgR,
+              border: Border.all(
+                color: selected ? AppColors.primary : Colors.transparent,
+              ),
+            ),
+            child: Opacity(
+              opacity: dimmed ? 0.55 : 1.0,
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: MofiSubject(
+                  speciesId: entry.species.id,
+                  family: entry.species.family,
+                  rarity: entry.species.rarity,
+                  stage: stage,
+                  silhouette: silhouette,
+                  isShiny: entry.isShiny,
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: AppSpace.xs),
-        Text(
-          label,
-          style: AppType.caption.copyWith(
-            color: dimmed ? AppColors.textSecondary : AppColors.textPrimary,
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            label,
+            style: AppType.caption.copyWith(
+              color: dimmed ? AppColors.textSecondary : AppColors.textPrimary,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
