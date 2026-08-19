@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -321,7 +323,12 @@ class _EggStage extends StatelessWidget {
     final stage = egg.stage(params);
     final rarity = RarityVisuals.ofEgg(egg.rarity);
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    final w = MediaQuery.sizeOf(context).width;
+    final size = MediaQuery.sizeOf(context);
+    final w = size.width;
+    // 高さを幅だけで決めると、幅の広い端末（タブレット・横向き）でステージが
+    // 画面を埋め尽くし、下の「育成枠」「保管庫」が押し出されて**到達不能**になる。
+    // 既存のウィジェットテスト（800x600）がこれを検出した。画面高でも頭打ちにする。
+    final stageHeight = math.min(w * 1.02, size.height * 0.5);
 
     return Semantics(
       button: true,
@@ -332,7 +339,8 @@ class _EggStage extends StatelessWidget {
         child: SizedBox(
           width: double.infinity,
           // 正方形に近い比率。背景画像（1:1）を切り取り過ぎない。
-          height: w * 1.02,
+          // ただし画面高の半分を超えない（上のコメント参照）。
+          height: stageHeight,
           child: Stack(
             fit: StackFit.expand,
             children: [
