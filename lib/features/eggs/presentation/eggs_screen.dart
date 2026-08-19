@@ -367,7 +367,9 @@ class _EggStage extends StatelessWidget {
                         Color(0x00FBF6EA),
                         AppColors.bg,
                       ],
-                      stops: [0.0, 0.16, 0.88, 1.0],
+                      // 上は浅く（明るい青空をクリームで濁らせない）、
+                      // 下は厚めに（下のカード群へ自然に着地させる）。
+                      stops: [0.0, 0.10, 0.86, 1.0],
                     ),
                   ),
                 ),
@@ -380,11 +382,16 @@ class _EggStage extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      egg.canHatch(params)
-                          ? 'まもなく孵化'
-                          : '孵化まであと ${egg.remaining(params)}pt',
-                      style: AppType.title,
+                    // 文字は必ず淡い座布団の上に置く。青空や草の上に直接置くと
+                    // コントラストが足りず読めない（モックが白い吹き出しを使っている
+                    // のは装飾ではなく可読性の担保）。
+                    _StageChip(
+                      child: Text(
+                        egg.canHatch(params)
+                            ? 'まもなく孵化'
+                            : '孵化まであと ${egg.remaining(params)}pt',
+                        style: AppType.title,
+                      ),
                     ),
                     const SizedBox(height: AppSpace.md),
                     NestRing(
@@ -399,11 +406,19 @@ class _EggStage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpace.lg),
-                    GrowthProgressBar(value: egg.progress(params)),
-                    const SizedBox(height: AppSpace.sm),
-                    Text(
-                      '${stage.label}・${(egg.progress(params) * 100).round()}%',
-                      style: AppType.numLabel,
+                    _StageChip(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GrowthProgressBar(value: egg.progress(params)),
+                          const SizedBox(height: AppSpace.sm),
+                          Text(
+                            '${stage.label}・'
+                            '${(egg.progress(params) * 100).round()}%',
+                            style: AppType.numLabel,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -421,6 +436,32 @@ class _EggStage extends StatelessWidget {
 /// 表示条件: クライアント非プレミアム かつ 保管数が無料上限の8割以上。
 /// しきい値・上限は [StorageLimits]（SSOT）を参照しハードコードしない。
 /// 注意（信頼境界）: ここはあくまで導線。実際の保管枠ガード（200解放）はサーバー検証が正。
+/// ステージ上の文字を必ず読めるようにする座布団。
+///
+/// 背景が明るい青空や鮮やかな草なので、濃い文字を直に置くとコントラストが足りない。
+/// クリーム地を半透明で敷いて、文字は従来どおりの地の上に乗せる。
+/// モックが吹き出しを使っているのは装飾ではなく、この可読性の担保。
+class _StageChip extends StatelessWidget {
+  const _StageChip({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.lg,
+        vertical: AppSpace.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.bg.withValues(alpha: 0.88),
+        borderRadius: AppRadius.lgR,
+      ),
+      child: child,
+    );
+  }
+}
+
 class _StorageUpsell extends ConsumerWidget {
   const _StorageUpsell({required this.storageCount});
   final int storageCount;
