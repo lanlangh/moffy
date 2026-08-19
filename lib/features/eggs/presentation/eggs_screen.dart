@@ -329,6 +329,10 @@ class _EggStage extends StatelessWidget {
     // 画面を埋め尽くし、下の「育成枠」「保管庫」が押し出されて**到達不能**になる。
     // 既存のウィジェットテスト（800x600）がこれを検出した。画面高でも頭打ちにする。
     final stageHeight = math.min(w * 1.02, size.height * 0.5);
+    // 巣の直径をステージの高さから決める。180 固定にしていたら画面の低い端末で
+    // はみ出した（テスト 800x600 で「61px overflow」）。中身がステージに収まるよう、
+    // 文字・バー・余白の取り分（約180px）を引いた残りから逆算する。
+    final ringDiameter = ((stageHeight - 180) / 1.12).clamp(96.0, 180.0);
 
     return Semantics(
       button: true,
@@ -381,6 +385,7 @@ class _EggStage extends StatelessWidget {
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     // 文字は必ず淡い座布団の上に置く。青空や草の上に直接置くと
                     // コントラストが足りず読めない（モックが白い吹き出しを使っている
@@ -395,7 +400,7 @@ class _EggStage extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpace.md),
                     NestRing(
-                      diameter: 180,
+                      diameter: ringDiameter,
                       glow: egg.isNearHatch(params) ? rarity.glow : null,
                       // 風景の上なので砂色の円台は出さない（影だけ残す）。
                       showBase: false,
