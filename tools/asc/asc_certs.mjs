@@ -60,6 +60,17 @@ async function api(method, path) {
 const isDevelopment = (type) => String(type || '').toUpperCase().includes('DEVELOPMENT');
 
 (async () => {
+  // 先にアカウント内のアプリを出す。開発証明書は**アプリ単位ではなくアカウント単位**
+  // なので、「Moffy のものか」は証明書からは判定できない。判断材料として、
+  // このアカウントに他のアプリがあるかを示す（他が無ければ影響範囲は Moffy だけ）。
+  const apps = await api('GET', '/v1/apps?limit=100');
+  const list = apps.json?.data ?? [];
+  console.log('=== このアカウントのアプリ ' + list.length + ' 件 ===');
+  for (const a of list) {
+    console.log('  ' + a.attributes?.bundleId + '  ' + a.attributes?.name);
+  }
+  console.log('');
+
   const res = await api('GET', '/v1/certificates?limit=200');
   if (res.status !== 200) {
     console.error('❌ 証明書の取得に失敗: ' + res.status + ' ' + res.text.slice(0, 300));
