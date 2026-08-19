@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/tokens.dart';
 import '../../../../core/widgets/nest_panel.dart';
+import '../../../../core/widgets/world_stage.dart';
 import '../../../eggs/presentation/egg_visuals.dart';
 import '../../domain/mofi_models.dart';
 
@@ -36,19 +37,33 @@ class MofiDetailSheet extends StatelessWidget {
           children: [
             const _SheetGrip(),
             const SizedBox(height: AppSpace.lg),
-            NestRing(
-              diameter: 160,
-              glow: discovered ? rarity.main : null,
-              child: MofiSubject(
-                speciesId: entry.species.id,
-                family: entry.species.family,
-                rarity: entry.species.rarity,
-                stage: entry.evolutionStage(stage2Count),
-                silhouette: !discovered,
-                isShiny: entry.isShiny,
+            // 発見済みの子だけ「世界の風景」の上に立たせる。未発見はシルエットで
+            // 正体を伏せる場面なので、背景を出すと発見の驚きが先に漏れる。
+            // 砂色の円台は出さない（風景の上だと貼り紙のように浮くため）。
+            SizedBox(
+              height: 200,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (discovered)
+                    const Positioned.fill(child: WorldStageBackground()),
+                  NestRing(
+                    diameter: 160,
+                    glow: discovered ? rarity.main : null,
+                    showBase: !discovered,
+                    child: MofiSubject(
+                      speciesId: entry.species.id,
+                      family: entry.species.family,
+                      rarity: entry.species.rarity,
+                      stage: entry.evolutionStage(stage2Count),
+                      silhouette: !discovered,
+                      isShiny: entry.isShiny,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             Text(
               discovered ? entry.species.name : '？？？',
               style: AppType.display,
