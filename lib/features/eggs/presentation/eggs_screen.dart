@@ -379,7 +379,7 @@ class _EggsBody extends ConsumerWidget {
           onShare: (imageBytes) async {
             // S13 グロースの種: 結果カードのキャプチャ画像 + 文面をSNSへ共有。
             // 画像生成・共有はサービスに委譲（プラグイン依存の隔離 / ベストエフォート）。
-            final text = buildHatchShareText(hatched);
+            final text = buildHatchShareText(hatched, stage: stage);
             final ok = await ref.read(hatchShareServiceProvider).shareHatch(
                   text: text,
                   subject: buildHatchShareSubject(hatched),
@@ -717,7 +717,7 @@ class _HatchedStage extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(result.species.name, style: AppType.title),
+                      Text(result.species.nameForStage(stage), style: AppType.title),
                       if (justEvolved) ...[
                         const SizedBox(height: 2),
                         Text(

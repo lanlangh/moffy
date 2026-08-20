@@ -89,7 +89,8 @@ class _MofiDetailSheetState extends State<MofiDetailSheet> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
             Text(
-              discovered ? entry.species.name : '？？？',
+              // 表示中の段階の名前を出す（進化前と進化後で名前が違う）。
+              discovered ? entry.species.nameForStage(shownStage) : '？？？',
               style: AppType.display,
             ),
             if (discovered && entry.isShiny) ...[

@@ -67,6 +67,23 @@ class MofiSpecies {
   final MofiFamily family;
   final MofiRarity rarity;
   final String name;
+
+  /// 進化後（stage 2）の名前。null なら [name] をそのまま使う。
+  ///
+  /// なぜ別名にするか（オーナー判断 2026-08-19）:
+  ///   収集ゲームで進化して名前が変わらないのは不自然。
+  ///   進化前は略した子ども言葉（ぽてうさ・とかげり）なので、
+  ///   進化後は正式な形や称号へ伸ばす（ぽてうさぎ・とかげりゅう）。
+  ///
+  /// サーバー（mofi_species.evolved_name）が真の情報源。未設定なら name に倒れるので、
+  /// **DB へ適用する前でもアプリは壊れない**（段階的に反映できる）。
+  final String? evolvedName;
+
+  /// 表示する段階に応じた名前。stage 2 かつ [evolvedName] があればそちら。
+  String nameForStage(int stage) =>
+      (stage >= 2 && evolvedName != null && evolvedName!.isNotEmpty)
+          ? evolvedName!
+          : name;
   final int sortOrder;
 
   const MofiSpecies({
@@ -75,6 +92,7 @@ class MofiSpecies {
     required this.rarity,
     required this.name,
     required this.sortOrder,
+    this.evolvedName,
   });
 
   factory MofiSpecies.fromJson(Map<String, Object?> j) => MofiSpecies(
@@ -82,6 +100,7 @@ class MofiSpecies {
         family: MofiFamily.fromWire(j['family']! as String),
         rarity: MofiRarity.fromWire(j['rarity']! as String),
         name: j['name']! as String,
+        evolvedName: j['evolved_name'] as String?,
         sortOrder: (j['sort_order'] as num?)?.toInt() ?? 0,
       );
 }
@@ -90,27 +109,27 @@ class MofiSpecies {
 /// スライム: C2/R2/SR1 / 小動物: C2/R2/SSR1 / ドラゴン: C1/R1/SR2/SSR1 /
 /// 獣(かっこいい枠): C2/R1/SR1/SSR1。合計 C7/R6/SR4/SSR3。
 const List<MofiSpecies> kMofiSpeciesSeed = [
-  MofiSpecies(id: 'slime_01', family: MofiFamily.slime, rarity: MofiRarity.common, name: 'ぷるりん', sortOrder: 1),
-  MofiSpecies(id: 'slime_02', family: MofiFamily.slime, rarity: MofiRarity.common, name: 'もちすら', sortOrder: 2),
-  MofiSpecies(id: 'slime_03', family: MofiFamily.slime, rarity: MofiRarity.rare, name: 'きらすら', sortOrder: 3),
-  MofiSpecies(id: 'slime_04', family: MofiFamily.slime, rarity: MofiRarity.rare, name: 'にじすら', sortOrder: 4),
-  MofiSpecies(id: 'slime_05', family: MofiFamily.slime, rarity: MofiRarity.sr, name: 'しずくおう', sortOrder: 5),
-  MofiSpecies(id: 'critter_01', family: MofiFamily.critter, rarity: MofiRarity.common, name: 'ころみ', sortOrder: 6),
-  MofiSpecies(id: 'critter_02', family: MofiFamily.critter, rarity: MofiRarity.common, name: 'ぽてうさ', sortOrder: 7),
-  MofiSpecies(id: 'critter_03', family: MofiFamily.critter, rarity: MofiRarity.rare, name: 'まめきつ', sortOrder: 8),
-  MofiSpecies(id: 'critter_04', family: MofiFamily.critter, rarity: MofiRarity.rare, name: 'ふわりす', sortOrder: 9),
-  MofiSpecies(id: 'critter_05', family: MofiFamily.critter, rarity: MofiRarity.ssr, name: 'こんげつ', sortOrder: 10),
-  MofiSpecies(id: 'dragon_01', family: MofiFamily.dragon, rarity: MofiRarity.common, name: 'とかげり', sortOrder: 11),
-  MofiSpecies(id: 'dragon_02', family: MofiFamily.dragon, rarity: MofiRarity.rare, name: 'ほのおこ', sortOrder: 12),
-  MofiSpecies(id: 'dragon_03', family: MofiFamily.dragon, rarity: MofiRarity.sr, name: 'らいりゅう', sortOrder: 13),
-  MofiSpecies(id: 'dragon_04', family: MofiFamily.dragon, rarity: MofiRarity.sr, name: 'こおりば', sortOrder: 14),
-  MofiSpecies(id: 'dragon_05', family: MofiFamily.dragon, rarity: MofiRarity.ssr, name: 'てんりゅう', sortOrder: 15),
+  MofiSpecies(id: 'slime_01', family: MofiFamily.slime, rarity: MofiRarity.common, name: 'ぷるりん', sortOrder: 1, evolvedName: 'プルミエ'),
+  MofiSpecies(id: 'slime_02', family: MofiFamily.slime, rarity: MofiRarity.common, name: 'もちすら', sortOrder: 2, evolvedName: 'モチルド'),
+  MofiSpecies(id: 'slime_03', family: MofiFamily.slime, rarity: MofiRarity.rare, name: 'きらすら', sortOrder: 3, evolvedName: 'キラーレ'),
+  MofiSpecies(id: 'slime_04', family: MofiFamily.slime, rarity: MofiRarity.rare, name: 'にじすら', sortOrder: 4, evolvedName: 'ニジェンテ'),
+  MofiSpecies(id: 'slime_05', family: MofiFamily.slime, rarity: MofiRarity.sr, name: 'しずくおう', sortOrder: 5, evolvedName: 'シズクレイ'),
+  MofiSpecies(id: 'critter_01', family: MofiFamily.critter, rarity: MofiRarity.common, name: 'ころみ', sortOrder: 6, evolvedName: 'コロミナ'),
+  MofiSpecies(id: 'critter_02', family: MofiFamily.critter, rarity: MofiRarity.common, name: 'ぽてうさ', sortOrder: 7, evolvedName: 'ポテラビス'),
+  MofiSpecies(id: 'critter_03', family: MofiFamily.critter, rarity: MofiRarity.rare, name: 'まめきつ', sortOrder: 8, evolvedName: 'マメキーゼ'),
+  MofiSpecies(id: 'critter_04', family: MofiFamily.critter, rarity: MofiRarity.rare, name: 'ふわりす', sortOrder: 9, evolvedName: 'フワリスタ'),
+  MofiSpecies(id: 'critter_05', family: MofiFamily.critter, rarity: MofiRarity.ssr, name: 'こんげつ', sortOrder: 10, evolvedName: 'コンルナ'),
+  MofiSpecies(id: 'dragon_01', family: MofiFamily.dragon, rarity: MofiRarity.common, name: 'とかげり', sortOrder: 11, evolvedName: 'トカゲイル'),
+  MofiSpecies(id: 'dragon_02', family: MofiFamily.dragon, rarity: MofiRarity.rare, name: 'ほのおこ', sortOrder: 12, evolvedName: 'ホノーガ'),
+  MofiSpecies(id: 'dragon_03', family: MofiFamily.dragon, rarity: MofiRarity.sr, name: 'らいりゅう', sortOrder: 13, evolvedName: 'ライドール'),
+  MofiSpecies(id: 'dragon_04', family: MofiFamily.dragon, rarity: MofiRarity.sr, name: 'こおりば', sortOrder: 14, evolvedName: 'コオリバル'),
+  MofiSpecies(id: 'dragon_05', family: MofiFamily.dragon, rarity: MofiRarity.ssr, name: 'てんりゅう', sortOrder: 15, evolvedName: 'テンドラ'),
   // 獣（beast）＝“かっこいい”枠（男性ユーザー訴求 / 0007 で追加）。
-  MofiSpecies(id: 'beast_01', family: MofiFamily.beast, rarity: MofiRarity.common, name: 'とらまる', sortOrder: 16),
-  MofiSpecies(id: 'beast_02', family: MofiFamily.beast, rarity: MofiRarity.common, name: 'うるが', sortOrder: 17),
-  MofiSpecies(id: 'beast_03', family: MofiFamily.beast, rarity: MofiRarity.rare, name: 'れおん', sortOrder: 18),
-  MofiSpecies(id: 'beast_04', family: MofiFamily.beast, rarity: MofiRarity.sr, name: 'くろば', sortOrder: 19),
-  MofiSpecies(id: 'beast_05', family: MofiFamily.beast, rarity: MofiRarity.ssr, name: 'びゃっこ', sortOrder: 20),
+  MofiSpecies(id: 'beast_01', family: MofiFamily.beast, rarity: MofiRarity.common, name: 'とらまる', sortOrder: 16, evolvedName: 'トラガル'),
+  MofiSpecies(id: 'beast_02', family: MofiFamily.beast, rarity: MofiRarity.common, name: 'うるが', sortOrder: 17, evolvedName: 'ウルガン'),
+  MofiSpecies(id: 'beast_03', family: MofiFamily.beast, rarity: MofiRarity.rare, name: 'れおん', sortOrder: 18, evolvedName: 'レオンド'),
+  MofiSpecies(id: 'beast_04', family: MofiFamily.beast, rarity: MofiRarity.sr, name: 'くろば', sortOrder: 19, evolvedName: 'クロバルド'),
+  MofiSpecies(id: 'beast_05', family: MofiFamily.beast, rarity: MofiRarity.ssr, name: 'びゃっこ', sortOrder: 20, evolvedName: 'ビャクレン'),
 ];
 
 /// 色違い（shiny）の色相回転角（度 / クライアント表示のみ・追加アート不要）。

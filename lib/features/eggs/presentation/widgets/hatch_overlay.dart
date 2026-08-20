@@ -475,7 +475,7 @@ class _HatchShareCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpace.xl),
-          Text(result.species.name, style: AppType.display),
+          Text(result.species.nameForStage(stage), style: AppType.display),
           const SizedBox(height: AppSpace.xs),
           Text(
             '${result.species.rarity.label}・${result.species.family.label}',
