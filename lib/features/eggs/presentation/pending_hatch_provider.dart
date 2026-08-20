@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../collection/domain/mofi_models.dart';
 import '../domain/egg_models.dart';
 
 /// 孵化の結果と、その孵化が進化に与えた意味をまとめたもの。
@@ -29,6 +30,39 @@ class HatchPresentation {
 
   /// 進化まであと何体か。0 なら進化済み。
   final int toNextEvolution;
+
+  /// 孵化結果と、孵化**後**に読み直した図鑑から演出用の情報を組み立てる。
+  ///
+  /// 画面から切り出してあるのは、**この導出が過去に2回間違えているため**:
+  ///   1. 種族IDだけで図鑑を照合し、色違いを孵化したのに通常（未発見）の
+  ///      エントリを拾って「進化情報なし」になった（2026-08-19 実機で発覚）。
+  ///   2. 名前をサーバーの返事から取っていて図鑑と食い違った（2026-08-20 発覚）。
+  /// どちらも画面の中に埋まっていて**テストが書けなかった**のが共通の原因。
+  /// 純粋関数にしてここで固定する。
+  ///
+  /// [dex] が null（読み直しに失敗・オフライン）でも演出は出す。
+  /// その場合は「ベビー・進化情報なし」に倒す（演出が出ないより良い）。
+  factory HatchPresentation.fromDex({
+    required HatchResult result,
+    required CollectionState? dex,
+  }) {
+    // 🔴 図鑑は「通常」と「色違い」を**別エントリ**で持つ（全40 = 20種 × 2）。
+    // 種族IDだけで照合すると別個体を掴む。isShiny まで一致させること。
+    final entry = dex?.entries
+        .where(
+          (e) => e.species.id == result.species.id && e.isShiny == result.isShiny,
+        )
+        .firstOrNull;
+    final stage2 = dex?.evolveStage2Count ?? 3;
+    return HatchPresentation(
+      result: result,
+      stage: entry?.evolutionStage(stage2) ?? 1,
+      // 「この孵化で跨いだか」＝ ちょうどしきい値に到達した回だけ true。
+      // すでにアダルトの子をもう1体引いても毎回は出さない。
+      justEvolved: entry != null && entry.obtainedCount == stage2,
+      toNextEvolution: entry?.toNextEvolution(stage2) ?? 0,
+    );
+  }
 }
 
 /// 孵化したばかりで、まだ図鑑へ送っていない Mofi。
