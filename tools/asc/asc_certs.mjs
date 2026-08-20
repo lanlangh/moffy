@@ -102,6 +102,19 @@ const isDevelopment = (type) => String(type || '').toUpperCase().includes('DEVEL
     .filter((c) => isDevelopment(c.type))
     // 期限が新しい = 直近に発行された。新しい順に並べ、先頭 KEEP 本を残す。
     .sort((a, b) => String(b.expires).localeCompare(String(a.expires)));
+  // 🔴 revoke で ids を省略させない。
+  //
+  // 以前は ids 未指定なら「最新 KEEP 本だけ残して残り全部を失効」に**黙って切り替わる**作りだった。
+  // 2026-08-19 に他アプリの証明書3本を巻き込んで失効させた事故は、この経路。
+  // どれが消えるかを人間が数えずに実行できてしまうこと自体が原因なので、
+  // **消すものを1本ずつ明示させる**。list（読むだけ）は従来どおり ids 無しで使える。
+  if (MODE === 'revoke' && IDS.length === 0) {
+    console.error('❌ revoke には ids（消す証明書IDのカンマ区切り）が必須。');
+    console.error('   ids を省略すると「最新以外を全部」になり、他アプリを巻き込む。');
+    console.error('   まず mode=list で一覧を見て、消すものを1本ずつ指定すること。');
+    process.exit(1);
+  }
+
   // ID 指定があればそれだけを対象にする（他アプリの証明書を巻き込まないため）。
   const keep = IDS.length > 0 ? dev.filter((c) => !IDS.includes(c.id)) : dev.slice(0, KEEP);
   const target = IDS.length > 0 ? dev.filter((c) => IDS.includes(c.id)) : dev.slice(KEEP);
