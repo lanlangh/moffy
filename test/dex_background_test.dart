@@ -51,8 +51,8 @@ void main() {
   group('絵と名前は必ず同じ段階（オーナー指摘 2026-08-20）', () {
     // 進化後の姿に進化前の名前が付いていた。絵だけ段階に追従し、名前が
     // 取り残されていたのが原因。**同じ段階であること**を CI で固定する。
-    MofiDexEntry evolved() => MofiDexEntry(
-          species: const MofiSpecies(
+    MofiDexEntry evolved() => const MofiDexEntry(
+          species: MofiSpecies(
             id: 'slime_01',
             family: MofiFamily.slime,
             rarity: MofiRarity.common,
