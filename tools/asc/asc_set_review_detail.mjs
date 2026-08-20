@@ -45,7 +45,13 @@ const fail = (m, r) => { console.error('❌ ' + m); if (r) console.error('   ' +
 (async () => {
   const notes = fs.readFileSync(NOTES_FILE, 'utf8').trim();
   if (!notes) fail('審査メモが空');
-  console.log(`notes: ${notes.length} 字`);
+  // 上限4000字。超えると Apple が 4xx を返すが、**ASC を触ったあとにしか分からない**ため
+  // ここで止める（2026-08-20: 1.2.0 の追記で 4728 字まで膨らみ、この検査が無くて気づけなかった）。
+  const notesLen = [...notes].length;
+  console.log(`notes: ${notesLen} 字 / 4000`);
+  if (notesLen > 4000) {
+    fail(`審査メモが ${notesLen} 字＝上限4000字を ${notesLen - 4000} 字超過。ASC に触る前に中止する。`);
+  }
 
   const apps = await api('GET', `/v1/apps?filter[bundleId]=${encodeURIComponent(BUNDLE_ID)}`);
   const appId = apps.json?.data?.[0]?.id;

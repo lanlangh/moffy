@@ -137,8 +137,13 @@ const warn = (m) => { warns.push(m); console.log('  ⚠️  ' + m); };
   console.log('\n=== App情報 ===');
   const infos = await get(`/v1/apps/${appId}/appInfos?limit=5`);
   for (const inf of infos.json?.data ?? []) {
-    const st = inf.attributes?.appStoreState ?? inf.attributes?.state;
-    if (st === 'READY_FOR_DISTRIBUTION') continue; // 公開済みの旧レコード
+    // 🔴 appInfo は appStoreState と state の**両方**を返し、値が違う（2026-08-20 実測:
+    //    appStoreState="READY_FOR_SALE" / state="READY_FOR_DISTRIBUTION"）。
+    //    片方だけ見ると公開中のレコードを素通りさせ、**古いアプリ名を ✅ で出してしまう**。
+    const a = inf.attributes ?? {};
+    const st = a.state ?? a.appStoreState;
+    const published = ['READY_FOR_DISTRIBUTION', 'READY_FOR_SALE'];
+    if (published.includes(a.state) || published.includes(a.appStoreState)) continue; // 公開中は検査対象外
     console.log(`  appInfo id=${inf.id} state=${st}`);
     const il = await get(`/v1/appInfos/${inf.id}/appInfoLocalizations?limit=20`);
     for (const l of il.json?.data ?? []) {

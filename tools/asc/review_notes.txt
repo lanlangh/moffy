@@ -1,8 +1,7 @@
 [Version 1.2.0]
-A visual update. No changes to permissions, data collection, sign-in, or purchases.
-Added: an animated egg, illustrated backgrounds, a distinct name for each character's
-evolved form, an evolution effect, and an evolution line in the collection screen.
-The Guideline 5.1.1(iv) changes approved in 1.1.1 are unchanged in this build.
+Visual/UX update only: the egg now animates (breathing, then wobbling after it
+cracks), a world background was added, evolved characters have their own names, and
+an effect plays on evolution. No change to permissions, data handling, or purchases.
 
 【Family Controls / Screen Time の用途について】
 

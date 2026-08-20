@@ -21,7 +21,15 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const FORBIDDEN_SUBMISSION = '755e8857-3ab8-421d-bdc1-e4642569acb4';
-const FORBIDDEN_VERSION = '7824865b-b21f-4ce3-b76d-3da9ad85bb73';
+// 公開中のバージョン。ここを掴んで掲載文を書き換えると、**いまストアに出ている表示が変わる**。
+// 旧実装は 1.0 の1本しか禁止しておらず、現在配信中の 1.1.1 は素通りだった（2026-08-20 実測）。
+// ただし ID の列挙は増えるたびに陳腐化するので、**本体は下の state ガード**。これは保険。
+const FORBIDDEN_VERSIONS = [
+  '7824865b-b21f-4ce3-b76d-3da9ad85bb73', // 1.0
+  '9fd8a782-73ce-48f6-8c29-8f5031b5e9a4', // 1.0.2
+  '4dc2b78b-2c07-429b-bfa7-c640edc84b2d', // 1.1.0
+  '63030862-676f-4875-b17f-a8ea14c5e610', // 1.1.1 ← 現在ストアが配信しているのはこれ
+];
 const MARKETING_URL = 'https://lan-corp.com';
 
 const [, , P8, KEY_ID, ISSUER, BUNDLE_ID, VERSION, MODE = 'dry-run'] = process.argv;
@@ -39,7 +47,7 @@ const BASE = 'https://api.appstoreconnect.apple.com';
 async function call(method, p, body) {
   if (!['GET', 'POST', 'PATCH'].includes(method)) throw new Error(`禁止メソッド: ${method}`);
   const payload = body ? JSON.stringify(body) : '';
-  for (const bad of [FORBIDDEN_SUBMISSION, FORBIDDEN_VERSION]) {
+  for (const bad of [FORBIDDEN_SUBMISSION, ...FORBIDDEN_VERSIONS]) {
     if (p.includes(bad) || payload.includes(bad)) throw new Error(`禁止ID ${bad} に触れようとした。中止。`);
   }
   const res = await fetch(BASE + p, {
@@ -92,7 +100,17 @@ const cp = (s) => [...(s ?? '')].length;
   console.log('');
 
   if (target) {
-    console.log(`✅ ${VERSION} は既に存在（id=${target.id} / ${target.attributes.appStoreState}）。作成はスキップ。`);
+    // 🔴 下書き以外を掴んだら**必ず止める**。versionString の打ち間違いで公開中の版を
+    // 掴んだ場合、掲載文の書き換えがそのままストアに出る。Apple の 409 に頼らず自前で止める。
+    const st = target.attributes.appStoreState ?? target.attributes.appVersionState;
+    const DRAFT = ['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED',
+                   'METADATA_REJECTED', 'INVALID_BINARY'];
+    if (!DRAFT.includes(st)) {
+      console.error(`
+❌ ${VERSION} は state=${st}＝下書きではない（公開中/審査中）。掲載文を書き換えず中止する。`);
+      process.exit(1);
+    }
+    console.log(`✅ ${VERSION} は既に存在（id=${target.id} / ${st}）。作成はスキップ。`);
   } else if (!APPLY) {
     console.log(`[dry-run] appStoreVersion ${VERSION} を新規作成します（platform=IOS / releaseType=MANUAL）。`);
     console.log('          実行するには mode=apply を指定してください。');

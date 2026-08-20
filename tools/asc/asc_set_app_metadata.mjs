@@ -59,10 +59,22 @@ function fail(m, r) {
 
   // --- カテゴリ（appInfo 側）---
   const infos = await api('GET', `/v1/apps/${appId}/appInfos?limit=5`);
-  // 編集可能な appInfo（公開済み READY_FOR_DISTRIBUTION 以外）を選ぶ
+  // 🔴 編集可能な appInfo は「PREPARE_FOR_SUBMISSION のものだけ」と**明示的に許可**する。
+  //
+  // 以前は「READY_FOR_DISTRIBUTION 以外なら編集可」という**除外方式**だった。これは実際に危険だった:
+  // ASC の appInfo は2つのキーを両方返し、**値が違う**（2026-08-20 実測）:
+  //     appStoreState = "READY_FOR_SALE" / state = "READY_FOR_DISTRIBUTION"
+  // 旧コードは appStoreState を先に読むので "READY_FOR_SALE" を得て、
+  // 「READY_FOR_DISTRIBUTION ではない＝編集してよい」と判定し、
+  // **公開中のストア掲載情報に PATCH を投げていた**（アプリ名・副題が即座に変わる）。
+  //
+  // 除外方式は「知らない状態名が増えるたびに穴が開く」ので、許可方式に変える。
+  // どちらか一方のキーでも公開系を示していたら触らない。
   const editable = (infos.json?.data ?? []).filter((i) => {
-    const s = i.attributes?.appStoreState ?? i.attributes?.state;
-    return s !== 'READY_FOR_DISTRIBUTION';
+    const a = i.attributes ?? {};
+    const published = ['READY_FOR_DISTRIBUTION', 'READY_FOR_SALE'];
+    if (published.includes(a.state) || published.includes(a.appStoreState)) return false;
+    return a.state === 'PREPARE_FOR_SUBMISSION' || a.appStoreState === 'PREPARE_FOR_SUBMISSION';
   });
   if (!editable.length) fail('編集可能な appInfo が無い', infos);
   for (const inf of editable) {
