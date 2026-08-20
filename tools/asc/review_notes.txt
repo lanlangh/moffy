@@ -1,7 +1,7 @@
-[Version 1.1.1]
-This build resolves the Guideline 5.1.1(iv) issue from 1.1.0. On the screen before
-the Screen Time permission request, the button is now "Next" (was "Allow"), and the
-"Set up later" option was removed so the user always proceeds to the system request.
+[Version 1.2.0]
+Visual/UX update only: the egg now animates (breathing, then wobbling after it
+cracks), a world background was added, evolved characters have their own names, and
+an effect plays on evolution. No change to permissions, data handling, or purchases.
 
 【Family Controls / Screen Time の用途について】
 
