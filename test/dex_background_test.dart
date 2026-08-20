@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moffy/core/widgets/world_stage.dart';
 import 'package:moffy/features/collection/domain/mofi_models.dart';
 import 'package:moffy/features/collection/presentation/widgets/mofi_detail_sheet.dart';
+import 'package:moffy/features/collection/presentation/widgets/mofi_grid_tile.dart';
 
 /// 図鑑の詳細に「世界の背景」が出ることを守る回帰テスト。
 ///
@@ -45,5 +46,49 @@ void main() {
     await tester.pumpWidget(harness(entry(discovered: false)));
     await tester.pumpAndSettle();
     expect(find.byType(WorldStageBackground), findsNothing);
+  });
+
+  group('絵と名前は必ず同じ段階（オーナー指摘 2026-08-20）', () {
+    // 進化後の姿に進化前の名前が付いていた。絵だけ段階に追従し、名前が
+    // 取り残されていたのが原因。**同じ段階であること**を CI で固定する。
+    MofiDexEntry evolved() => MofiDexEntry(
+          species: const MofiSpecies(
+            id: 'slime_01',
+            family: MofiFamily.slime,
+            rarity: MofiRarity.common,
+            name: 'ぷるりん',
+            sortOrder: 1,
+            evolvedName: 'プルリーナ',
+          ),
+          isShiny: false,
+          discovered: true,
+          discoveredAt: null,
+          obtainedCount: 3, // しきい値3 = 進化済み
+        );
+
+    Widget grid({required bool forceBaby}) => MaterialApp(
+          home: Scaffold(
+            body: MofiGridTile(
+              entry: evolved(),
+              stage2Count: 3,
+              forceBabyStage: forceBaby,
+              onTap: () {},
+            ),
+          ),
+        );
+
+    testWidgets('進化済みなら一覧の名前も進化後になる', (tester) async {
+      await tester.pumpWidget(grid(forceBaby: false));
+      await tester.pumpAndSettle();
+      expect(find.text('プルリーナ'), findsOneWidget);
+      expect(find.text('ぷるりん'), findsNothing);
+    });
+
+    testWidgets('「進化前」表示に切り替えると名前も進化前に戻る', (tester) async {
+      await tester.pumpWidget(grid(forceBaby: true));
+      await tester.pumpAndSettle();
+      expect(find.text('ぷるりん'), findsOneWidget);
+      expect(find.text('プルリーナ'), findsNothing);
+    });
   });
 }
