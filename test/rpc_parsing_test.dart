@@ -13,6 +13,12 @@ void main() {
   group('HatchResult.fromJson（fn_hatch_egg の戻り jsonb）', () {
     test('色違いSR個体・新規発見を正しくパース', () {
       // fn_hatch_egg が jsonb_build_object で返す形（migration 0002）。
+      // ⚠️ name は **DB に入っている改名前の値**をあえて渡している。
+      //    このテストを書いた当時は DB とアプリで同じ名前だったので
+      //    「サーバーの name がそのまま出る」ことを確かめていたが、
+      //    2026-08-20 に名前の出どころをアプリ内の kMofiSpeciesSeed に一本化した
+      //    （サーバーは evolved_name を返さず、DB の name も改名前のままだったため）。
+      //    よって **期待するのは seed の名前**。詳細は test/hatch_name_source_test.dart。
       final json = <String, Object?>{
         'species': <String, Object?>{
           'id': 'dragon_03',
@@ -30,7 +36,11 @@ void main() {
       expect(r.species.id, 'dragon_03');
       expect(r.species.family, MofiFamily.dragon);
       expect(r.species.rarity, MofiRarity.sr);
-      expect(r.species.name, 'らいりゅう');
+      expect(
+        r.species.name,
+        kMofiSpeciesSeed.firstWhere((e) => e.id == 'dragon_03').name,
+      );
+      expect(r.species.name, isNot('らいりゅう')); // DB の古い名前は出ない
       expect(r.species.sortOrder, 13);
       expect(r.isShiny, isTrue);
       expect(r.isNewDexEntry, isTrue);
