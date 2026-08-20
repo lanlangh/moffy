@@ -192,14 +192,37 @@ class HatchResult {
     required this.fromEggId,
   });
 
-  factory HatchResult.fromJson(Map<String, Object?> j) => HatchResult(
-        species: MofiSpecies.fromJson(
-          (j['species']! as Map).cast<String, Object?>(),
-        ),
-        isShiny: j['is_shiny'] == true,
-        isNewDexEntry: j['is_new_dex_entry'] == true,
-        fromEggId: j['from_egg_id']! as String,
-      );
+  factory HatchResult.fromJson(Map<String, Object?> j) {
+    final parsed = MofiSpecies.fromJson(
+      (j['species']! as Map).cast<String, Object?>(),
+    );
+    // 🔴 名前だけはサーバーの返事を使わず、**アプリ内の [kMofiSpeciesSeed] で引き直す**。
+    //
+    // なぜ（2026-08-20 に実機直前で発覚）:
+    //   * `fn_hatch_egg` が返す species は id/family/rarity/name/sort_order の5つだけで、
+    //     **evolved_name を含まない**。そのまま使うと [MofiSpecies.evolvedName] が常に null になり、
+    //     [MofiSpecies.nameForStage] が進化後でも進化前の名前へ倒れる。
+    //     ＝ このリリースの目玉「進化すると名前が変わる」が、孵化まわりで**一度も出ない**。
+    //   * さらに DB の name は改名前のまま（例: dragon_03 = 'らいりゅう'）。図鑑はアプリ内リスト
+    //     由来で 'らいむ' を出すので、**孵化演出と図鑑で名前が食い違う**。
+    //
+    // 図鑑側（[CollectionRepository]）は元から kMofiSpeciesSeed から組んでいる。
+    // ここを揃えることで、名前の出どころがアプリ内の1箇所に統一される。
+    //
+    // 抽選・図鑑登録の信頼境界は動かない（何が出たかを決めるのは今もサーバー。
+    // ここで差し替えるのは **同じ id の表示名だけ**）。
+    // 未知の id が来たらサーバーの値へ倒すので、種を追加しても壊れない。
+    final species = kMofiSpeciesSeed.firstWhere(
+      (s) => s.id == parsed.id,
+      orElse: () => parsed,
+    );
+    return HatchResult(
+      species: species,
+      isShiny: j['is_shiny'] == true,
+      isNewDexEntry: j['is_new_dex_entry'] == true,
+      fromEggId: j['from_egg_id']! as String,
+    );
+  }
 }
 
 /// たまご画面の表示状態（育成3枠 + 保管枠 + プールpt / SCREEN_FLOWS §3）。

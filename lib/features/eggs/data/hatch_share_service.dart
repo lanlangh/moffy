@@ -62,8 +62,10 @@ class HatchShareService {
 /// シェア文面を組み立てる（純粋関数 / 単体テスト対象）。
 ///
 /// 色違いは専用の訴求文にして拡散意欲を高める（S13）。絵文字は最小限に留める。
-String buildHatchShareText(HatchResult result) {
-  final name = result.species.name;
+String buildHatchShareText(HatchResult result, {int stage = 1}) {
+  // 進化後は名前が変わるので、シェア文も表示中の姿に合わせる
+  // （SNSに出る名前と図鑑の名前が食い違わないように）。
+  final name = result.species.nameForStage(stage);
   final rarity = result.species.rarity.label;
   final headline = result.isShiny
       ? '✨色違いの「$name」($rarity)が孵化！'

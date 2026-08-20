@@ -52,6 +52,11 @@ class MockCollectionRepository implements CollectionRepository {
       'slime_01:normal': 4, // アダルトに進化済み
       'critter_01:normal': 3, // ちょうど進化
       'slime_02:normal': 2, // ベビー・あと1体で進化（発見済み）
+      // モックの孵化は必ず slime_05(しずくおう)の色違いを返す（egg_repository）。
+      // その所持数をしきい値ちょうど(3)にしておくと、プレビューで孵化するたびに
+      // **「進化！」の演出とアダルトの姿**を確認できる。
+      // 本番は SupabaseCollectionRepository の実データが真の情報源なので影響しない。
+      'slime_05:shiny': 3,
     };
 
     final entries = _buildAllEntries(discovered, counts);

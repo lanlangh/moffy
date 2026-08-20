@@ -13,6 +13,7 @@ class MofiGridTile extends StatelessWidget {
     super.key,
     required this.entry,
     required this.stage2Count,
+    this.forceBabyStage = false,
     required this.onTap,
   });
 
@@ -20,11 +21,20 @@ class MofiGridTile extends StatelessWidget {
 
   /// 進化アダルト化の重複しきい値（CollectionState由来 / docs/EVOLUTION.md）。
   final int stage2Count;
+
+  /// true のとき、進化済みでも**こどもの姿**で描く（図鑑の切替）。
+  /// 進化すると前の姿が一覧から消えてしまうのを補う。
+  final bool forceBabyStage;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final discovered = entry.discovered;
+    // 🔴 絵と名前は**必ず同じ段階**にする。以前は絵だけ段階に追従し、
+    // 名前は進化前のままだった（進化後の姿に進化前の名前が付いていた）。
+    // 段階を1箇所で決めて両方に配ることで、二度と食い違わないようにする。
+    final shownStage = forceBabyStage ? 1 : entry.evolutionStage(stage2Count);
+    final shownName = entry.species.nameForStage(shownStage);
     final ring = NestRing(
       diameter: 72,
       // 色違いは巣リングの外周を虹色リムに（リングと同心＝中心がずれない / SCREEN_FLOWS §4）。
@@ -44,7 +54,7 @@ class MofiGridTile extends StatelessWidget {
         speciesId: entry.species.id,
         family: entry.species.family,
         rarity: entry.species.rarity,
-        stage: entry.evolutionStage(stage2Count),
+        stage: shownStage,
         silhouette: !discovered,
         isShiny: entry.isShiny,
       ),
@@ -53,7 +63,7 @@ class MofiGridTile extends StatelessWidget {
     return Semantics(
       button: true,
       label: discovered
-          ? (entry.isShiny ? '${entry.species.name}・色違い' : entry.species.name)
+          ? (entry.isShiny ? '$shownName・色違い' : shownName)
           : '未発見',
       child: GestureDetector(
         onTap: onTap,
@@ -63,7 +73,7 @@ class MofiGridTile extends StatelessWidget {
             ring,
             const SizedBox(height: AppSpace.xs),
             Text(
-              discovered ? entry.species.name : '？？？',
+              discovered ? shownName : '？？？',
               style: AppType.caption.copyWith(
                 color:
                     discovered ? AppColors.textPrimary : AppColors.textDisabled,

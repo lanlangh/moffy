@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -16,12 +17,15 @@ import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/egg_art.dart';
 import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../core/widgets/world_stage.dart';
 import '../../collection/domain/mofi_models.dart';
+import '../../collection/presentation/collection_controller.dart';
 import '../../paywall/presentation/paywall_screen.dart';
 import '../data/hatch_share_service.dart';
 import '../domain/egg_models.dart';
 import 'eggs_controller.dart';
 import 'egg_visuals.dart';
+import 'pending_hatch_provider.dart';
 import 'widgets/egg_detail_sheet.dart';
 import 'widgets/hatch_overlay.dart';
 import 'widgets/incubator_slots.dart';
@@ -69,6 +73,8 @@ class _EggsBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(eggsControllerProvider.notifier);
+    // 孵化したばかりでまだ図鑑へ送っていない Mofi（あればステージに残す）。
+    final pending = ref.watch(pendingHatchProvider);
 
     // 完全に空（保管も育成も無し）→ クエスト誘導の空状態（SCREEN_FLOWS §3）。
     if (state.isCompletelyEmpty) {
@@ -126,8 +132,17 @@ class _EggsBody extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpace.lg),
 
-                // ② 主役ステージ（全面背景 + 卵）。左右いっぱいに出す。
-                if (active != null)
+                // ② 主役ステージ。孵化直後の Mofi がいればそれを優先して置く
+                //    （育てた子を眺める間を作る / オーナー提案 2026-08-19）。
+                if (pending != null)
+                  _HatchedStage(
+                    result: pending.result,
+                    stage: pending.stage,
+                    justEvolved: pending.justEvolved,
+                    onSendToDex: () =>
+                        ref.read(pendingHatchProvider.notifier).state = null,
+                  )
+                else if (active != null)
                   _EggStage(
                     egg: active,
                     state: state,
@@ -205,10 +220,15 @@ class _EggsBody extends ConsumerWidget {
       builder: (_) => EggDetailSheet(
         egg: egg,
         state: state,
-        onSetActive: () => _runEggAction(
-          context,
-          () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
-        ),
+        onSetActive: () {
+          _clearPendingHatch(ref);
+          unawaited(
+            _runEggAction(
+              context,
+              () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
+            ),
+          );
+        },
         onMoveToStorage: () => _runEggAction(
           context,
           () => ref.read(eggsControllerProvider.notifier).moveToStorage(egg.id),
@@ -226,6 +246,11 @@ class _EggsBody extends ConsumerWidget {
 
   /// 枠操作（セット/戻す/切替）の共通実行。完了で詳細シートを閉じ、失敗は握って
   /// トーストで知らせる（リポジトリが満杯/競合/不正状態で例外を投げても未処理にしない）。
+  /// 次の卵を育て始めたら、残していた Mofi は自動で図鑑へ送る
+  /// （ボタンを押し忘れても先へ進める。オーナー提案の「自動で図鑑に行く」）。
+  void _clearPendingHatch(WidgetRef ref) =>
+      ref.read(pendingHatchProvider.notifier).state = null;
+
   Future<void> _runEggAction(
     BuildContext context,
     Future<void> Function() action,
@@ -302,6 +327,21 @@ class _EggsBody extends ConsumerWidget {
       );
     }
 
+    // 進化の判定材料を取る。サーバーの fn_hatch_egg は「どの Mofi か」までしか
+    // 返さず**所持数を返さない**ので、図鑑を読み直して所持数を得る
+    // （DB を変えずに済ませるための設計 / docs/EVOLUTION.md）。
+    await ref.read(collectionControllerProvider.notifier).refresh();
+    final dex = ref.read(collectionControllerProvider).valueOrNull;
+    // 導出は [HatchPresentation.fromDex] に切り出してある（テストで固定するため）。
+    final presentation = HatchPresentation.fromDex(result: hatched, dex: dex);
+    final stage = presentation.stage;
+    final justEvolved = presentation.justEvolved;
+    final toNext = presentation.toNextEvolution;
+
+    // 演出のあともステージに残して眺められるようにする（オーナー提案 2026-08-19）。
+    // 図鑑への登録は孵化時にサーバーが済ませているので、これは表示のための状態。
+    ref.read(pendingHatchProvider.notifier).state = presentation;
+
     // 孵化演出オーバーレイ（操作ロック / スキップ可）。
     await navigator.push<void>(
       PageRouteBuilder(
@@ -309,6 +349,10 @@ class _EggsBody extends ConsumerWidget {
         barrierColor: Colors.transparent,
         pageBuilder: (_, __, ___) => HatchOverlay(
           result: hatched,
+          eggRarity: egg.rarity,
+          stage: stage,
+          justEvolved: justEvolved,
+          toNextEvolution: toNext,
           onClose: () => navigator.maybePop(),
           onGoToDex: () {
             navigator.maybePop();
@@ -317,7 +361,7 @@ class _EggsBody extends ConsumerWidget {
           onShare: (imageBytes) async {
             // S13 グロースの種: 結果カードのキャプチャ画像 + 文面をSNSへ共有。
             // 画像生成・共有はサービスに委譲（プラグイン依存の隔離 / ベストエフォート）。
-            final text = buildHatchShareText(hatched);
+            final text = buildHatchShareText(hatched, stage: stage);
             final ok = await ref.read(hatchShareServiceProvider).shareHatch(
                   text: text,
                   subject: buildHatchShareSubject(hatched),
@@ -387,7 +431,6 @@ class _EggStageState extends State<_EggStage> {
     final stage = _stageFor(progress);
     final rarity = RarityVisuals.ofEgg(widget.egg.rarity);
 
-    final dpr = MediaQuery.devicePixelRatioOf(context);
     final size = MediaQuery.sizeOf(context);
     final w = size.width;
     // 背景が「スマホに対してすごく小さく見える」との指摘を受け、画面高に対する
@@ -414,39 +457,7 @@ class _EggStageState extends State<_EggStage> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // 正方形の絵を画面幅に合わせると風景全体が縮んで「遠景」になり、
-                // スマホでは小さく見える。拡大して切り取り、卵が乗る草地まわりを
-                // 大きく見せる。
-                Transform.scale(
-                  scale: _zoom,
-                  alignment: const Alignment(0, 0.15),
-                  child: Image.asset(
-                    'assets/images/bg/home_stage.jpg',
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.medium,
-                    cacheWidth: (w * dpr * 1.5).round(),
-                    errorBuilder: (context, error, stack) =>
-                        const SizedBox.shrink(),
-                  ),
-                ),
-                // 上端は AppBar 側の地色へ、下端は下のカード群の地色へ溶かす。
-                const Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          AppColors.bg,
-                          Color(0x00FBF6EA),
-                          Color(0x00FBF6EA),
-                          AppColors.bg,
-                        ],
-                        stops: [0.0, 0.10, 0.86, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
+                Positioned.fill(child: WorldStageBackground(zoom: _zoom)),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpace.lg,
@@ -457,7 +468,7 @@ class _EggStageState extends State<_EggStage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // 文字は必ず淡い座布団の上に置く（空や草の上だと読めない）。
-                      _StageChip(
+                      StageChip(
                         child: Text(
                           mofi != null
                               ? '${mofi.label}（見本）'
@@ -490,7 +501,7 @@ class _EggStageState extends State<_EggStage> {
                       ),
                       const SizedBox(height: AppSpace.md),
                       if (mofi == null)
-                        _StageChip(
+                        StageChip(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -624,37 +635,134 @@ class _PreviewStageBar extends StatelessWidget {
 
 
 
+/// 孵化した直後の Mofi をステージに置いておく画面（オーナー提案 2026-08-19）。
+///
+/// 従来は孵化演出が終わると Mofi は即座に図鑑へ行き、たまごタブには「空の巣」
+/// だけが残った。**育てた子を眺める間が1秒も無い**。コレクション型のいちばん
+/// 嬉しい瞬間が、演出の数秒で消えていた。
+///
+/// ここで「図鑑に送る」を押すか、次の卵を育て始めるまで、世界の風景の上に残す。
+/// 図鑑への登録自体は孵化時にサーバーが済ませているので、押し忘れても失われない
+/// （このボタンは**表示を終える**ためのもので、データを動かすものではない）。
+class _HatchedStage extends StatelessWidget {
+  const _HatchedStage({
+    required this.result,
+    required this.stage,
+    required this.justEvolved,
+    required this.onSendToDex,
+  });
+
+  final HatchResult result;
+
+  /// 進化段階（1=ベビー / 2=アダルト）。孵化後の所持数から算出した実データ。
+  final int stage;
+
+  /// この孵化で進化に到達したか。到達した回は**アダルトの姿がここに残る**ので、
+  /// 「重ねて育てると姿が変わる」という仕組みが目で分かる。
+  final bool justEvolved;
+
+  /// 「図鑑に送る」＝この表示を終える。
+  final VoidCallback onSendToDex;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final stageHeight = math.min(size.width * 1.15, size.height * 0.58);
+    // 進化した回は大きく見せる（オーナー要望 2026-08-19）。
+    // 1.28倍では「大きくなったと思えない」と言われたので、
+    // **はみ出さない上限いっぱい**まで使う。
+    // 文字・余白の取り分を引いた残りが、巣が置ける最大。
+    // ⚠️ 取り分は**固定値にしない**。名前の下に「進化しました！」「色違い」の行が
+    //    増えることがあり、増えるのは justEvolved のとき＝ maxFit を使う側なので、
+    //    固定値だと一番きつい場合だけ足りずに下のボタンがはみ出す（はみ出した部分は押せない）。
+    final chrome = 145.0 + (justEvolved ? 20.0 : 0.0) + (result.isShiny ? 20.0 : 0.0);
+    final base = ((stageHeight - 180) / 1.12).clamp(96.0, 210.0);
+    final maxFit = ((stageHeight - chrome) / 1.12).clamp(96.0, 320.0);
+    final ringDiameter = justEvolved ? math.min(base * 1.6, maxFit) : base;
+    final rarity = RarityVisuals.ofMofi(result.species.rarity);
+
+    return SizedBox(
+      width: double.infinity,
+      height: stageHeight,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const Positioned.fill(child: WorldStageBackground()),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.lg,
+              vertical: AppSpace.lg,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StageChip(
+                  // 絵文字は使わない（安っぽく見える / オーナー指摘 2026-08-19）。
+                  // 色違いは名前の下に色付きバッジで示す。
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(result.species.nameForStage(stage), style: AppType.title),
+                      if (justEvolved) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '進化しました！',
+                          style: AppType.caption
+                              .copyWith(color: AppColors.primaryDeep),
+                        ),
+                      ],
+                      if (result.isShiny) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '色違い',
+                          style: AppType.caption
+                              .copyWith(color: AppColors.warn),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                NestRing(
+                  diameter: ringDiameter,
+                  glow: result.isShiny ? rarity.glow : rarity.main,
+                  // 風景の上なので砂色の円台は出さない（影だけ残す）。
+                  showBase: false,
+                  child: MofiSubject(
+                    speciesId: result.species.id,
+                    family: result.species.family,
+                    rarity: result.species.rarity,
+                    stage: stage,
+                    isShiny: result.isShiny,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.md),
+                StageChip(
+                  child: GestureDetector(
+                    onTap: onSendToDex,
+                    child: Text(
+                      '図鑑に送る',
+                      style: AppType.bodyStrong.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 保管枠アップセル（無料上限に近づいたらペイウォールへ誘導）。
 ///
 /// 表示条件: クライアント非プレミアム かつ 保管数が無料上限の8割以上。
 /// しきい値・上限は [StorageLimits]（SSOT）を参照しハードコードしない。
 /// 注意（信頼境界）: ここはあくまで導線。実際の保管枠ガード（200解放）はサーバー検証が正。
-/// ステージ上の文字を必ず読めるようにする座布団。
-///
-/// 背景が明るい青空や鮮やかな草なので、濃い文字を直に置くとコントラストが足りない。
-/// クリーム地を半透明で敷いて、文字は従来どおりの地の上に乗せる。
-/// モックが吹き出しを使っているのは装飾ではなく、この可読性の担保。
-class _StageChip extends StatelessWidget {
-  const _StageChip({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpace.lg,
-        vertical: AppSpace.sm,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.bg.withValues(alpha: 0.88),
-        borderRadius: AppRadius.lgR,
-      ),
-      child: child,
-    );
-  }
-}
-
 class _StorageUpsell extends ConsumerWidget {
   const _StorageUpsell({required this.storageCount});
   final int storageCount;
