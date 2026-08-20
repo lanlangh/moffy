@@ -12,6 +12,7 @@ import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../eggs/presentation/eggs_controller.dart';
+import '../../eggs/presentation/pending_hatch_provider.dart';
 import '../../home/presentation/home_controller.dart';
 import '../../onboarding/presentation/onboarding_screen.dart';
 import '../../quests/data/quest_repository.dart';
@@ -188,6 +189,9 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     ref.invalidate(eggsControllerProvider);
     ref.invalidate(homeControllerProvider);
     ref.invalidate(questsStateProvider);
+    // 孵化したが「図鑑に送る」を押していないMofiは画面用の一時状態として残る。
+    // 消さないと、退会→新規開始のあとに**前のアカウントの子が居座る**（新しい卵がその裏に隠れる）。
+    ref.invalidate(pendingHatchProvider);
 
     router.go(OnboardingScreen.routePath);
   }
