@@ -220,8 +220,8 @@ ORG_STATE に長く「アプリ名と副題は自動化が無いので UI で手
 **⚠️ 2026-08-20 に判明: Apple Developer Program License Agreement が更新されている。**
 **2026年10月2日までに Account Holder が同意しないと、証明書・ID・プロファイル・
 App Store Connect・ASC API が使えなくなる**＝ビルドも掲載情報の操作も全部止まる。
-今回の提出は通った（WAITING_FOR_REVIEW まで到達）が、**審査が保留されるかは不明**。
-オーナーが自分で読んで同意する必要がある（法的契約なので代行しない）。
+今回の提出は通った（WAITING_FOR_REVIEW まで到達）。
+**✅ 2026-08-20 オーナーが同意済み。同意後も ASC API が正常応答することを実測で確認。**
 
 ---
 
