@@ -52,6 +52,41 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 8. 🔴 提出済み item は API でも外せない（2026-08-24 実測・Apple の指示に従った結果）
+
+Apple デベロッパサポート（ケース 20000121488355・野村氏）から
+「弊社側では削除できない。記事を見てご自身でアプリ内課金を削除してほしい」と指示が来た。
+記事の補足にある **API 経由の項目単位削除** を、安全装置つきの新ツール
+`tools/asc/asc_remove_submission_items.mjs` で実行した結果:
+
+```
+DELETE /v1/reviewSubmissionItems/{id}  → HTTP 409
+  code   : STATE_ERROR.ENTITY_STATE_INVALID
+  title  : Resource state is invalid.
+  detail : "Item was already submitted"
+```
+
+**3件とも拒否。状態は1ビットも変わらず、公開中の 1.1.1/1.1.0/1.0.2 も無傷。**
+
+これで**固着提出物に対して試せる操作は出尽くした**:
+| 操作 | 結果 |
+|---|---|
+| `POST /v1/reviewSubmissionItems`（新しい箱に追加） | 409 ENTITY_STATE_INVALID |
+| 提出物のキャンセル / 削除 | 409 / 403 |
+| **`DELETE /v1/reviewSubmissionItems`（項目単位）** | **409 "Item was already submitted"** |
+| UI「審査用に追加」 | グレーアウトで押せない |
+| UI「App Review に再提出」 | エラー・状態不変（8/4 実測。窓口が閉じるので再クリック禁止） |
+
+**残る道は「新しいサブスクを作って提出する」（＝提出物に触らない）のみ。**
+Apple 記事の「バージョンごと削除」「提出をキャンセル」は、REMOVED とはいえ
+公開中バージョンを参照する item が残っているため**使わない**方針を維持する。
+
+**📌 記録の訂正**: 「7月に項目を外したとき公開中アプリは無事だった」は**誤り**。
+iOS の初回公開は 2026-07-27（提出物 cb2b49c7 が最初の APPROVED）で、
+項目を外したのは**その前**＝当時アプリはまだストアに出ていない。
+
+---
+
 ### 5. 開発証明書の上限は **10本**（「13本」は誤り・2026-08-20 実測）
 
 build 35 が `Your account has reached the maximum number of certificates` で失敗した。
