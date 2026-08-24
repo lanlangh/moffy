@@ -24,7 +24,7 @@ void main() {
     test('年額を選べば年額', () {
       expect(
         effectiveSelection(
-            selected: BillingPeriod.annual, hasAnnual: true, hasMonthly: true),
+            selected: BillingPeriod.annual, hasAnnual: true, hasMonthly: true,),
         BillingPeriod.annual,
       );
     });
@@ -32,7 +32,7 @@ void main() {
     test('月額を選べば月額', () {
       expect(
         effectiveSelection(
-            selected: BillingPeriod.monthly, hasAnnual: true, hasMonthly: true),
+            selected: BillingPeriod.monthly, hasAnnual: true, hasMonthly: true,),
         BillingPeriod.monthly,
       );
     });
@@ -43,7 +43,7 @@ void main() {
       // 既定は年額。ここで年額のままだと購入ボタンが押せない灰色になる。
       expect(
         effectiveSelection(
-            selected: BillingPeriod.annual, hasAnnual: false, hasMonthly: true),
+            selected: BillingPeriod.annual, hasAnnual: false, hasMonthly: true,),
         BillingPeriod.monthly,
       );
     });
@@ -51,7 +51,7 @@ void main() {
     test('月額が無く年額だけ → 年額が選ばれる', () {
       expect(
         effectiveSelection(
-            selected: BillingPeriod.monthly, hasAnnual: true, hasMonthly: false),
+            selected: BillingPeriod.monthly, hasAnnual: true, hasMonthly: false,),
         BillingPeriod.annual,
       );
     });
@@ -61,7 +61,7 @@ void main() {
     // この場合 selectedPlan は null になり、画面は「プランがありません」を出す。
     expect(
       effectiveSelection(
-          selected: BillingPeriod.annual, hasAnnual: false, hasMonthly: false),
+          selected: BillingPeriod.annual, hasAnnual: false, hasMonthly: false,),
       BillingPeriod.annual,
     );
   });
