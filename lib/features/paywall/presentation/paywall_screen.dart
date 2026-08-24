@@ -212,8 +212,17 @@ class _PaywallBodyState extends ConsumerState<_PaywallBody> {
           )
         : null;
 
+    // 🔴 片方の商品しか取得できていないときは、取得できている側を選ぶ。
+    //
+    // 既定が年額固定だったため、**年額が取れず月額だけ取れた場合に選択が null になり、
+    // 「購入する」ボタンが最初から押せない灰色のまま**になっていた（理由も表示されない＝行き止まり）。
+    // ストアの一時的な不調や、片方だけ審査を通っている状況で現実に起こりうる。
+    final effective = (_selected == BillingPeriod.annual && annual != null) ||
+            monthly == null
+        ? BillingPeriod.annual
+        : BillingPeriod.monthly;
     final selectedPlan =
-        _selected == BillingPeriod.annual ? annual : monthly;
+        effective == BillingPeriod.annual ? annual : monthly;
 
     return ListView(
       padding: const EdgeInsets.all(AppSpace.lg),
@@ -253,7 +262,7 @@ class _PaywallBodyState extends ConsumerState<_PaywallBody> {
         if (annual != null)
           _PlanCard(
             plan: annual,
-            selected: _selected == BillingPeriod.annual,
+            selected: effective == BillingPeriod.annual,
             recommended: true,
             savings: savings,
             onTap: () => setState(() => _selected = BillingPeriod.annual),
@@ -263,7 +272,7 @@ class _PaywallBodyState extends ConsumerState<_PaywallBody> {
         if (monthly != null)
           _PlanCard(
             plan: monthly,
-            selected: _selected == BillingPeriod.monthly,
+            selected: effective == BillingPeriod.monthly,
             recommended: false,
             savings: null,
             onTap: () => setState(() => _selected = BillingPeriod.monthly),
