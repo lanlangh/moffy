@@ -105,6 +105,34 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 10. 🔴 RevenueCat の Webhook が**一度も設定されていなかった**（2026-08-25 発覚・設定済み）
+
+課金経路の監査で発覚。RevenueCat → Integrations → Webhooks が
+**「Add new configuration」＝設定ゼロ**の状態だった。7月の課金セットアップ以来ずっと未接続。
+
+**症状**: 購入しても `entitlements` テーブルに記録が残らない。
+広告の非表示は**クライアント判定でも効く**ため、Android の購入テストが通ってしまい気づけなかった。
+サーバー側の記録を見ているのは**保管枠 20→200 の判定だけ**（`0010_storage_cap.sql:87`）で、
+卵20個に到達した人がまだ居ないため実害は出ていなかった。
+
+**2026-08-25 に設定完了。実測で疎通確認済み**:
+```
+POST /revenuecat-webhook  Authorization: <64文字そのまま>  → HTTP 200 {"ok":true,...}
+POST 同 Authorization: "Bearer <64文字>"                  → HTTP 401 unauthorized
+```
+＝ **`Bearer ` は付けない。**入力欄の例が `Bearer ...` なので間違えやすい。
+値は `secrets/WEBHOOK_AUTH.txt`（64文字）。Environment は Production と Sandbox の両方。
+
+**📌 教訓: 「広告が消えた＝課金の全経路OK」は誤り。**
+広告はクライアント判定でも消える。**サーバー側の記録が入ったかは別に確認する**こと。
+
+**✅ あわせて確認できたこと**: Entitlement `premium` に4商品（Play 2件 + App Store 2件）が
+正しく紐づいている。iOS 側の紐付けが外れていれば審査で確実に落ちていた。
+⚠️ App Store 商品の Status は「Could not check」表示。原因は未確定（未承認のためか、
+RevenueCat に ASC の API キーが無いためか）。購入自体を止めるとは限らない。
+
+---
+
 ### 8. 🎉 **サブスク固着は解決した（2026-08-24）。決め手は「UI の項目単位の削除」**
 
 **32日間（7/23〜8/24）の膠着が終わった。** サブスク2件とも `READY_TO_SUBMIT` に復帰し、
