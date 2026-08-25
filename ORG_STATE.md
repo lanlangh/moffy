@@ -105,6 +105,37 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### ▶ いまここ: **2.3.10 却下を修正し、build 38 で再提出できる状態（2026-08-25）**
+
+2026-08-24 提出 → 翌日 **Guideline 2.3.10（メタデータの正確性）** で却下。
+指摘は1点のみ:「説明文から Android への言及を削除せよ」。
+Apple は Bug Fix Submissions（返信1本で承認）も提示したが、
+**オーナーの判断で「実体を直す」方を選択**。
+
+| 項目 | 状態 |
+|---|---|
+| 1.2.0 | PREPARE_FOR_SUBMISSION ← **build 38 紐付け済み** |
+| 説明文 | 2274字。**Android と他社アプリ名（TikTok等）を削除** |
+| サブスク 月額/年額 | READY_TO_SUBMIT |
+| preflight | **❌0件 / ⚠️0件** |
+| 証明書 | 8/10 使用（残2枠） |
+
+**build 38 に載る修正**（課金経路の監査で発見した実欠陥）:
+* トライアル資格の判定（Guideline 3.1.2 のリジェクト要因を除去）
+* 退会→新規開始→購入で課金が削除済みアカウントに紐づく問題
+* ペイウォールの行き止まり（片方の商品しか取れないと購入ボタンが押せない）
+
+**ビルド不要で反映済み**: 説明文の Android 削除 / Webhook の TRANSFER 取りこぼし修正 /
+RevenueCat の Webhook 設定そのもの。
+
+**✅ RevenueCat の設定はすべて実測で確認済み**（2026-08-25）:
+Entitlement `premium` に4商品 / Offering `default` の `$rc_monthly`・`$rc_annual` に
+**iOS 商品も在籍** / 4つの識別子がコードの定数と一字一句一致 / Webhook 疎通OK。
+
+**⏭ 次はオーナーの提出操作**（下記「提出にサブスクを載せる正しい手順」の4ステップ）。
+
+---
+
 ### 10. 🔴 RevenueCat の Webhook が**一度も設定されていなかった**（2026-08-25 発覚・設定済み）
 
 課金経路の監査で発覚。RevenueCat → Integrations → Webhooks が
