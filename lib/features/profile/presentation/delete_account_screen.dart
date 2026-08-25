@@ -6,6 +6,8 @@ import '../../../core/auth/auth_session.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/local/local_reset.dart';
 import '../../../core/providers/supabase_provider.dart';
+import '../../../core/iap/iap_providers.dart';
+import '../../../core/iap/server_entitlement.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/sync/sync_queue.dart';
 import '../../../core/theme/tokens.dart';
@@ -192,6 +194,13 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     // 孵化したが「図鑑に送る」を押していないMofiは画面用の一時状態として残る。
     // 消さないと、退会→新規開始のあとに**前のアカウントの子が居座る**（新しい卵がその裏に隠れる）。
     ref.invalidate(pendingHatchProvider);
+    // 🔴 課金の紐付けも捨てる。
+    // RevenueCat に「あなたは誰か」を伝えているのはアプリ起動時の1回だけなので、
+    // 退会→新規開始のあとアプリを閉じずにそのまま購入すると、購入が
+    // **削除した古いアカウント**に紐づく。その場では正常に見える（広告が消える）が、
+    // 次にアプリを開くと課金したのに広告が戻り、ペイウォールがまた「購入する」になる。
+    ref.invalidate(iapConfiguredProvider);
+    ref.invalidate(serverPremiumProvider);
 
     router.go(OnboardingScreen.routePath);
   }

@@ -229,9 +229,23 @@ class RevenueCatIapService implements IapService {
         Log.d('RevenueCat: offering "default" 未取得（NO-OFFERING）');
         return const IapOfferings(plans: []);
       }
+      // 🔴 無料トライアルの資格を**実際に問い合わせてから**表示を決める。
+      //
+      // 以前は「商品に導入オファーが設定されているか」だけを見ていた。それは
+      // **商品側の設定**であって「この人が使えるか」ではない。Apple のトライアルは
+      // 同一サブスクグループで生涯1回なので、2回目の人には資格が無い。
+      // その人に「7日間 無料ではじめる」と出すと、支払いシートは初回から満額を請求し、
+      // **表示と請求が食い違う**（Guideline 3.1.2 の典型的な指摘）。
+      // [TrialEligibility] のコメントで自分たちで警告していたのに、判定が無かった。
+      //
+      // 判定できなかったとき（unknown / 例外 / Android）は **資格なしに倒す**。
+      // RevenueCat の SDK も「unknown のときは通常価格を出せ。誤解を招く状況を作るな」と
+      // 明記している。出し損ねても損害は無いが、出し過ぎるとリジェクトになる。
+      final eligibility = await _trialEligibility(offering);
+
       final plans = <PlanOffer>[];
       for (final pkg in offering.availablePackages) {
-        final mapped = _mapPackage(pkg);
+        final mapped = _mapPackage(pkg, eligibility);
         if (mapped != null) plans.add(mapped);
       }
       return IapOfferings(plans: plans);
@@ -393,16 +407,48 @@ class RevenueCatIapService implements IapService {
   }
 
   /// `Package` → [PlanOffer]。価格はストア実額（priceString）、トライアル資格を判定。
-  PlanOffer? _mapPackage(Package pkg) {
+  /// 商品IDごとの「この人はトライアルを使えるか」。
+  ///
+  /// `checkTrialOrIntroductoryPriceEligibility` は **iOS 専用**で、Android では
+  /// 常に unknown を返す（SDK のドキュメントに明記）。Android は Play 側の
+  /// 「当アプリの定期購入未利用」条件で支払いシートが正しく出し分けるため、
+  /// 商品の導入オファーの有無で判定してよい（従来どおり）。
+  Future<Map<String, bool>> _trialEligibility(Offering offering) async {
+    final ids = offering.availablePackages
+        .map((p) => p.storeProduct.identifier)
+        .toList(growable: false);
+    if (ids.isEmpty) return const {};
+    if (!isApplePlatform) {
+      // Android: 資格判定APIが使えないので、商品の導入オファー有無に委ねる。
+      return {for (final id in ids) id: true};
+    }
+    try {
+      final res = await Purchases.checkTrialOrIntroductoryPriceEligibility(ids);
+      return {
+        for (final e in res.entries)
+          e.key: e.value.status ==
+              IntroEligibilityStatus.introEligibilityStatusEligible,
+      };
+    } catch (e, st) {
+      // 判定できないときは**出さない側**に倒す（誤解を招く表示を作らない）。
+      Log.e('RevenueCat trial eligibility check failed', error: e, stack: st);
+      return {for (final id in ids) id: false};
+    }
+  }
+
+  PlanOffer? _mapPackage(Package pkg, Map<String, bool> eligibility) {
     final product = pkg.storeProduct;
     final period = _periodFor(pkg);
     if (period == null) return null; // 月額/年額以外は無視（MVPは2種のみ）。
 
-    // トライアル資格: introductoryPrice が存在し、価格0（無料）なら導入オファー扱い。
-    // RevenueCat は本来 checkTrialOrIntroductoryPriceEligibility で厳密判定するが、
-    // SDK 経由の introductoryPrice 有無で一次判定し、表示は eligible のときのみ行う。
+    // トライアル表示の条件は**2つとも**満たすこと:
+    //   ① 商品に無料の導入オファーが設定されている（introductoryPrice が価格0）
+    //   ② **この人に資格がある**（iOS は資格APIの結果 / Android は①に委ねる）
+    // ②を見ずに①だけで出していたのが、表示と請求の食い違いの原因だった。
     final intro = product.introductoryPrice;
-    final eligible = intro != null && intro.price == 0;
+    final eligible = intro != null &&
+        intro.price == 0 &&
+        (eligibility[product.identifier] ?? false);
     String? trialLabel;
     if (eligible && intro.periodNumberOfUnits > 0) {
       trialLabel = '${intro.periodNumberOfUnits}${_unitLabel(intro.periodUnit)}';
