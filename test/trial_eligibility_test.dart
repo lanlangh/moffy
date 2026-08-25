@@ -22,8 +22,9 @@ void main() {
         period: BillingPeriod.annual,
         priceString: '¥4,800',
         priceAmount: 4800,
+        currencyCode: 'JPY',
         trialEligibility: e,
-        trialLabel: e == TrialEligibility.eligible ? '7日' : null,
+        trialPeriodLabel: e == TrialEligibility.eligible ? '7日' : null,
       );
 
   test('資格がある人にだけトライアルを表示する', () {
