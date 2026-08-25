@@ -1,0 +1,74 @@
+name: DB Check Entitlements
+
+# 課金がサーバー側に記録されているかを **読むだけ** で確認する。
+#
+# なぜ要るか（2026-08-25）:
+#   RevenueCat の Webhook が7月からずっと未設定で、購入してもサーバー側の
+#   entitlements に記録が残っていなかった。**広告の非表示はクライアント判定でも
+#   効く**ため「広告が消えた＝課金の全経路OK」と誤判定し、1か月以上気づけなかった。
+#   → 以後は「サーバー側に行が入ったか」を必ずこれで確認する。
+#
+# ⚠️ `DB Verify` は**マイグレーションを適用する**ワークフローなので本番に流さないこと。
+#    こちらは SELECT のみ。書き込み・DDL は一切行わない。
+#
+# 個人情報の扱い: user_id は先頭8文字だけを表示する（ログに全体を残さない）。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+
+      - name: Install psql
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          psql --version
+
+      - name: Read entitlements (SELECT only)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -e
+          echo "=== entitlements の件数 ==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At -c \
+            "select count(*) || ' 行 / うち is_premium=true が ' ||
+                    count(*) filter (where is_premium) || ' 行'
+             from public.entitlements;"
+
+          echo ""
+          echo "=== 直近5件（user_id は先頭8文字のみ） ==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c \
+            "select left(user_id::text, 8) as user_prefix,
+                    is_premium,
+                    product_id,
+                    expires_at,
+                    last_synced_at
+             from public.entitlements
+             order by last_synced_at desc nulls last
+             limit 5;"
+
+          echo ""
+          echo "=== 判定 ==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At -c \
+            "select case
+               when count(*) = 0
+                 then '❌ 1行も無い＝Webhook がサーバーに届いていない'
+               when count(*) filter (where is_premium) = 0
+                 then '⚠️ 行はあるが is_premium=true が無い'
+               else '✅ 課金がサーバー側に記録されている'
+             end
+             from public.entitlements;"
