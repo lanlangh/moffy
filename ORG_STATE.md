@@ -105,6 +105,27 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 🎉🎉 **2026-08-25 iOS で初めて課金が端から端まで通った（サーバー記録まで確認）**
+
+TestFlight（build 38）で実購入 → **購入成立・広告バナー消滅・サーバー記録まで実測で確認**。
+iOS では 7/23 の固着以来、**一度も購入が成立したことがなかった**。
+
+```
+user_prefix | is_premium |      product_id       |       expires_at       |    last_synced_at
+fe0b09dc    | t          | moffy_premium_monthly | 2026-08-26 06:10:58+00 | 2026-08-25 06:11:01
+```
+`last_synced_at` が購入の**3秒後**＝ Webhook が即座に届いている。
+`expires_at` が翌日なのはサンドボックスの時間圧縮（7日トライアルが短縮される）で正常。
+
+**＝ これで保管枠 20→200 も効く**（7月からずっと効いていなかった部分）。
+
+**📌 確認手段を用意した: `.github/workflows/db-check-entitlements.yml`（SELECT のみ）**
+「広告が消えた＝課金の全経路OK」は**誤り**（広告はクライアント判定でも消える）。
+以後は購入テストのたびに**このワークフローでサーバー側の行を確認する**。
+⚠️ `DB Verify` はマイグレーションを適用する作りなので**本番に流さない**。
+
+---
+
 ### 🚀 **2026-08-25 再提出完了。build 38 ＋ サブスク2件が審査中**
 
 | 項目 | 状態 |
