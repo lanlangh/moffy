@@ -52,6 +52,10 @@ interface RcEvent {
   expiration_at_ms?: number | null;
   // イベント発生時刻 (ms epoch)。冪等判定 (後勝ち防止) に使う。
   event_timestamp_ms?: number | null;
+  // TRANSFER 専用。購入の移動元/移動先の app_user_id。
+  // TRANSFER では app_user_id が空で、代わりにこの2つに ID が入る。
+  transferred_from?: string[] | null;
+  transferred_to?: string[] | null;
 }
 
 interface RcWebhookBody {
@@ -176,7 +180,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const eventType = (event.type ?? "").toUpperCase();
-  const appUserId = event.app_user_id ?? "";
+  let appUserId = event.app_user_id ?? "";
+
+  // 🔴 TRANSFER は app_user_id が空で、新旧の ID が別の欄で運ばれる。
+  //
+  // 機種変更やアプリの入れ直しでユーザー ID が変わったあと「購入を復元」を押すと、
+  // RevenueCat は購入を新しい ID へ移し TRANSFER を送ってくる。その際
+  // app_user_id は空で、代わりに transferred_from / transferred_to が入る。
+  // 下の「app_user_id が空なら握る」に素通しされていたため、
+  // **新しい ID の premium 記録が作られず、保管枠 20→200 がサーバー側に戻らなかった**。
+  // （広告の非表示はクライアント判定でも効くので、症状はここだけに出る）
+  if (appUserId.length === 0 && eventType === "TRANSFER") {
+    const to = Array.isArray(event.transferred_to) ? event.transferred_to : [];
+    const target = to.find((id) => typeof id === "string" && UUID_RE.test(id));
+    if (target) {
+      appUserId = target;
+      logInfo("transfer_target_resolved", { eventType });
+    }
+  }
 
   // app_user_id が空のイベント (テストイベント等) は受理だけして握る (200)。
   if (appUserId.length === 0) {
