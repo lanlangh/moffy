@@ -105,6 +105,38 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 🚀 **2026-08-26 Android 1.2.0 を Play へ送信（API経由・AAB＋掲載情報を一括）**
+
+| 項目 | 値 |
+|---|---|
+| リリース | **1.2.0 / versionCode 27 / completed**（段階配信せず全員へ） |
+| 説明文 | 1447字 → **2226字**。「3種族」→「4種族」/ 解約先を Google Play に是正 |
+| スクリーンショット | 5枚（2番目・4番目が新しい世界背景） |
+| タイトル・簡単な説明 | **変更なし**（Play は iOS と別管理・検索順位が動くため触らない） |
+
+**🔴 接続して判明: Play の掲載文は v1.0 の頃のまま一度も更新されていなかった。**
+* 「3種族（スライム／小動物／ドラゴン）」… 実装は **4種族20体**（獣を追加済み）
+* 解約先が「各ストア（**App Store**／Google Play）」… **Android では App Store で解約できない**
+* 分量 1447字（iOS は 2274字）
+iOS だけ更新して Play を忘れていた。**両ストアの掲載文は別物として管理する。**
+
+**📌 Play を API で操作できるようにした（`tools/play/`）**
+サービスアカウント `moffy-play@lan-apps-506709.iam.gserviceaccount.com`。
+鍵は **`C:/Users/user/Downloads/m/Secrets/moffy-play-sa.json`**（リポジトリ外＝コミット不能）。
+権限は Moffy のみ・「製品版としてのリリース…」「ストアでの表示の管理」の2つだけ。
+GCP プロジェクトは **`lan-apps-506709`**（TSUZURU とは分離。アプリごとにサービスアカウントを分ける方針）。
+
+| ツール | 用途 |
+|---|---|
+| `play_diagnose.mjs` | **読むだけ**の診断（認証・配信中バージョン・掲載文・スクショ枚数） |
+| `play_update_listing.mjs` | 掲載情報のみ更新 |
+| `play_release.mjs` | **AAB＋説明文＋スクショを1つの edit にまとめて commit** |
+
+**⚠️ 画像APIのパスは `/listings/{言語}/{画像の種類}`。`/images/` は入らない**
+（入れると 404「Could not find handler」。公式リファレンスで確認）。
+
+---
+
 ### ▶ Android 1.2.0 の AAB 完成（2026-08-26）＝オーナーのアップロード待ち
 
 | 項目 | 値 |
