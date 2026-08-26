@@ -90,7 +90,7 @@ async function main() {
 
     console.log('=== スクリーンショット（ja-JP / スマートフォン）===');
     const im = await api(token, 'GET',
-      `/androidpublisher/v3/applications/${PKG}/edits/${editId}/listings/ja-JP/images/phoneScreenshots`);
+      `/androidpublisher/v3/applications/${PKG}/edits/${editId}/listings/ja-JP/phoneScreenshots`);
     if (im.status === 200) {
       const imgs = im.json?.images ?? [];
       console.log(`  ${imgs.length} 枚`);
