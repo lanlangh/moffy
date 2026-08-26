@@ -101,12 +101,12 @@ async function main() {
     // --- スクリーンショットを入れ替える（全消し → 5枚を順に投入）---
     console.log('--- スクリーンショットを入れ替え ---');
     const del = await api(token, 'DELETE',
-      `/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}/images/phoneScreenshots`);
+      `/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}/phoneScreenshots`);
     console.log(`  既存を削除 HTTP ${del.status}`);
     for (const p of SHOTS) {
       const buf = fs.readFileSync(p);
       const res = await api(token, 'POST',
-        `/upload/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}/images/phoneScreenshots`,
+        `/upload/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}/phoneScreenshots`,
         { body: buf, contentType: 'image/png', query: { uploadType: 'media' } });
       must(res, `${path.basename(p)} のアップロード`);
       console.log(`  ✅ ${path.basename(p)}`);
@@ -126,7 +126,7 @@ async function main() {
       const after = must(await api(token, 'GET',
         `/androidpublisher/v3/applications/${PKG}/edits/${e2.id}/listings/${LOCALE}`), '読み直し');
       const imgs = await api(token, 'GET',
-        `/androidpublisher/v3/applications/${PKG}/edits/${e2.id}/listings/${LOCALE}/images/phoneScreenshots`);
+        `/androidpublisher/v3/applications/${PKG}/edits/${e2.id}/listings/${LOCALE}/phoneScreenshots`);
       console.log('');
       console.log('=== 検証（読み直し）===');
       console.log(`  詳しい説明 : ${chars(after.fullDescription)}字`);
