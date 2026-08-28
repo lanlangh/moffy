@@ -1,8 +1,12 @@
 // Google Play のストア掲載情報（説明文・スクリーンショット）を更新する。
 //
 // Usage:
-//   node tools/play/play_update_listing.mjs <serviceAccountJson> <packageName> [apply]
-//   末尾の apply を付けないと dry-run（読むだけ・既定）
+//   node tools/play/play_update_listing.mjs <serviceAccountJson> <packageName> [apply|apply-hold]
+//   末尾に何も付けないと dry-run（読むだけ・既定）
+//   apply-hold … 保存はするが **審査には出さない**（commit?changesNotSentForReview=true）。
+//                Play Console の「審査のために送信」を押すまで公開されない。
+//                オーナーが最終ボタンを押す運用のときはこちら。
+//   apply      … 保存して**そのまま審査に出す**。
 //
 // 何を更新するか:
 //   * 詳しい説明 … docs/store/play_description.txt
@@ -18,7 +22,9 @@ import path from 'node:path';
 import { loadServiceAccount, getToken, api, must } from './play_api.mjs';
 
 const [, , SA_PATH, PKG, MODE = 'dry-run'] = process.argv;
-const APPLY = MODE === 'apply';
+// HOLD=審査に出さずに保存だけ。APPLY はどちらのモードでも書き込みを行う。
+const HOLD = MODE === 'apply-hold';
+const APPLY = MODE === 'apply' || HOLD;
 if (!SA_PATH || !PKG) {
   console.error('args: <serviceAccountJson> <packageName> [apply]');
   process.exit(2);
@@ -85,10 +91,14 @@ async function main() {
     console.log('');
 
     if (!APPLY) {
-      console.log('[dry-run] 読むだけで終了しました。実行するには末尾に apply を指定してください。');
-      console.log('          （変更は commit するまで公開されません）');
+      console.log('[dry-run] 読むだけで終了しました。');
+      console.log('          apply-hold … 保存するが審査には出さない（Console で送信ボタンを押すまで公開されない）');
+      console.log('          apply      … 保存してそのまま審査に出す');
       return;
     }
+    console.log(HOLD
+      ? '※ モード: apply-hold（保存のみ・審査には出しません）'
+      : '※ モード: apply（保存して審査に出します）');
 
     // --- 詳しい説明だけ差し替える。title / shortDescription は現在値をそのまま返す ---
     console.log('--- 説明文を更新 ---');
@@ -114,11 +124,16 @@ async function main() {
 
     // --- 確定（ここで公開される）---
     console.log('');
-    console.log('--- 確定（commit）---');
+    console.log(HOLD ? '--- 確定（commit・審査には出さない）---' : '--- 確定（commit・審査に出す）---');
     must(await api(token, 'POST',
-      `/androidpublisher/v3/applications/${PKG}/edits/${eid}:commit`), 'commit');
+      `/androidpublisher/v3/applications/${PKG}/edits/${eid}:commit`,
+      // changesNotSentForReview=true を付けると、変更は保存されるが審査には送られない。
+      // Play Console の「審査のために送信」を押すまで公開されない（公式: edits.commit）。
+      HOLD ? { query: { changesNotSentForReview: 'true' } } : undefined), 'commit');
     committed = true;
-    console.log('  ✅ 反映しました');
+    console.log(HOLD
+      ? '  ✅ 保存しました（まだ審査には出していません）'
+      : '  ✅ 審査に出しました');
 
     // --- 書いたら読み直す ---
     const e2 = must(await api(token, 'POST', `/androidpublisher/v3/applications/${PKG}/edits`), '検証用 edit');

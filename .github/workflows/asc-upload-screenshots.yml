@@ -1,0 +1,68 @@
+name: ASC Upload Screenshots (App Store のスクショ差し替え)
+
+# App Store Connect のスクリーンショットを docs/store/screenshots/ios/ の5枚に差し替える。
+#
+# ⚠️ **審査には出さない。** このワークフローがやるのは「編集可能なバージョンに画像を貼る」
+#    ところまで。提出は asc-submit-version.yml（＝オーナーの合意を取ってから）。
+#
+# 既定は dry_run=true（読むだけ）。まず dry_run で
+#   * 編集可能な iOS バージョンがあるか
+#   * ja ローカライズと APP_IPHONE_67 セットの現状
+# を確認してから、dry_run=false で実行すること。
+#
+# 編集可能な状態: PREPARE_FOR_SUBMISSION / DEVELOPER_REJECTED / REJECTED /
+#                 METADATA_REJECTED / INVALID_BINARY / WAITING_FOR_REVIEW
+# 公開中（READY_FOR_SALE）しか無い場合はここで止まる＝先に新バージョンが要る。
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "読むだけ（true）/ 実際に差し替える（false）"
+        required: true
+        default: true
+        type: boolean
+      replace:
+        description: "既存のスクショを消してから入れ直す"
+        required: true
+        default: true
+        type: boolean
+      locale:
+        description: "ロケール"
+        required: true
+        default: "ja"
+        type: string
+      display_type:
+        description: "端末サイズの枠（1290x2796 は APP_IPHONE_67）"
+        required: true
+        default: "APP_IPHONE_67"
+        type: string
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decode ASC API key (.p8)
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+
+      - name: Upload screenshots
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_P8_PATH: ${{ runner.temp }}/asc/key.p8
+          ASC_BUNDLE_ID: com.moffy.app
+          LOCALE: ${{ inputs.locale }}
+          DISPLAY_TYPE: ${{ inputs.display_type }}
+          REPLACE: ${{ inputs.replace && '1' || '0' }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: node tools/asc/asc_upload_screenshots.mjs
+
+      - name: Clean up key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc/key.p8"
