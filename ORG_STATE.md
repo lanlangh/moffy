@@ -147,9 +147,22 @@ Android は取り残されたまま「特定アプリを名指しで制限でき
 **サイズ**: Android は 941〜944 x 1666〜1672 で微妙に混在（Play は許容範囲）。
 iOS は 852〜853 x 1844〜1846 で届いたので **1290x2796 に拡大**して5枚を統一した。
 
-**残っているのはアップロードだけ**:
-`play_update_listing.mjs`（Android）と `asc_upload_screenshots.mjs`（iOS）で差し替える。
-**ビルドは不要。** オーナーの合意を取ってから実行すること（外向きの変更）。
+**⚠️ 判明: 「審査に出さずにスクショだけ差し替える」は両ストアとも不可（2026-08-28 実測）**
+
+| | 実測結果 |
+|---|---|
+| **Android** | `edits.commit?changesNotSentForReview=true` を試すと **HTTP 400**「Changes are sent for review automatically. The query parameter changesNotSentForReview must not be set.」＝このアプリでは掲載変更は**自動的に審査へ送られる**。保存だけで止めることはできない。※ commit は失敗したので掲載情報は無変更（`play_diagnose` で確認済み） |
+| **iOS** | `appStoreVersion` は **1.2.0 / READY_FOR_SALE の1件のみ**。スクショは version に紐づき、編集可能な状態（PREPARE_FOR_SUBMISSION 等）が無いと貼れない。公開中アプリのスクショ差し替えには**新バージョンの作成＋App Review が必要**（Apple 仕様。ビルド自体は不要だが version エントリと審査は要る） |
+
+つまり Android は「実行＝審査送信」、iOS は「新バージョンを作る」ところから。
+**どちらもオーナーの判断が要る**ので、勝手には進めていない。
+
+- Android を出す → `node tools/play/play_update_listing.mjs <sa.json> com.moffy.app apply`
+  （`apply-hold` は上記のとおりこのアプリでは使えない。掲載変更の審査中もアプリは公開されたまま）
+- iOS を出す → 新バージョン（例 1.2.1）を作成 → `asc-upload-screenshots.yml`（新設・dry_run 既定）
+  → 提出は別途。あるいは**次のアプリ更新に同梱**するのが安い。
+  Product Page Optimization（`appStoreVersionExperiments` は利用可能と確認）で
+  新バージョン無しに差し替える道もあるが、A/Bテストの仕組みなので別途検討。
 
 ---
 
