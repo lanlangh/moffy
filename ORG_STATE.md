@@ -52,9 +52,31 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
-### 🚀 **2026-08-24 提出完了。1.2.0 ＋ サブスク2件が同じ提出物で審査中**
+### 🎉🎉 **iOS サブスクが承認・公開された（2026-09-08 `asc-sub-probe` の実測で確認）**
 
-**7/23 以来はじめて、アプリとサブスクが一緒に審査へ行った。**
+**7/23 から続いていたサブスク固着は完全に終わった。iOS はこれで課金できる。**
+
+| 項目 | 状態（2026-09-08 API実測） |
+|---|---|
+| **1.2.0** | ✅ **READY_FOR_SALE**（appVersionState=READY_FOR_DISTRIBUTION） |
+| **月額 `moffy_premium_monthly`**(6790656254) | ✅ **APPROVED**（subVersion `164566c4` = APPROVED） |
+| **年額 `moffy_premium_yearly`**(6790658702) | ✅ **APPROVED**（subVersion `b0127a28` = APPROVED） |
+| **グループ Moffy Premium**(22235043) | ✅ **APPROVED**（groupVersion `af9fce9c` = APPROVED） |
+| 提出物 `cd607df3` | **COMPLETE**（submitted 2026-08-25 06:07 UTC）・**4項目すべて APPROVED** |
+| 未完了の提出物 | 0件 |
+
+**＝ App Store 側の準備は完全に整った。** 32日以上ふさがっていた `755e8857` 由来の固着は、
+2026-08-24 の UI 手順（グループ→月額→年額を1件ずつ「審査用に追加」）で解け、そのまま承認まで通った。
+
+**⚠️ 残る確認は1つだけ**: **実機で本当に購入できるか**（RevenueCat の offering に商品が並ぶか）。
+API が APPROVED でも、RevenueCat 側の取り込みや `entitlements` の反映は別レイヤー。**実機で1回買って確かめること。**
+
+**💰 これで変わること**
+- **iOS のインストールが収益を生むようになった**（従来は「1円も生まない」前提で広告の判断をしていた）
+- **Apple 小規模事業者プログラム（30%→15%）の価値が本物になった**。月額¥480 なら**1人あたり月¥72の差が永久に続く**。**未申請なので最優先で申請する**
+- **SNS で価格に触れてよくなった**（ただし景表法の要件＝税込額／自動更新／トライアル後に課金される旨／解約方法／特商法URL をセットで書く。詳細は `docs/marketing/SNS_OPERATION_BRIEF.md` §4.5）
+
+<details><summary>（記録）2026-08-24 提出時点の状態</summary>
 
 | 項目 | 状態 |
 |---|---|
@@ -63,6 +85,8 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 | 1.2.0 | WAITING_FOR_REVIEW |
 | サブスク2件 | WAITING_FOR_REVIEW |
 | 公開中 1.1.1 | READY_FOR_SALE（無傷） |
+
+</details>
 
 **📌 提出にサブスクを載せる正しい手順（今回確立・UIのみ）**
 「審査へ提出」を押しても**サブスクは自動では入らなかった**。下書きに1件ずつ足す必要がある:
