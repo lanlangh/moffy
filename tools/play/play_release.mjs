@@ -35,7 +35,7 @@ const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const DESC_FILE = path.join(REPO, 'docs', 'store', 'play_description.txt');
 const NOTES_FILE = path.join(REPO, 'docs', 'store', 'play_release_notes.txt');
 const SHOTS = ['01_home.png', '02_eggs.png', '03_dex.png', '04_shiny.png', '05_quests.png']
-  .map((f) => path.join(REPO, 'docs', 'store', 'screenshots', f));
+  .map((f) => path.join(REPO, 'docs', 'store', 'screenshots', 'android', f));
 
 const fail = (m, extra) => {
   console.error('❌ ' + m);
