@@ -10,7 +10,12 @@
 //
 // 何を更新するか:
 //   * 詳しい説明 … docs/store/play_description.txt
-//   * スクリーンショット（スマートフォン）… docs/store/screenshots/01〜05
+//   * スクリーンショット（スマートフォン）… docs/store/screenshots/android/01〜05
+//   * ストアアイコン … docs/store/store_icon_512.png
+//     【2026-09-08 追加】アプリのアイコンを8月に変えたのに Play の掲載アイコンだけ
+//     7月のオレンジ背景版のまま取り残されていた。このツールが説明文とスクショしか
+//     触らなかったのが原因。以後アイコンもここで面倒を見る。
+//     中身が同じなら何もしない（無意味な審査を発生させないため）。
 //
 // ⚠️ **タイトルと簡単な説明は触らない。**
 //    iOS で名前を変えたが Play は別管理で、変えると検索順位が動く。意図しない変更を避ける。
@@ -19,6 +24,7 @@
 //    このスクリプトは掲載情報だけを更新して commit する（AAB とは別の edit）。
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { loadServiceAccount, getToken, api, must } from './play_api.mjs';
 
 const [, , SA_PATH, PKG, MODE = 'dry-run'] = process.argv;
@@ -35,6 +41,7 @@ const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const DESC_FILE = path.join(REPO, 'docs', 'store', 'play_description.txt');
 const SHOTS = ['01_home.png', '02_eggs.png', '03_dex.png', '04_shiny.png', '05_quests.png']
   .map((f) => path.join(REPO, 'docs', 'store', 'screenshots', 'android', f));
+const ICON_FILE = path.join(REPO, 'docs', 'store', 'store_icon_512.png');
 
 const fail = (m, extra) => {
   console.error('❌ ' + m);
@@ -75,6 +82,18 @@ async function main() {
   }
   console.log('');
 
+  // ストアアイコン: Play の仕様は 512x512 / PNG / 1MB以下。書き込む前に弾く。
+  const iconBuf = fs.readFileSync(ICON_FILE);
+  if (iconBuf.toString('ascii', 1, 4) !== 'PNG') fail('store_icon_512.png が PNG ではない');
+  const iw = iconBuf.readUInt32BE(16);
+  const ih = iconBuf.readUInt32BE(20);
+  if (iw !== 512 || ih !== 512) fail(`アイコンが ${iw}x${ih}＝512x512 ではない`);
+  if (iconBuf.length > 1024 * 1024) fail(`アイコンが ${(iconBuf.length / 1024).toFixed(0)}KB＝上限1MB超過`);
+  const iconSha = crypto.createHash('sha256').update(iconBuf).digest('hex');
+  console.log('=== ストアアイコン ===');
+  console.log(`  ${iw}x${ih}  ${(iconBuf.length / 1024).toFixed(0)}KB  ✅ 検査通過`);
+  console.log('');
+
   const sa = loadServiceAccount(SA_PATH);
   const token = await getToken(sa);
   const edit = must(await api(token, 'POST', `/androidpublisher/v3/applications/${PKG}/edits`), 'edit の作成');
@@ -84,10 +103,17 @@ async function main() {
   try {
     const cur = must(await api(token, 'GET',
       `/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}`), '現在の掲載情報');
+    // 現在のアイコンと中身を比べる。同じなら触らない（審査を無駄に発生させない）。
+    const curIcon = await api(token, 'GET',
+      `/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}/icon`);
+    const remoteIconSha = (curIcon.json?.images ?? [])[0]?.sha256 ?? null;
+    const iconNeedsUpdate = remoteIconSha !== iconSha;
+
     console.log('=== 現在の掲載情報 ===');
     console.log(`  タイトル   : ${cur.title}（変更しません）`);
     console.log(`  簡単な説明 : ${chars(cur.shortDescription)}字（変更しません）`);
     console.log(`  詳しい説明 : ${chars(cur.fullDescription)}字 → ${n}字 に更新`);
+    console.log(`  アイコン   : ${iconNeedsUpdate ? '⚠️ 中身が違う → 差し替える' : '同じ → 触らない'}`);
     console.log('');
 
     if (!APPLY) {
@@ -107,6 +133,21 @@ async function main() {
       { body: { fullDescription: desc } });
     must(up, '説明文の更新');
     console.log('  ✅ 更新');
+
+    // --- ストアアイコン（中身が違うときだけ）---
+    if (iconNeedsUpdate) {
+      console.log('--- ストアアイコンを差し替え ---');
+      const dIcon = await api(token, 'DELETE',
+        `/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}/icon`);
+      console.log(`  既存を削除 HTTP ${dIcon.status}`);
+      must(await api(token, 'POST',
+        `/upload/androidpublisher/v3/applications/${PKG}/edits/${eid}/listings/${LOCALE}/icon`,
+        { body: iconBuf, contentType: 'image/png', query: { uploadType: 'media' } }),
+        'アイコンのアップロード');
+      console.log('  ✅ 差し替え');
+    } else {
+      console.log('--- ストアアイコンは中身が同じなので触らない ---');
+    }
 
     // --- スクリーンショットを入れ替える（全消し → 5枚を順に投入）---
     console.log('--- スクリーンショットを入れ替え ---');
@@ -148,6 +189,10 @@ async function main() {
       console.log(`  「3種族」  : ${after.fullDescription.includes('3種族') ? '⚠️ 残っている' : 'なし ✅'}`);
       console.log(`  「4種族」  : ${after.fullDescription.includes('4種族') ? 'あり ✅' : '⚠️ 無い'}`);
       console.log(`  スクショ   : ${(imgs.json?.images ?? []).length} 枚`);
+      const ic2 = await api(token, 'GET',
+        `/androidpublisher/v3/applications/${PKG}/edits/${e2.id}/listings/${LOCALE}/icon`);
+      const gotIcon = (ic2.json?.images ?? [])[0]?.sha256 ?? null;
+      console.log(`  アイコン   : ${gotIcon === iconSha ? 'ローカルと一致 ✅' : '⚠️ 一致しない'}`);
     } finally {
       await api(token, 'DELETE', `/androidpublisher/v3/applications/${PKG}/edits/${e2.id}`);
     }
