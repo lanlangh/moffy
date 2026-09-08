@@ -60,12 +60,19 @@ jobs:
           # RevenueCat 公開SDKキー(goog_...)。未設定なら空=IAPはno-opにフォールバック(env.dart)。
           # 課金の実購入テスト/本番課金にはこの注入が必須。
           REVENUECAT_ANDROID_KEY: ${{ secrets.REVENUECAT_ANDROID_KEY }}
+          # 監視/分析。どちらも端末に焼き込んで安全な「公開鍵」（env.dart の信頼境界を参照）。
+          # 未設定なら空文字 → Env.hasSentry/hasPostHog=false → Noop にフォールバックするので、
+          # Secrets 未登録のままこのワークフローを流しても壊れない。
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
         run: |
           flutter build appbundle --release \
             --build-number=${{ github.run_number }} \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
             --dart-define=REVENUECAT_ANDROID_KEY="$REVENUECAT_ANDROID_KEY" \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+            --dart-define=POSTHOG_API_KEY="$POSTHOG_API_KEY" \
             --dart-define=ADMOB_USE_PROD_ADS=${{ inputs.prod_ads }}
 
       - name: Build signed release APK (appetize/プレビュー用)
