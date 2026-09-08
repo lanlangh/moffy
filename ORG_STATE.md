@@ -52,6 +52,42 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 📊 **初めての実数（2026-09-08 / RevenueCat v2 API・直近28日）**
+
+> オーナーが作った読み取り専用鍵（`moffy-claude-local-readonly` / Charts metrics + Project configuration の Read only）で取得。
+> 鍵は `secrets/revenuecat_secret_key.txt`（git管理外）。取得スクリプトは scratchpad の `rc_probe.mjs`。
+
+| 指標 | 値 |
+|---|---|
+| **New Customers**（28日） | **35** ← SDK初期化ベース＝**実質の新規インストール数の代理値** |
+| **Active Users**（28日） | **36** |
+| **Active Subscriptions** | **0** |
+| **Active Trials** | **0** |
+| **MRR** | **$0** |
+| **Revenue**（28日） | **$0** |
+
+**商品構成は正常**（App Store: `moffy_premium_monthly` / `moffy_premium_yearly`（表示名あり）、
+Play Store: `moffy_premium_monthly:monthly-autorenew` / `moffy_premium_yearly:yearly-autorenew`、
+Offering `default` が current、Entitlement `premium`）。**＝ペイウォールに金額が出るのと整合**。
+
+#### 🔴 この数字から言えること（3つ）
+
+**① 課金転換は 0/35。** ただし統計的に「0%」と断定はできない。
+真の転換率が3%なら35人での期待値は約1人で、**0人になる確率は34%**＝3%を否定する証拠にはならない。
+**ただし10%以上は否定できる**（10%なら0人になる確率は2.5%）。
+→ **財務部の試算では、広告で買ったインストールを回収するには転換率 10〜40% が必要だった。その水準は実測で否定された。**
+
+**② 定着していない。Active 36 のうち 35 が新規＝再訪はほぼ1人。**
+28日より前から使い続けている人がほぼいない。**バケツに穴が空いている状態で広告を注ぐことになる。**
+
+**③ インストールは自然流入で月35件ある。** 広告ゼロ・フォロワーゼロでこの数字が出ているので、
+**ストア検索からの流入は生きている**。＝ ASO（ストア掲載の改善）とリテンション改善のほうが、広告より先に効く。
+
+#### ⏭ ここから何を測るか
+
+**PostHog を入れて、35人がどこで消えているかを見る**（インストール→権限許可→初回の卵→孵化→ペイウォール表示→購入）。
+現在は「35人来て0人課金した」しか分からず、**どこで落ちたかが分からない**。それが分かるまで広告は出さない。
+
 ### 🎉🎉 **iOS サブスクが承認・公開された（2026-09-08 `asc-sub-probe` の実測で確認）**
 
 **7/23 から続いていたサブスク固着は完全に終わった。iOS はこれで課金できる。**
