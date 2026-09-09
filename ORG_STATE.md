@@ -52,6 +52,30 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 🔭 **計測の配線が完了（2026-09-09）＝あとは次のリリースを待つだけ**
+
+| 項目 | 状態 |
+|---|---|
+| CI の配線（`build-aab.yml` / `ios-build.yml` に `--dart-define`） | ✅ **PR #99 でマージ済み** |
+| `SENTRY_DSN` | ✅ **GitHub Secrets に登録**（2026-09-09） |
+| `POSTHOG_API_KEY` | ✅ **GitHub Secrets に登録**（2026-09-09） |
+
+**📌 リージョンの確認結果**
+- **Sentry は EU**（DSN が `ingest.de.sentry.io`）。**DSN に送信先が含まれるので追加設定は不要。**
+- **PostHog は US**。`env.dart` の既定 `https://us.i.posthog.com` と一致するので **`POSTHOG_HOST` の指定は不要。**
+  ⚠️ 将来 EU のプロジェクトに変えるなら `POSTHOG_HOST` の注入が要る（PostHogのキーには送信先が入っていない）。
+
+**📌 PostHog は Moffy 専用の別アカウント**（無料プランは1プロジェクトまでで、既存アカウントは他アプリが使用中のため）。
+**Product Analytics のみ有効。Session Replay と Web Analytics は意図的に外した。**
+理由: `main.dart:66` は `sessionReplay` を設定しておらず（＝録画しない）、`captureApplicationLifecycleEvents = false`。
+**画面録画はストアの「データ安全性」申告に入っていないので、有効にするなら申告とプライバシーポリシーの更新とセット。**
+
+**⏭ 🔴 いつ数字が見え始めるか＝「次のリリースがユーザーの端末で動いてから」**
+鍵はビルド時に焼き込まれるので、**いま公開中の 1.2.0 は計測しない**。
+現在ストアにある版が入れ替わるまで、PostHog は「Waiting for events」のまま。**これは異常ではない。**
+急いで検証したいなら **Android の内部テストトラックに1本上げて自分の端末で確認する**のが最短（審査不要）。
+※ ストアへのアップロードは取り消しにくい操作なので、**オーナーの明示的な合意を取ってから単独で実行する**。
+
 ### 📊 **初めての実数（2026-09-08 / RevenueCat v2 API・直近28日）**
 
 > オーナーが作った読み取り専用鍵（`moffy-claude-local-readonly` / Charts metrics + Project configuration の Read only）で取得。
