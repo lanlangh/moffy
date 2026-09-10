@@ -181,6 +181,40 @@ class MockQuestRepository implements QuestRepository {
   }
 }
 
+/// `user_quests` 1行ぶんの素材（期間つき）。[keepLatestPeriodPerKind] の入出力。
+typedef QuestRow = ({
+  String defId,
+  String userQuestId,
+  String period,
+  Quest quest,
+});
+
+/// 期間が混ざった行から、**種別ごとに一番新しい期間の行だけ**を残す。
+///
+/// なぜ要るか（2026-09-10）:
+///   `user_quests` は `unique(user_id, quest_id, period_start)` で、サーバーの
+///   `fn_sync_quests` が毎日1行ずつ増やしていく。以前クライアントは期間で絞らずに
+///   全期間分を select していたため、**使った日数だけ同じクエストが画面に並んでいた**
+///   （本番実測: 1ユーザーで「30分減らそう」が15行、「今週1000pt」が7行）。
+///
+/// 通常はサーバー側の `or()` で当期だけに絞れているのでここは素通りする。効くのは
+///   * オフラインで `fn_sync_quests` を呼べず、当期が分からないとき
+///     → 手元にある中で最新の期間を出す（何も出さないより良い）
+///   * 将来サーバー側の絞りが壊れたとき → 画面に重複を出さない
+///
+/// [period] は 'YYYY-MM-DD' 固定なので、文字列比較がそのまま日付比較になる。
+/// 並び順は入力のまま保つ（表示順はサーバーの並びに従う）。
+List<QuestRow> keepLatestPeriodPerKind(List<QuestRow> rows) {
+  final latest = <QuestKind, String>{};
+  for (final r in rows) {
+    final cur = latest[r.quest.kind];
+    if (cur == null || r.period.compareTo(cur) > 0) {
+      latest[r.quest.kind] = r.period;
+    }
+  }
+  return rows.where((r) => r.period == latest[r.quest.kind]).toList();
+}
+
 /// Supabase 本実装（信頼境界準拠）。
 ///
 /// 生成（loadQuests 冒頭）は**サーバーRPC `fn_sync_quests`**（当日/当週インスタンスの
@@ -208,23 +242,45 @@ class SupabaseQuestRepository implements QuestRepository {
       //   サーバーRPC fn_sync_quests が quest_definitions(is_active) から冪等生成する
       //   (period はサーバー now()+登録TZ 基準)。読み取り前に同期しておく。
       //   オフライン時は同期せず、ローカルに既にある (前回同期済みの) 行だけを表示する。
+      // 【2026-09-10 修正】以前はここで**全期間分**の user_quests を読んでいた。
+      //   user_quests は unique(user_id, quest_id, period_start) で **1日1行ずつ増える**
+      //   設計なので、使った日数だけ同じクエストが画面に並んでいた（本番実測: 1ユーザーで
+      //   「30分減らそう」が15行）。当期（今日 / 今週）だけに絞る。
+      //
+      //   期間の正はサーバー。fn_sync_quests が {daily_period, weekly_period} を返すので
+      //   それを使う。**クライアントの時計から日付を作らない**（0005 が意図的に避けている。
+      //   端末の日付を変えれば別期間のクエストを引けてしまうため）。
+      String? dailyPeriod;
+      String? weeklyPeriod;
       if (isOnline) {
-        await _client.rpc('fn_sync_quests');
+        final synced = await _client.rpc('fn_sync_quests');
+        final m = (synced as Map?)?.cast<String, Object?>();
+        dailyPeriod = m?['daily_period'] as String?;
+        weeklyPeriod = m?['weekly_period'] as String?;
       }
+
       // user_quests に quest_definitions を join（PostgREST のリレーション展開）。
-      final rows = await _client.from('user_quests').select(
-            'id, quest_id, kind, is_completed, reward_granted, progress, '
+      // period_start は絞り込みとフォールバック判定に使うので必ず取る。
+      var query = _client.from('user_quests').select(
+            'id, quest_id, kind, period_start, is_completed, reward_granted, progress, '
             'quest_definitions(id, title, description, condition, reward)',
           );
+      if (dailyPeriod != null && weeklyPeriod != null) {
+        // 当日の daily と当週の weekly だけ。サーバー側で絞るので転送量も増えない。
+        query = query.or(
+          'and(kind.eq.daily,period_start.eq.$dailyPeriod),'
+          'and(kind.eq.weekly,period_start.eq.$weeklyPeriod)',
+        );
+      }
+      final rows = await query;
 
-      _questDefToUserQuestId.clear();
-      final quests = <Quest>[];
+      // 行を素材にほどく（この時点ではまだ期間が混ざりうる）。
+      final parsed = <QuestRow>[];
       for (final raw in (rows as List)) {
         final r = (raw as Map).cast<String, Object?>();
         final def = (r['quest_definitions'] as Map?)?.cast<String, Object?>();
         if (def == null) continue;
         final defId = def['id']! as String;
-        _questDefToUserQuestId[defId] = r['id']! as String;
 
         final condition = QuestCondition.fromJson(
           ((def['condition'] as Map?) ?? const {}).cast<String, Object?>(),
@@ -239,8 +295,11 @@ class SupabaseQuestRepository implements QuestRepository {
             ((r['progress'] as Map?) ?? const {}).cast<String, Object?>();
         final progress = (progressMap['value'] as num?)?.toInt() ?? 0;
 
-        quests.add(
-          Quest(
+        parsed.add((
+          defId: defId,
+          userQuestId: r['id']! as String,
+          period: (r['period_start'] as String?) ?? '',
+          quest: Quest(
             id: defId,
             kind: QuestKind.fromWire((r['kind'] as String?) ?? 'daily'),
             title: def['title']! as String,
@@ -251,7 +310,19 @@ class SupabaseQuestRepository implements QuestRepository {
             isCompleted: r['is_completed'] == true,
             rewardGranted: r['reward_granted'] == true,
           ),
-        );
+        ));
+      }
+
+      // 二重の安全策（詳細は keepLatestPeriodPerKind のドキュメント）。
+      final current = keepLatestPeriodPerKind(parsed);
+
+      _questDefToUserQuestId.clear();
+      final quests = <Quest>[];
+      for (final p in current) {
+        // claimReward は defId から user_quests.id を引く。**当期の行**を入れること
+        // （絞る前は最後に来た行＝任意の過去期間が入り、古い行を受け取ろうとしていた）。
+        _questDefToUserQuestId[p.defId] = p.userQuestId;
+        quests.add(p.quest);
       }
 
       final streakRow =
