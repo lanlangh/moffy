@@ -295,7 +295,7 @@ class SupabaseQuestRepository implements QuestRepository {
             ((r['progress'] as Map?) ?? const {}).cast<String, Object?>();
         final progress = (progressMap['value'] as num?)?.toInt() ?? 0;
 
-        parsed.add((
+        final QuestRow parsedRow = (
           defId: defId,
           userQuestId: r['id']! as String,
           period: (r['period_start'] as String?) ?? '',
@@ -310,15 +310,16 @@ class SupabaseQuestRepository implements QuestRepository {
             isCompleted: r['is_completed'] == true,
             rewardGranted: r['reward_granted'] == true,
           ),
-        ));
+        );
+        parsed.add(parsedRow);
       }
 
       // 二重の安全策（詳細は keepLatestPeriodPerKind のドキュメント）。
-      final current = keepLatestPeriodPerKind(parsed);
+      final currentRows = keepLatestPeriodPerKind(parsed);
 
       _questDefToUserQuestId.clear();
       final quests = <Quest>[];
-      for (final p in current) {
+      for (final p in currentRows) {
         // claimReward は defId から user_quests.id を引く。**当期の行**を入れること
         // （絞る前は最後に来た行＝任意の過去期間が入り、古い行を受け取ろうとしていた）。
         _questDefToUserQuestId[p.defId] = p.userQuestId;
