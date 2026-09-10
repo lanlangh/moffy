@@ -52,7 +52,36 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
-### 🐛 **クエストが日数分だけ重複表示されていた（2026-09-10 修正済み・リリース待ち）**
+### 🚀 **1.2.1 の準備完了（2026-09-10）＝あとは提出ボタンだけ**
+
+中身はクエスト重複の修正1件（1.2.0 以降 `lib/` の変更は `quest_repository.dart` のみ）。
+**このビルドが初めて SENTRY_DSN / POSTHOG_API_KEY を積む**（鍵の登録は 09-09、
+1.2.0 のビルドは 08-26）。クラッシュ監視と行動分析はこのリリースから動き出す。
+
+| | 状態 |
+|---|---|
+| バージョン | `pubspec.yaml` = 1.2.1（PR #102 で main へ） |
+| リリースノート | 両OS 208字（`play_release_notes.txt` / `ios_store_whats_new.txt`） |
+| CI | analyze 0件 / 222テスト全通過 |
+| **Android AAB** | ✅ 完成。run #28 → **versionCode 28**（現行27より大）。`build/release/app-release.aab` |
+| **iOS バージョン 1.2.1** | ✅ 作成（id=`efe42490-adf8-45c3-84c6-65518b7fab6a`）。説明文/キーワード/promo/whatsNew 反映済み |
+| **iOS スクショ5枚** | ✅ 1.2.1 へUL済（全て COMPLETE / 表示順も設定）。**07月から保留だった差し替えがようやく載った** |
+| **iOS build 39** | ✅ 1.2.1 に紐付け済 / processingState=VALID |
+| **提出前検査** | ✅ `asc_preflight` 全項目グリーン。サブスク2件 APPROVED |
+| **未提出の空箱** | ✅ 無し（reviewSubmissions は全て submitted 済み） |
+| 証明書 | 開発5本→6本（上限10）。失効不要 |
+
+**残っているのは提出だけ:**
+- **Android** … `node tools/play/play_release.mjs <sa.json> com.moffy.app build/release/app-release.aab 1.2.1 apply`
+  ⚠️ **実行＝審査送信**（このアプリでは `changesNotSentForReview` が使えない）。オーナーの合意を取ってから単独で実行すること
+- **iOS** … App Store Connect の「審査に提出」ボタン。**オーナーが押す**
+
+⚠️ `play_release.mjs` は掲載アイコンを触らない（`play_update_listing.mjs` だけ対応済み）。
+今回は 08-28 に出したアイコンが既に反映済みなので影響しないが、抜けは残っている。
+
+---
+
+### 🐛 **クエストが日数分だけ重複表示されていた（2026-09-10 修正済み・1.2.1 で出る）**
 
 オーナー報告「同じ内容のクエストがいくつも表示される」。
 
