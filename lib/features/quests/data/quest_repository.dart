@@ -33,8 +33,30 @@ abstract interface class QuestRepository {
   Future<Quest> claimReward(String questId);
 }
 
+/// [MockQuestRepository] が出すクエストの id（表示順）。
+///
+/// **本番 `quest_definitions` の `is_active = true` と完全に一致させること。**
+/// ここがずれると、Web プレビュー（FORCE_MOCK）で撮ったストアのスクショに
+/// 実ユーザーには出ないクエストが写る。2026-08-28 に実際そうなった
+/// （'daily_sns_under_60' がモック専用だったのに Play のスクショへ出た）。
+///
+/// 現在の本番（2026-09-10 実測 / `db-check-quests.yml`）:
+///   daily  … daily_reduce_30 / daily_streak_keep
+///            （daily_tiktok_under_20 は 0013 で is_active=false）
+///   weekly … weekly_hatch_3 / weekly_points_1000
+///
+/// 定義を足したり止めたりしたら、migration とこの2か所を必ず一緒に直す。
+const List<String> kMockQuestIds = [
+  'daily_reduce_30',
+  'daily_streak_keep',
+  'weekly_hatch_3',
+  'weekly_points_1000',
+];
+
 /// モック実装（第2bパス）。サーバーRPC未実装のため、ローカルのダミー定義 + 進捗判定で
 /// 5状態・受取フローを成立させる。残高への確定書き込みは行わない（表示状態のみ更新）。
+///
+/// ⚠️ 出すクエストは [kMockQuestIds]＝本番の quest_definitions と一致させること。
 class MockQuestRepository implements QuestRepository {
   MockQuestRepository(this._ref);
 
@@ -67,23 +89,14 @@ class MockQuestRepository implements QuestRepository {
         isCompleted: true,
         rewardGranted: false,
       ),
-      Quest(
-        id: 'daily_sns_under_60',
-        kind: QuestKind.daily,
-        // 特定アプリ名を名指ししない（iOS の FamilyControls はアプリを個別識別できず
-        // 名指しは実装乖離＝docs/IOS_SCREENTIME.md）。package を持たない app_under＝
-        // 対象SNS合計の"予算メーター"（quest_models: package null=合計）。
-        title: 'SNSは合計60分まで',
-        description: '対象SNSの合計利用を60分未満におさえる',
-        condition: QuestCondition(
-          type: QuestConditionType.appUnder,
-          target: 60,
-        ),
-        reward: QuestReward(points: 30),
-        progress: 12, // 進行中
-        isCompleted: false,
-        rewardGranted: false,
-      ),
+      // 【2026-09-10 削除】'daily_sns_under_60'（「SNSは合計60分まで」）はここにしか
+      //   存在せず、**DB には seed されていなかった**（0015:74）。package を持たない
+      //   app_under＝「対象SNS合計」型はサーバー未実装で、seed する前に
+      //   quest_condition_met の拡張が要るため。
+      //   その結果、Web プレビュー（FORCE_MOCK）で撮ったストアのスクショに
+      //   **実ユーザーには出ないクエスト**が写り、2026-08-28 に Play へ出てしまった。
+      //   → モックは本番の quest_definitions を映す鏡に保つ。合計型を実装して
+      //     seed した日に、ここへ戻すこと（[kMockQuestIds] のテストが番人）。
       Quest(
         id: 'daily_streak_keep',
         kind: QuestKind.daily,
