@@ -1,0 +1,110 @@
+name: DB Check Quests
+
+# クエストの定義と、ユーザーに生成されたインスタンスを **読むだけ** で確認する。
+#
+# なぜ要るか（2026-09-10）:
+#   オーナーから「同じ内容のクエストがいくつも表示される」と報告。
+#   user_quests は unique(user_id, quest_id, period_start) で **1日1行ずつ増える**設計だが、
+#   クライアント（SupabaseQuestRepository.loadQuests）が period_start で絞らずに
+#   全期間分を select していた。使った日数だけ同じクエストが並ぶ。
+#   併せて、モックにしか無いクエスト（daily_sns_under_60）が本番に存在しないことも確認する。
+#   ストアのスクショはモック（Webプレビュー）から撮っているため、実物との差が出る。
+#
+# ⚠️ `DB Verify` は**マイグレーションを適用する**ワークフローなので本番に流さないこと。
+#    こちらは SELECT のみ。書き込み・DDL は一切行わない。
+#
+# 個人情報の扱い: user_id は先頭8文字だけを表示する。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+
+      - name: Install psql
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          psql --version
+
+      - name: Read quests (SELECT only)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -e
+          echo "=== quest_definitions（本番に存在する定義）==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c \
+            "select id, kind, title, is_active
+               from public.quest_definitions
+              order by kind, id;"
+
+          echo ""
+          echo "=== 実際に配信されるもの（is_active=true だけ）==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c \
+            "select kind, count(*) as 件数, string_agg(title, ' / ' order by id) as 内容
+               from public.quest_definitions
+              where is_active
+              group by kind;"
+
+          echo ""
+          echo "=== モックにしか無いクエストの確認 ==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At -c \
+            "select case when exists (
+                      select 1 from public.quest_definitions
+                       where id = 'daily_sns_under_60')
+                    then 'daily_sns_under_60 は DB にある'
+                    else '⚠️ daily_sns_under_60 は DB に無い（モック専用）'
+               end;"
+
+          echo ""
+          echo "=== user_quests: ユーザーごとの行数と期間の数 ==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c \
+            "select left(user_id::text, 8) as user_prefix,
+                    count(*)                        as 行数,
+                    count(distinct period_start)    as 期間数,
+                    min(period_start)               as 最古,
+                    max(period_start)               as 最新
+               from public.user_quests
+              group by user_id
+              order by count(*) desc
+              limit 10;"
+
+          echo ""
+          echo "=== 同じクエストが何行あるか（＝画面に何個並ぶか）==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c \
+            "select left(uq.user_id::text, 8) as user_prefix,
+                    d.title,
+                    uq.kind,
+                    count(*) as 行数
+               from public.user_quests uq
+               join public.quest_definitions d on d.id = uq.quest_id
+              group by uq.user_id, d.title, uq.kind
+             having count(*) > 1
+              order by count(*) desc
+              limit 20;"
+
+          echo ""
+          echo "=== 判定 ==="
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At -c \
+            "select case
+               when not exists (select 1 from public.user_quests)
+                 then '行が無い（まだ誰も同期していない）'
+               when (select max(c) from (
+                      select count(*) c from public.user_quests
+                       group by user_id, quest_id) t) > 1
+                 then '⚠️ 同じクエストが複数期間ぶん存在する＝期間で絞らないと重複表示になる'
+               else '✅ 1クエストにつき1行しか無い'
+             end;"
