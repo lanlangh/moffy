@@ -52,6 +52,33 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 📡 **Sentry が本番で初めて届いた（2026-09-14 11:00 JST）＝配線は成功。中身は実害なし**
+
+1.2.1 で初めて SENTRY_DSN を積んだビルドから、最初のイベントが届いた（オーナーにメール通知）。
+
+| | 内容 |
+|---|---|
+| 例外 | `PlatformException(10, Error performing request.)` — RevenueCat の `Purchases.getOfferings` が Google Play Billing から `NETWORK_ERROR / An internal error occurred` を受けた |
+| 発生箇所 | `iap_service.dart:224` `fetchOfferings`。**try/catch で捕まえて空プランを返している**（落ちていない） |
+| 画面 | 購入画面は空プランのとき `_EmptyOfferings`（再試行ボタン）を出す＝**ユーザー側の不具合は無い** |
+| 端末 | OnePlus8Pro / Android 11 / release `com.moffy.app@1.2.1+28` |
+| 時刻 | Play への送信 10:48:47 JST（コミット時刻）→ イベント 11:00:58 JST＝**約12分後** |
+
+**誰の端末か**: 1.2.1 は送信直後で審査中のため、一般ユーザーに届いている可能性は低い。
+Google Play はアップロード直後に実機で自動テスト（リリース前レポート）を走らせるので、
+**その端末の可能性が高い**（確定ではない。Play Console の「リリース前レポート」で確認できる）。
+Sentry の user id はアプリが `setUser` を呼んでいないので SDK の匿名インストールIDで、個人情報ではない。
+
+**⚠️ 見えた構造的な問題 = 捕まえて処理済みのエラーまで「error」でメールが来る**:
+`Log.e` は本番で `captureException` に直結している（main.dart:87）。そのため
+通信が不安定な人が購入画面を開くたびに同じ通知が来る。実害の無いものが混ざると、
+本当に危ないクラッシュが埋もれる。
+→ 対策案: `fetchOfferings` / `fetchPremiumStatus` の catch で、RevenueCat の
+`PurchasesErrorCode.networkError` だけは Sentry に送らない（Log.d に落とす）。
+設定ミス（商品未設定・キー不正など）は引き続き送る。**コード修正なので次のリリースから効く。**
+
+---
+
 ### 🚀 **1.2.1: Android 審査中 / iOS 提出直前（2026-09-14）**
 
 - **Android**: 2026-09-14 に `play_release.mjs ... apply` で送信。読み直しで
