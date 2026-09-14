@@ -17,7 +17,7 @@ import 'package:supabase_flutter/supabase_flutter.dart'
 void main() {
   group('一時的な通信の失敗 → warning', () {
     test('RevenueCat の NETWORK_ERROR（今回の1件目 / code 10）', () {
-      const e = PlatformException(
+      final e = PlatformException(
         code: '10',
         message: 'Error performing request.',
         details: {'readableErrorCode': 'NetworkError'},
@@ -61,13 +61,13 @@ void main() {
 
   group('不具合の兆候 → error のまま（通知を止めてはいけない）', () {
     test('RevenueCat の STORE_PROBLEM（code 2）は通信の失敗ではない', () {
-      const e = PlatformException(code: '2');
+      final e = PlatformException(code: '2');
       expect(isTransientFailure(e), isFalse);
       expect(crashLevelFor(e), CrashLevel.error);
     });
 
     test('RevenueCat の設定ミス（invalidCredentialsError / code 11）', () {
-      expect(isTransientFailure(const PlatformException(code: '11')), isFalse);
+      expect(isTransientFailure(PlatformException(code: '11')), isFalse);
     });
 
     test('権限不足（42501）＝マイグレーションの権限漏れの兆候', () {
@@ -105,7 +105,7 @@ void main() {
   test('数字でない code の PlatformException で落ちない（他プラグインの例外）', () {
     // PurchasesErrorHelper.getErrorCode は code を num.parse するので、
     // ガードが無いとここで FormatException を投げて Sentry 送信ごと止まる。
-    const e = PlatformException(code: 'sign_in_failed');
+    final e = PlatformException(code: 'sign_in_failed');
     expect(() => isTransientFailure(e), returnsNormally);
     expect(isTransientFailure(e), isFalse);
   });
