@@ -91,9 +91,17 @@ Sentry の user id はアプリが `setUser` を呼んでいないので SDK の
 `Log.e` は本番で `captureException` に直結している（main.dart:87）。そのため
 通信が不安定な人が購入画面を開くたびに同じ通知が来る。実害の無いものが混ざると、
 本当に危ないクラッシュが埋もれる。
-→ 対策案: `fetchOfferings` / `fetchPremiumStatus` の catch で、RevenueCat の
-`PurchasesErrorCode.networkError` だけは Sentry に送らない（Log.d に落とす）。
-設定ミス（商品未設定・キー不正など）は引き続き送る。**コード修正なので次のリリースから効く。**
+→ **対応済み（2026-09-14 / PR #103・main 入り）。次のリリース（1.2.2 以降）から効く。**
+Sentry はレベルで優先度を決める（error/fatal=高でメール / warning=中で通知なし / 急増で自動昇格）。
+`error_severity.dart` で**一時的な通信・基盤の失敗だけ** warning に落とす:
+RevenueCat networkError / PostgREST 502・503・504 / AuthRetryableFetchException /
+TimeoutException / SocketException・HandshakeException・ClientException。
+権限 42501・RPC 無し PGRST202・課金の設定ミス等は **error のまま**（全員に静かに起きる不具合の兆候）。
+本物のクラッシュ（未捕捉）は SentryFlutter が自前で送るので影響しない。
+あわせて `SentryCrashReporter` の catch が `Log.e` を呼んでいた**自己呼び出しループの潜在バグ**も修正。
+テスト13件（「不具合の兆候まで warning に落としていないか」を別グループで縛る）。
+
+⚠️ **1.2.1（審査中）には入っていない**。1.2.1 が出ても当面は同じ通知が来る。
 
 ---
 
