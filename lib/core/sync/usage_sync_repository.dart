@@ -57,7 +57,7 @@ class SupabaseUsageSyncRepository implements UsageSyncRepository {
       return PendingFinalizeDate.fromJson(res.cast<String, Object?>());
     } on PostgrestException catch (e, st) {
       Log.e('fn_pending_finalize_date failed: ${e.code}', error: e, stack: st);
-      throw ServerFailure(_finalizeMessage(e));
+      throw ServerFailure(_finalizeMessage(e), e);
     }
   }
 
@@ -83,7 +83,7 @@ class SupabaseUsageSyncRepository implements UsageSyncRepository {
       return FinalizeDayResult.fromJson(res.cast<String, Object?>());
     } on PostgrestException catch (e, st) {
       Log.e('fn_submit_and_finalize_day failed: ${e.code}', error: e, stack: st);
-      throw ServerFailure(_finalizeMessage(e));
+      throw ServerFailure(_finalizeMessage(e), e);
     }
   }
 

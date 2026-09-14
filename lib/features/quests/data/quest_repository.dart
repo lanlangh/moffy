@@ -390,9 +390,9 @@ class SupabaseQuestRepository implements QuestRepository {
     } on PostgrestException catch (e, st) {
       Log.e('fn_grant_quest_reward failed: ${e.code}', error: e, stack: st);
       if (e.message.contains('quest_not_completed')) {
-        throw const ServerFailure('まだ達成していません');
+        throw ServerFailure('まだ達成していません', e);
       }
-      throw const ServerFailure('受け取りに失敗しました');
+      throw ServerFailure('受け取りに失敗しました', e);
     }
   }
 }

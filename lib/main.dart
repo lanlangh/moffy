@@ -86,6 +86,10 @@ Future<void> _runWithSentry(Future<void> Function() appRunner) async {
   // 本番重大エラー（Log.e）を Sentry へ転送するフックを登録（log.dart の循環依存回避）。
   const reporter = SentryCrashReporter();
   Log.crashReporterSink = (error, stack) {
+    // 同じ失敗の2回目は送らない（元の例外を送ってから Failure に包み直す箇所があり、
+    // 上位がそれをまた Log.e すると二重に届く / error_severity.dart の shouldReport）。
+    if (!shouldReport(error)) return;
+    markReported(error);
     // ベストエフォート（送信完了は待たない / アプリ挙動を阻害しない）。
     reporter.captureException(
       error,

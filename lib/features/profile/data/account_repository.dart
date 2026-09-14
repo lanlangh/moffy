@@ -109,7 +109,7 @@ class SupabaseAccountRepository implements AccountRepository {
       await _client.rpc('fn_delete_account');
     } on PostgrestException catch (e, st) {
       Log.e('fn_delete_account failed: ${e.code}', error: e, stack: st);
-      throw const ServerFailure('削除に失敗しました。時間をおいて再度お試しください');
+      throw ServerFailure('削除に失敗しました。時間をおいて再度お試しください', e);
     }
 
     // ② サインアウト。★ここは①と try を分け、失敗しても throw しない。
