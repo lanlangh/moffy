@@ -52,7 +52,18 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
-### 🚀 **1.2.1 の準備完了（2026-09-10）＝あとは提出ボタンだけ**
+### 🚀 **1.2.1: Android 審査中 / iOS 提出直前（2026-09-14）**
+
+- **Android**: 2026-09-14 に `play_release.mjs ... apply` で送信。読み直しで
+  リリース 1.2.1 / versionCode 28 / completed、スクショ5枚、説明文OK（「4種族」あり）
+- **iOS**: オーナーが「審査用に追加」→ 下書き `a2a6b145-dda3-49e2-b3a7-0b76dbe52934`
+  （READY_FOR_REVIEW / 未提出 / **items=1**＝1.2.1 build 39 のみ）を API で確認。
+  サブスクは APPROVED 済みなので同梱されない。他の reviewSubmissions は全て COMPLETE。
+  → オーナーが「審査へ提出」を押す段階
+
+---
+
+### （参考）1.2.1 の準備内容（2026-09-10）
 
 中身はクエスト重複の修正1件（1.2.0 以降 `lib/` の変更は `quest_repository.dart` のみ）。
 **このビルドが初めて SENTRY_DSN / POSTHOG_API_KEY を積む**（鍵の登録は 09-09、
