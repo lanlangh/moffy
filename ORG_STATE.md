@@ -119,8 +119,15 @@ Sentry の通知ノイズ修正（PR #103）は、1.2.1 に入れないと**そ�
   - iOS: ios-build run #40 → **build 40**。1.2.1 の build を 39 → 40 に差し替える
 - 証明書: 開発 6 → 7本目（上限10）
 
-**残り**: ① ビルド完了 ② iOS 1.2.1 に build 40 を紐付け（下書き中でも差し替え可能かは Apple 次第・要検証）
-③ 下書きの中身が1件（1.2.1 build 40）か API で確認 ④ Android を送信（**オーナーの合意が要る**）⑤ iOS はオーナーが提出
+**進捗（2026-09-14 13:05 JST）**:
+- ✅ Android AAB（versionCode 29 / `badccdc`）完成。dry-run OK。`build/release/app-release.aab`
+  （旧 vc28 は `app-release-vc28.aab` に退避）
+- ✅ iOS build 40（`badccdc`）アップロード成功 → **1.2.1 に紐付け済み**。
+  **下書き中（READY_FOR_REVIEW）でも build の差し替えは通った**（実測・読み直しで 1.2.1 ← build 40）
+- ✅ 提出前検査を再実行: ブロッカー0 / 要確認0
+- ✅ 下書き `a2a6b145` は items=1 のまま（未提出）
+
+**残り**: Android 送信（審査中の vc28 を vc29 で置き換える＝**オーナーの合意が要る**）／iOS はオーナーが提出
 
 ---
 
