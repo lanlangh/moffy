@@ -101,7 +101,24 @@ TimeoutException / SocketException・HandshakeException・ClientException。
 あわせて `SentryCrashReporter` の catch が `Log.e` を呼んでいた**自己呼び出しループの潜在バグ**も修正。
 テスト13件（「不具合の兆候まで warning に落としていないか」を別グループで縛る）。
 
-⚠️ **1.2.1（審査中）には入っていない**。1.2.1 が出ても当面は同じ通知が来る。
+⚠️ ~~1.2.1（審査中）には入っていない~~ → オーナー提案で **1.2.1 を作り直して同梱した**（vc29 / build 40）。
+
+**🔴 PR #103 には修正漏れがあった（2026-09-14 14:25 JST に判明）**: 1.2.1+29 から
+`Instance of 'ServerFailure'` が**高優先**でまた届いた（同じ Google 自動テスト端末）。
+
+原因: データ層が「元の例外を Log.e で送る → ServerFailure に包んで投げ直す」をしており、
+上位（`submitPendingDay` の catch）がそれを**もう一度 Log.e** していた。2回目は
+`Failure` に toString が無く件名が「Instance of ...」、種類も分からないので **必ず error**。
+PR #103 の判定を2回目がすり抜けていた。
+
+→ **PR #104 で修正（main 入り）**。Log.e する広い catch は28か所あるので、呼び出し側でなく
+**送信の入口1か所で保証**: `Failure.cause` を追加し、元の例外を送った直後に包み直す6か所で渡す。
+入口の `shouldReport` が「元が送り済みなら2回目は捨てる」。`toString` は「種類: 文言 (cause: 型)」。
+元を送らずに包んだ Failure は cause を持たないので入口で初めて送られる＝取りこぼさない。テスト11件。
+
+⚠️ **PR #104 は審査中の 1.2.1（vc29 / build 40）には入っていない。** 次のリリースで出る。
+この件の「元の失敗」（PostgrestException の code）は Sentry 側にしか残っておらず、DB からは特定できていない。
+その時点で新規アカウント作成は9件すべて正常（profiles 欠落は全期間0件）＝登録は壊れていない。
 
 ---
 
