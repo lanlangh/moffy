@@ -450,7 +450,7 @@ class SupabaseEggRepository implements EggRepository {
       return HatchResult.fromJson((res).cast<String, Object?>());
     } on PostgrestException catch (e, st) {
       Log.e('fn_hatch_egg failed: ${e.code}', error: e, stack: st);
-      throw ServerFailure(_hatchMessage(e));
+      throw ServerFailure(_hatchMessage(e), e);
     }
   }
 

@@ -29,6 +29,7 @@ import 'package:purchases_flutter/purchases_flutter.dart'
 import 'package:supabase_flutter/supabase_flutter.dart'
     show AuthRetryableFetchException, PostgrestException;
 
+import '../error/failure.dart';
 import 'crash_reporter.dart';
 
 /// Supabase の入口（API ゲートウェイ）が返す、一時的な失敗の HTTP ステータス。
@@ -36,6 +37,15 @@ const Set<String> _gatewayTransientCodes = {'502', '503', '504'};
 
 /// 一時的な通信・基盤の失敗か（＝1件ずつでは行動につながらない）。
 bool isTransientFailure(Object error) {
+  // 【2026-09-14】包み直された失敗は、**元の例外で**判定する。
+  //   1.2.1+29 で「Instance of 'ServerFailure'」が高優先で届いた。データ層が元の例外を
+  //   ServerFailure に包んで投げ直していたため、ここでは種類が分からず error に倒れていた。
+  if (error is Failure) {
+    if (error is NetworkFailure) return true;
+    final cause = error.cause;
+    return cause != null && isTransientFailure(cause);
+  }
+
   // RevenueCat（Google Play Billing / StoreKit）の通信エラー。
   if (error is PlatformException) {
     // PurchasesErrorHelper.getErrorCode は code を num.parse するので、数字でない code
@@ -72,3 +82,34 @@ bool isTransientFailure(Object error) {
 /// Sentry へ送るときの重さ。一時的な通信の失敗だけ warning、ほかは error。
 CrashLevel crashLevelFor(Object error) =>
     isTransientFailure(error) ? CrashLevel.warning : CrashLevel.error;
+
+/// Sentry へ送り済みの例外に付ける印（同じ失敗の二重送信を防ぐ）。
+///
+/// [Expando] は対象を参照で掴まないので、例外が不要になれば印ごと回収される
+/// （送った例外の一覧を溜め込んでメモリを食う心配が無い）。
+final Expando<bool> _reported = Expando<bool>('sentry_reported');
+
+/// [Expando] に印を付けられる値か（文字列・数値・bool・record には付けられない）。
+/// [Log.e] は error が無いとメッセージ文字列をそのまま渡してくるので、ここで弾く。
+bool _canMark(Object o) => o is! String && o is! num && o is! bool && o is! Record;
+
+/// この error を Sentry に送るべきか。
+///
+/// データ層は「元の例外を Log.e で送る → [Failure] に包んで投げ直す」をしている。
+/// 上位がその Failure をまた Log.e すると**同じ失敗が2回**届く（1.2.1+29 で実際に起きた）。
+/// 包みの中の元の例外（[Failure.cause]）が送り済みなら、2回目は捨てる。
+/// 元を送らずに包んだ Failure（戻り値の形式不正など）は、ここで初めて送る＝取りこぼさない。
+bool shouldReport(Object error) {
+  Object? cause = error is Failure ? error.cause : null;
+  // 包みが入れ子になっていても辿る。循環に備えて上限を置く。
+  for (var depth = 0; cause != null && depth < 5; depth++) {
+    if (_canMark(cause) && _reported[cause] == true) return false;
+    cause = cause is Failure ? cause.cause : null;
+  }
+  return true;
+}
+
+/// 送ったことを記録する（[shouldReport] が2回目を見分けるため）。
+void markReported(Object error) {
+  if (_canMark(error)) _reported[error] = true;
+}
