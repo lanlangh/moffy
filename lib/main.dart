@@ -11,6 +11,7 @@ import 'core/ads/ads.dart';
 import 'core/auth/auth_session.dart';
 import 'core/config/env.dart';
 import 'core/observability/crash_reporter.dart';
+import 'core/observability/error_severity.dart';
 import 'core/observability/log.dart';
 import 'core/providers/supabase_provider.dart';
 
@@ -86,7 +87,15 @@ Future<void> _runWithSentry(Future<void> Function() appRunner) async {
   const reporter = SentryCrashReporter();
   Log.crashReporterSink = (error, stack) {
     // ベストエフォート（送信完了は待たない / アプリ挙動を阻害しない）。
-    reporter.captureException(error, stackTrace: stack, hint: 'log_e');
+    reporter.captureException(
+      error,
+      stackTrace: stack,
+      hint: 'log_e',
+      // 一時的な通信の失敗（Supabase 504 / RevenueCat の NETWORK_ERROR 等）は warning。
+      // 受け止めて画面は壊れていないのに、error だと1件ごとに高優先メールが飛ぶ。
+      // 全員に起きる本物の障害は Sentry が急増で優先度を上げるので見逃さない。
+      level: crashLevelFor(error),
+    );
   };
   await SentryFlutter.init(
     (options) {
