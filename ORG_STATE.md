@@ -52,7 +52,7 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
-### 📡 **Sentry が本番で初めて届いた（2026-09-14 11:00 JST）＝配線は成功。中身は実害なし**
+### 📡 **Sentry が本番で初めて届いた（2026-09-14）＝配線は成功。2件とも Google の自動テストで実害なし**
 
 1.2.1 で初めて SENTRY_DSN を積んだビルドから、最初のイベントが届いた（オーナーにメール通知）。
 
@@ -64,9 +64,27 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 | 端末 | OnePlus8Pro / Android 11 / release `com.moffy.app@1.2.1+28` |
 | 時刻 | Play への送信 10:48:47 JST（コミット時刻）→ イベント 11:00:58 JST＝**約12分後** |
 
-**誰の端末か**: 1.2.1 は送信直後で審査中のため、一般ユーザーに届いている可能性は低い。
-Google Play はアップロード直後に実機で自動テスト（リリース前レポート）を走らせるので、
-**その端末の可能性が高い**（確定ではない。Play Console の「リリース前レポート」で確認できる）。
+**2件目（11:09:04 JST）**: `PostgrestException 504 Gateway Timeout` — `profile_repository.dart:88`
+の `fn_profile_stats`。`on PostgrestException catch` で受け止め、メニュー画面は出る（統計カードだけ欠ける）。
+この RPC は本人の行だけを集計する軽いもので、新規アカウントなら空＝**SQL の重さでは説明がつかない**。
+
+**誰の端末か → Google の自動テスト（リリース前レポート）でほぼ確定**（`db-check-health.yml` で実測）:
+- 今日(JST)作られたアカウントは **3件だけ**。すべて匿名で、**10:52:37 / 10:53:18 / 10:58:35**
+  ＝Play 送信(10:48:47)の **4〜10分後に集中**。他に新規登録は無い
+- 2件の Sentry は端末が同じ（OnePlus8Pro / Android 11 / QKR1.191246.002）で、
+  Sentry のインストールIDが別＝**テストのたびに入れ直している**動き
+- 3件とも profiles は作成済み。**profiles が無いアカウントは全期間で0件**＝登録は壊れていない
+
+**DB の状態（2026-09-14 11:23 JST 実測・504 の14分後）**: 健康
+| 項目 | 値 |
+|---|---|
+| 接続数 | 16 / 60（詰まっていない） |
+| 5秒以上の実行中クエリ | 0件 |
+| select 1 の往復 | 約1.1秒×5回で安定（GitHub Actions〔米国〕→ Supabase の接続確立込み。クエリ自体の遅さではない） |
+| DB の大きさ | 12 MB |
+
+→ 504 は**一過性**と判断。504 当時の基盤ログは DB 接続からは見えない（Supabase ダッシュボードの Logs でのみ見られる）。
+**iOS の審査を止める理由は無い。**
 Sentry の user id はアプリが `setUser` を呼んでいないので SDK の匿名インストールIDで、個人情報ではない。
 
 **⚠️ 見えた構造的な問題 = 捕まえて処理済みのエラーまで「error」でメールが来る**:
