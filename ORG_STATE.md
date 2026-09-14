@@ -105,7 +105,25 @@ TimeoutException / SocketException・HandshakeException・ClientException。
 
 ---
 
-### 🔁 **1.2.1 を Sentry 修正入りで作り直し中（2026-09-14 オーナー提案）**
+### ⏳ **1.2.1 を両OSとも審査に提出（2026-09-14 13:26 JST）＝Sentry 修正入り**
+
+| | 提出したもの | 確認方法 |
+|---|---|---|
+| **Android** | versionCode **29**（審査中だった 28 を置き換え）/ スクショ5枚 / 説明文 | `play_release.mjs apply` の読み直しで 1.2.1 / vc29 / completed |
+| **iOS** | 1.2.1 / build **40** | ASC API: `WAITING_FOR_REVIEW`、提出物 `a2a6b145` submitted=04:25:58Z / items=1、build 40 紐付け |
+
+どちらも `badccdc`（クエスト重複修正＋モック整合＋**Sentry 通知ノイズ修正 PR #103**）からビルド。
+**このビルドから Sentry / PostHog が動く。**
+
+**次にやること**:
+- 審査結果を API で追う（iOS は `asc-diagnose` の appStoreState、Android はリリース状態）
+- **iOS は releaseType=MANUAL**＝承認後にオーナーが「このバージョンをリリース」を押すまで出ない
+- 公開されたら `asc_prepare_version.mjs` の `FORBIDDEN_VERSIONS` に 1.2.1（`efe42490-adf8-45c3-84c6-65518b7fab6a`）を追記
+- 公開から数日後に Sentry / PostHog の初回データを見る
+
+---
+
+### （経緯）1.2.1 を Sentry 修正入りで作り直した（2026-09-14 オーナー提案）
 
 オーナー「次のアップデートが決まっているならそれを審査に出したほうがいいのでは？」→ **その通り**。
 Sentry の通知ノイズ修正（PR #103）は、1.2.1 に入れないと**それだけのために後で両OSの審査をもう1回**
