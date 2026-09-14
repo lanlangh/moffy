@@ -1,0 +1,93 @@
+name: DB Check Health
+
+# サーバー（Supabase）の健康状態を **読むだけ** で確認する。
+#
+# なぜ要るか（2026-09-14）:
+#   1.2.1 を Play に送った直後、Sentry に PostgrestException 504 Gateway Timeout が届いた
+#   （profile_repository.dart の fn_profile_stats）。この RPC は本人の行だけを集計する軽い
+#   問い合わせで、新規アカウントなら中身は空＝SQL の重さでは説明がつかない。
+#   Moffy の Supabase は無料プラン（計算資源・接続数が小さい）なので、基盤側の詰まりを疑う。
+#   iOS の審査中にサーバーが不調だとリジェクト（2.1 性能）の原因になるため、提出前に実測する。
+#
+# ⚠️ `DB Verify` は**マイグレーションを適用する**ワークフローなので本番に流さないこと。
+#    こちらは SELECT のみ。書き込み・DDL・設定変更は一切行わない。
+#
+# 個人情報の扱い: user_id は先頭8文字だけを表示する。メールアドレス等は出さない。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+
+      - name: Install psql
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          psql --version
+
+      - name: Read health (SELECT only)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -e
+          q() { psql "$DB_URL" -v ON_ERROR_STOP=1 "$@"; }
+
+          echo "=== 1. 応答速度（select 1 を5回）==="
+          for i in 1 2 3 4 5; do
+            s=$(date +%s%N)
+            q -At -c "select 1" >/dev/null
+            e=$(date +%s%N)
+            echo "  ${i}回目: $(( (e - s) / 1000000 )) ms"
+          done
+
+          echo ""
+          echo "=== 2. 接続数（いま / 上限）==="
+          q -c "select count(*) as 現在の接続数,
+                       (select setting::int from pg_settings where name='max_connections') as 上限
+                  from pg_stat_activity;"
+
+          echo ""
+          echo "=== 3. 状態ごとの接続 ==="
+          q -c "select coalesce(state,'(なし)') as state, count(*)
+                  from pg_stat_activity group by state order by count(*) desc;"
+
+          echo ""
+          echo "=== 4. 5秒以上かかっている問い合わせ（いま実行中）==="
+          q -c "select pid, now() - query_start as 経過, state, left(query, 80) as 問い合わせ
+                  from pg_stat_activity
+                 where state <> 'idle' and query_start < now() - interval '5 seconds'
+                   and pid <> pg_backend_pid()
+                 order by query_start limit 10;"
+
+          echo ""
+          echo "=== 5. 今日(JST)作られたアカウント（auth.users）と profiles の有無 ==="
+          q -c "select left(u.id::text, 8) as user_prefix,
+                       to_char(u.created_at at time zone 'Asia/Tokyo', 'MM-DD HH24:MI:SS') as 作成JST,
+                       u.is_anonymous as 匿名,
+                       (p.id is not null) as profileあり
+                  from auth.users u
+                  left join public.profiles p on p.id = u.id
+                 where u.created_at >= date_trunc('day', now() at time zone 'Asia/Tokyo') at time zone 'Asia/Tokyo'
+                 order by u.created_at;"
+
+          echo ""
+          echo "=== 6. profiles が無いアカウント（全期間）＝作成途中で失敗した可能性 ==="
+          q -At -c "select count(*) || ' 件'
+                      from auth.users u
+                      left join public.profiles p on p.id = u.id
+                     where p.id is null;"
+
+          echo ""
+          echo "=== 7. DB の大きさ ==="
+          q -At -c "select pg_size_pretty(pg_database_size(current_database()));"
