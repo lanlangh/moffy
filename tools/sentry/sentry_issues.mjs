@@ -80,6 +80,34 @@ async function main() {
     return;
   }
 
+  // 第3引数に MOFFY-1 のような短縮IDを渡したら、その課題の内訳（タグ）を出す。
+  if (PROJECT && /^[A-Za-z]+-[A-Za-z0-9]+$/.test(PROJECT)) {
+    const found = await get(`/organizations/${ORG}/issues/`, {
+      query: `issue:${PROJECT}`,
+      statsPeriod: '90d',
+      limit: '1',
+    });
+    const issue = (found ?? [])[0];
+    if (!issue) {
+      console.log(`${PROJECT} が見つかりませんでした。`);
+      return;
+    }
+    console.log(`=== ${issue.shortId} の内訳 ===`);
+    console.log(`  ${issue.title}`);
+    console.log(`  件数=${issue.count}  影響ユーザー=${issue.userCount}`);
+    console.log(`  初回=${jst(issue.firstSeen)}  最終=${jst(issue.lastSeen)}`);
+    console.log('');
+    // タグは組織を含むパスでないと 404 になる（2026-09-23 実測）。
+    const tags = await get(`/organizations/${ORG}/issues/${issue.id}/tags/`);
+    for (const t of tags ?? []) {
+      const top = (t.topValues ?? [])
+        .map((v) => `${v.value}（${v.count}件）`)
+        .join(' / ');
+      console.log(`  ${String(t.key).padEnd(14)} ${top}`);
+    }
+    return;
+  }
+
   // 課題の一覧。query='' で解決済みも含めた全件（既定は is:unresolved のため）。
   const params = { query: '', statsPeriod: '14d', limit: '100' };
   if (PROJECT) params.project = PROJECT;
