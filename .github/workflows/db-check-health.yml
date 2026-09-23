@@ -91,3 +91,28 @@ jobs:
           echo ""
           echo "=== 7. DB の大きさ ==="
           q -At -c "select pg_size_pretty(pg_database_size(current_database()));"
+
+          echo ""
+          echo "=== 8. 504 が出た問い合わせに索引があるか ==="
+          echo "（entitlements は user_id で1行引き / usage_daily は user_id+日付）"
+          q -c "select tablename as テーブル, indexname as 索引, indexdef as 定義
+                  from pg_indexes
+                 where schemaname='public'
+                   and tablename in ('entitlements','usage_daily','profiles')
+                 order by tablename, indexname;"
+
+          echo ""
+          echo "=== 9. キャッシュ命中率（低いとディスク待ちで遅くなる）==="
+          q -c "select round(100.0 * sum(blks_hit) / nullif(sum(blks_hit)+sum(blks_read),0), 2) as 命中率_pct,
+                       sum(blks_read) as ディスク読み, sum(blks_hit) as メモリ読み,
+                       sum(xact_commit) as 成功Tx, sum(xact_rollback) as 失敗Tx,
+                       sum(deadlocks) as デッドロック
+                  from pg_stat_database where datname = current_database();"
+
+          echo ""
+          echo "=== 10. 行数（重い全走査が起きうるほど育っていないか）==="
+          q -c "select relname as テーブル, n_live_tup as 行数, seq_scan as 全走査回数,
+                       idx_scan as 索引走査回数
+                  from pg_stat_user_tables
+                 where schemaname='public' and n_live_tup > 0
+                 order by n_live_tup desc limit 12;"
