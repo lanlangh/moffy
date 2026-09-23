@@ -112,6 +112,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 ),
                 data: (offerings) => offerings.isEmpty
                     ? _EmptyOfferings(
+                        reason: offerings.unavailableReason,
                         onRetry: () => ref
                             .read(paywallControllerProvider.notifier)
                             .retryOfferings(),
@@ -163,11 +164,26 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
 /// プラン提示なし（未設定/商品未取得）の空状態。
 class _EmptyOfferings extends StatelessWidget {
-  const _EmptyOfferings({required this.onRetry});
+  const _EmptyOfferings({required this.onRetry, this.reason});
   final VoidCallback onRetry;
+
+  /// 分かっていれば「出せない理由」。null＝理由不明（通信不良など）。
+  final IapUnavailableReason? reason;
 
   @override
   Widget build(BuildContext context) {
+    // 【2026-09-23】端末が購入を許可していないときは、何度読み込み直しても変わらない。
+    //   押しても無駄なボタンを出すと「壊れている」と受け取られるので、原因と
+    //   直し方（端末の設定）を伝えて、ボタンは出さない。
+    //   実ユーザーで発生を確認（Sentry MOFFY-1 の iOS 分 / PurchaseNotAllowedError）。
+    if (reason == IapUnavailableReason.purchaseNotAllowed) {
+      return const EmptyState(
+        icon: Icons.lock_outline,
+        message: 'この端末では購入できません',
+        subMessage: '端末の設定でアプリ内課金が制限されているようです。'
+            '「スクリーンタイム」や「機能制限」の設定を見直すと、購入できるようになります。',
+      );
+    }
     return EmptyState(
       icon: Icons.workspace_premium_outlined,
       message: 'プランを準備中です',

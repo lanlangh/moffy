@@ -65,11 +65,44 @@ class IapResult {
 }
 
 /// 取得した提示プラン（offering `default` の月額/年額）。
+/// プランを出せない理由。[IapOfferings.unavailableReason] に入る。
+///
+/// 【2026-09-23 追加】購入画面は「プランが空」のときに常に「再読み込み」を出していた。
+///   だが **端末側が購入を許可していない**場合は何度押しても直らない。実ユーザー（iPhone）で
+///   実際に起きている（Sentry MOFFY-1 の iOS 分 / `PurchaseNotAllowedError`）。
+///   理由が分かるものだけ区別して、押しても無駄なボタンを出さないようにする。
+enum IapUnavailableReason {
+  /// 端末・アカウントが購入を許可されていない（機能制限／ペアレンタルコントロール等）。
+  /// iOS は StoreKit の paymentNotAllowed、Android は BILLING_UNAVAILABLE 相当。
+  purchaseNotAllowed,
+}
+
+/// RevenueCat の例外から [IapUnavailableReason] を判定する。
+///
+/// `PurchasesErrorHelper.getErrorCode` は code を `num.parse` するため、数字でない code
+/// （他プラグインの `PlatformException`）を渡すと例外を投げる。先に弾く。
+/// テストできるよう最上位に置いている。
+IapUnavailableReason? iapUnavailableReasonOf(Object error) {
+  if (error is! PlatformException) return null;
+  if (int.tryParse(error.code) == null) return null;
+  try {
+    return PurchasesErrorHelper.getErrorCode(error) ==
+            PurchasesErrorCode.purchaseNotAllowedError
+        ? IapUnavailableReason.purchaseNotAllowed
+        : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 class IapOfferings {
-  const IapOfferings({required this.plans});
+  const IapOfferings({required this.plans, this.unavailableReason});
 
   /// 月額/年額の [PlanOffer]。空なら「商品なし」（空状態）。
   final List<PlanOffer> plans;
+
+  /// 空のとき、その理由が分かっていれば入る。null＝理由不明（通信不良など）。
+  final IapUnavailableReason? unavailableReason;
 
   bool get isEmpty => plans.isEmpty;
 
@@ -251,7 +284,12 @@ class RevenueCatIapService implements IapService {
       return IapOfferings(plans: plans);
     } catch (e, st) {
       Log.e('RevenueCat getOfferings failed', error: e, stack: st);
-      return const IapOfferings(plans: []);
+      // 端末が購入を許可していないなら、購入画面に「再読み込み」を出しても直らない。
+      // 理由を添えて返し、画面側で伝え方を変える（IapUnavailableReason の説明を参照）。
+      return IapOfferings(
+        plans: const [],
+        unavailableReason: iapUnavailableReasonOf(e),
+      );
     }
   }
 
