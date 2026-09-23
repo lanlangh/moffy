@@ -95,9 +95,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // （cta は NestSkeleton＝装飾のみ）。OS 側の要求が返らないと _requesting が
       // true のまま固まり、**逃げ道ゼロの行き止まり**になる＝今度は 2.1 で落ちる。
       // TimeoutException は下の catch が拾い、必ず _next() まで進む。
+      // 【2026-09-23 延長】iOS だけ長くする。FamilyControls の許可ダイアログは
+      //   **スクリーンタイムのパスコード入力**を挟むことがあり、30秒では足りない。
+      //   実ユーザー（iPhone 16 Pro / iOS 27.0）が 2026-09-20 に時間切れした
+      //   （Sentry MOFFY-9）。時間切れしても行き止まりにはならないが、許可しようと
+      //   していた人を「拒否」として先へ流してしまう。
+      //   このタイムアウトは「OS が無反応でも進めるようにする保険」なので、長くても目的は果たす。
       final status = await usage
           .requestPermission()
-          .timeout(const Duration(seconds: 30));
+          .timeout(_isIOS
+              ? const Duration(seconds: 120)
+              : const Duration(seconds: 30));
       if (mounted) {
         setState(() => _permission = status);
         // ファネル: 利用時間権限の許可（PRD §5-5）。許可された時のみ発火。
