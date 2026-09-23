@@ -101,11 +101,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       //   （Sentry MOFFY-9）。時間切れしても行き止まりにはならないが、許可しようと
       //   していた人を「拒否」として先へ流してしまう。
       //   このタイムアウトは「OS が無反応でも進めるようにする保険」なので、長くても目的は果たす。
-      final status = await usage
-          .requestPermission()
-          .timeout(_isIOS
-              ? const Duration(seconds: 120)
-              : const Duration(seconds: 30));
+      final limit = _isIOS
+          ? const Duration(seconds: 120)
+          : const Duration(seconds: 30);
+      final status = await usage.requestPermission().timeout(limit);
       if (mounted) {
         setState(() => _permission = status);
         // ファネル: 利用時間権限の許可（PRD §5-5）。許可された時のみ発火。
