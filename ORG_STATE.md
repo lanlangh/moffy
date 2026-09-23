@@ -122,6 +122,52 @@ PR #103 の判定を2回目がすり抜けていた。
 
 ---
 
+### 📊 **Sentry を API で直接読めるようにした＋公開9日分の全課題を仕分け（2026-09-23）**
+
+オーナーが読み取り専用トークン（`event:read` / `project:read`）を作成。
+`C:\Users\user\Downloads\m\Secrets\sentry-token.txt` に保存。以後スクショ不要。
+
+```
+node tools/sentry/sentry_issues.mjs <tokenFile> lan-llc          # 一覧
+node tools/sentry/sentry_issues.mjs <tokenFile> lan-llc MOFFY-1  # 内訳（端末/OS/版）
+```
+
+- 組織 slug は **`lan-llc`**、プロジェクトは `moffy`
+- ⚠️ 組織一覧 `/organizations/` と `/users/me/` は `org:read` が要るので **403**（想定内）
+- ⚠️ `/projects/` は 200 だが **0件**（オーナーがチームに所属していないため）。組織 slug を直接渡せば読める
+- ⚠️ タグは `/organizations/{org}/issues/{id}/tags/` でないと 404（`/issues/{id}/tags/` は不可）
+
+**✅ PR #103 が本番で効いていることを確認**: 同じ 504 でも古い vc28 のものは `error`、
+新しい vc29 以降は `warning` に落ちている（MOFFY-3/4/5/7/9 が warning）。
+
+**全9件の仕分け（直近14日 / 実測）**:
+
+| 課題 | 内容 | 件数/人 | 正体 |
+|---|---|---|---|
+| **MOFFY-1** | `getOfferings` 失敗（購入画面） | 15 / 8 | **14件が Google のテスト端末**（OnePlus8Pro 12・Androidエミュレータ 2）。**実ユーザーは iPhone 1件のみ** |
+| MOFFY-9 | オンボーディングの権限要求が30秒でタイムアウト | 1 / 1 | **実ユーザー**（iPhone 16 Pro Max / iOS 27.0 / build 40） |
+| MOFFY-7 | 課金判定が6秒でタイムアウト | 1 / 1 | 自前の `_fetchTimeout` が発火。null＝不明に倒れる（設計どおり） |
+| MOFFY-2/3/4/5/8 | Supabase 504 | 計6 / 6 | 一過性。基盤側（別項参照） |
+| MOFFY-6 | `Instance of 'ServerFailure'` | 1 / 1 | PR #104 で修正済み（未リリース） |
+
+**🔴 私の見立ての訂正**: 「8人が購入画面で失敗＝35人来て0人課金の原因かも」と書いたが**誤り**。
+端末の内訳を見ると 15件中 14件がテスト基盤で、実ユーザーは1件だけだった。
+Android のサブスクは **両方 ACTIVE**（`play_subscriptions.mjs` で実測）＝商品側の問題も無い。
+**購入できない不具合の証拠は無い。**
+
+**実ユーザーで起きていた2件（どちらも iOS・各1人）**:
+1. **MOFFY-1 の iOS 分**（iPhone11 Pro Max / iOS 26.6.2）: `PurchaseNotAllowedError`＝
+   StoreKit の「この端末では支払いできない」。**ペアレンタルコントロール/機能制限**が典型。
+   いまの購入画面は「もう一度試す」を出すが、**何度押しても直らない**。
+   → 改善案: このコードのときは「この端末では購入できない設定になっています」と伝える。
+2. **MOFFY-9**（iPhone16 Pro Max / iOS 27.0）: 権限要求が30秒で時間切れ。
+   **行き止まりにはならない**（`onboarding_screen.dart:110-123` が握って `_next()` へ進む。
+   5.1.1(iv) 対策で意図的にそうしてある）。ただし iOS の FamilyControls は
+   **スクリーンタイムのパスコード入力**を挟むことがあり、30秒は短い可能性。
+   → 改善案: iOS だけ待ち時間を延ばす（90〜120秒）。
+
+---
+
 ### 🔍 **Supabase の 504 は「基盤側・実害なし」と結論（2026-09-23 調査）**
 
 2026-09-18 19:05 JST に `PostgrestException 504 Gateway Timeout`（MOFFY-8）が届いた。
