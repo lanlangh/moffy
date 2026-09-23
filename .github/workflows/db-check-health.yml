@@ -93,6 +93,32 @@ jobs:
           q -At -c "select pg_size_pretty(pg_database_size(current_database()));"
 
           echo ""
+          echo "=== 7b. コアループの実績（PostHog の計測漏れを DB で裏取り）==="
+          echo "（Android は設定画面を開いて即「未許可」を返すので、許可しても"
+          echo "  usage_permission_granted が飛ばない。実際に計測できているかは"
+          echo "  usage_daily に **0分より大きい行** があるかで判断する）"
+          q -c "select
+                  (select count(distinct user_id) from public.usage_daily) as 利用データを出した人,
+                  (select count(distinct user_id) from public.usage_daily
+                    where total_minutes > 0) as ゼロ分でない人,
+                  (select count(distinct user_id) from public.usage_daily
+                    where is_finalized) as 確定まで行った人,
+                  (select count(*) from public.profiles) as 全ユーザー;"
+
+          echo ""
+          echo "=== 7c. 卵の育ち具合（500pt で孵化）==="
+          q -c "select location, count(*) as 個数,
+                       min(growth_points) as 最小pt, max(growth_points) as 最大pt,
+                       count(*) filter (where growth_points >= 500) as 孵化可能
+                  from public.eggs group by location order by count(*) desc;"
+
+          echo ""
+          echo "=== 7d. 孵化してMofiを手に入れた人 ==="
+          q -c "select count(distinct user_id) as 人数, count(*) as 行数,
+                       coalesce(sum(obtained_count),0) as 累計体数
+                  from public.mofi_collection;"
+
+          echo ""
           echo "=== 8. 504 が出た問い合わせに索引があるか ==="
           echo "（entitlements は user_id で1行引き / usage_daily は user_id+日付）"
           q -c "select tablename as テーブル, indexname as 索引, indexdef as 定義
