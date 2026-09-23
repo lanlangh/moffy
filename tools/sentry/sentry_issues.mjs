@@ -62,17 +62,21 @@ const jst = (iso) =>
 
 async function main() {
   if (!ORG) {
-    console.log('=== このトークンで見える組織 ===');
-    const orgs = await get('/organizations/');
-    for (const o of orgs ?? []) console.log(`  slug=${o.slug}  name=${o.name}`);
-    console.log('');
-    for (const o of orgs ?? []) {
-      const projects = await get(`/organizations/${o.slug}/projects/`);
-      console.log(`=== ${o.slug} のプロジェクト ===`);
-      for (const p of projects ?? []) console.log(`  slug=${p.slug}  name=${p.name}`);
+    // 組織一覧（/organizations/）は org:read が要る。読み取り最小の方針でそれは付けないので、
+    // project:read だけで通る /projects/ から組織を割り出す（各要素が organization を持つ）。
+    console.log('=== このトークンで見えるプロジェクト ===');
+    const projects = await get('/projects/');
+    for (const p of projects ?? []) {
+      console.log(`  組織=${p.organization?.slug ?? '?'}  プロジェクト=${p.slug}  名前=${p.name}`);
     }
+    const first = (projects ?? [])[0];
     console.log('');
-    console.log('次: node tools/sentry/sentry_issues.mjs <tokenFile> <orgSlug> [projectSlug]');
+    if (first) {
+      console.log('次はこれを実行:');
+      console.log(`  node tools/sentry/sentry_issues.mjs <tokenFile> ${first.organization?.slug} ${first.slug}`);
+    } else {
+      console.log('プロジェクトが1つも見えません。トークンの権限を確認してください。');
+    }
     return;
   }
 
