@@ -182,8 +182,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _finish() async {
     await ref.read(onboardingRepositoryProvider).markCompleted();
     ref.invalidate(onboardingCompletedProvider);
+    final analytics = ref.read(analyticsProvider);
+    // 【2026-10-05 追加】iOS で対象アプリを選ばずに始めた人を数える。
+    //   選ばないと永久に0分なのに、未選択を示す計測が無く「何人が詰まっているか」を
+    //   答えられなかった（ORG_STATE 2026-10-05 / 削減ptを得たのは全期間で6人）。
+    //   Android に選択の概念は無いので iOS だけ送る（母数を汚さない）。
+    if (_isIOS) {
+      analytics.capture(
+        _iosPicked
+            ? AnalyticsEvents.targetAppsSelected
+            : AnalyticsEvents.targetAppsSkipped,
+        properties: _iosPicked
+            ? const {AnalyticsProps.source: 'onboarding'}
+            : {AnalyticsProps.permissionGranted: _permissionGranted},
+      );
+    }
     // ファネル: オンボーディング完了（コアループ到達 / PRD §5-5）。
-    ref.read(analyticsProvider).capture(AnalyticsEvents.onboardingCompleted);
+    analytics.capture(AnalyticsEvents.onboardingCompleted);
     if (!mounted) return;
     // 歓迎画面（最初の卵プレゼント）を経由してホームへ（warmup はホームで付与）。
     context.go(WelcomeScreen.routePath);
