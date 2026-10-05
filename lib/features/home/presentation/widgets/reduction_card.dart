@@ -15,10 +15,19 @@ class ReductionCard extends StatelessWidget {
     super.key,
     required this.state,
     required this.onRequestPermission,
+    this.hasAppSelection = true,
+    this.onPickApps,
   });
 
   final HomeState state;
   final VoidCallback onRequestPermission;
+
+  /// 対象アプリ（iOS の「見守るアプリ」）が選ばれているか。
+  /// 選択という概念が無い Android 等は常に true。
+  final bool hasAppSelection;
+
+  /// 対象アプリを選び直す（OS のピッカーを開く）。iOS 以外では null。
+  final VoidCallback? onPickApps;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +63,28 @@ class ReductionCard extends StatelessWidget {
           // （ErrorView は onRetry=null でボタンを描画しない）。案内文だけ残す。
           retryLabel: isIOS ? '続ける' : '設定を開く',
           onRetry: permanent ? null : onRequestPermission,
+          compact: true,
+        ),
+      );
+    }
+
+    // 【2026-10-05 追加】権限はあるのに「見守るアプリ」が未選択（iOS）。
+    //
+    // iOS は許可だけでは計測できない。FamilyActivityPicker で対象を選ばないと
+    // DeviceActivity が何も監視せず **永久に0分** になる。ところが権限はあるので、
+    // これまでここは何の警告も出さず「今日の削減 0分」を普通に表示していた。
+    // 本人は「自分が使っていないから0」と誤解し、永遠に先へ進めない。
+    // 実測（2026-10-05）: オーナー自身のアカウントも3か月ずっと 0分 /
+    // per_app_minutes={} で、削減ptを得たのは全期間で6人だけだった。
+    //
+    // メニューの「対象アプリ」を探させず、ここから直接ピッカーを開く。
+    if (!hasAppSelection && onPickApps != null) {
+      return AppCard(
+        child: ErrorView(
+          message: '見守るアプリが選ばれていません。'
+              '選ぶと、その時間が削減ポイントとして計算されます。',
+          retryLabel: 'アプリを選ぶ',
+          onRetry: onPickApps,
           compact: true,
         ),
       );
