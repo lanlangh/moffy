@@ -142,6 +142,31 @@ jobs:
                        and updated_at >= now() - interval '7 days';"
 
           echo ""
+          echo "=== 7c-5. 人ごと: 計測 → ポイント → 卵 がつながっているか ==="
+          echo "（確定日数があるのに卵ptが増えていない人がいれば、配線の不具合）"
+          q -c "select left(u.user_id::text, 8) as user_prefix,
+                       u.days as 確定日数, u.minutes as 計測分合計,
+                       coalesce(l.earned, 0) as 獲得pt, coalesce(l.spent, 0) as 卵へ充当,
+                       e.growth_points as 卵pt,
+                       to_char(e.updated_at at time zone 'Asia/Tokyo', 'MM-DD HH24:MI') as 卵の最終更新
+                  from (select user_id, count(*) as days, sum(total_minutes) as minutes
+                          from public.usage_daily where is_finalized group by user_id) u
+                  left join (select user_id,
+                                    sum(amount) filter (where amount > 0) as earned,
+                                    -sum(amount) filter (where amount < 0) as spent
+                               from public.point_ledger group by user_id) l
+                    on l.user_id = u.user_id
+                  left join public.eggs e on e.user_id = u.user_id and e.is_active
+                 order by u.days desc limit 15;"
+
+          echo ""
+          echo "=== 7c-6. ポイントの出どころ別（全期間）==="
+          q -c "select source, count(*) as 行数, sum(amount) as 合計pt,
+                       count(distinct user_id) as 人数,
+                       max(ledger_date) as 最新日
+                  from public.point_ledger group by source order by count(*) desc;"
+
+          echo ""
           echo "=== 7d. 孵化してMofiを手に入れた人 ==="
           q -c "select count(distinct user_id) as 人数, count(*) as 行数,
                        coalesce(sum(obtained_count),0) as 累計体数
