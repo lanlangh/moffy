@@ -179,6 +179,29 @@ jobs:
                  order by u.usage_date desc limit 14;"
 
           echo ""
+          echo "=== 7c-5c. 端末が何を送ってきているか（対象アプリが選ばれているかの判断材料）==="
+          echo "（per_app_minutes が {} なら、対象アプリ未選択か、選んだアプリを一切使っていない）"
+          q -c "with target as (
+                  select user_id from public.eggs where is_active
+                   order by updated_at desc limit 1)
+                select u.usage_date as 日付, u.source_mode as 取得モード,
+                       u.total_minutes as 計測分,
+                       u.per_app_minutes::text as アプリ別内訳,
+                       to_char(u.created_at at time zone 'Asia/Tokyo', 'MM-DD HH24:MI') as 送信日時
+                  from public.usage_daily u
+                  join target t on t.user_id = u.user_id
+                 order by u.usage_date desc limit 10;"
+
+          echo ""
+          echo "=== 7c-5d. 全体: 取得モード別の送信状況 ==="
+          q -c "select source_mode as 取得モード, count(*) as 行数,
+                       count(distinct user_id) as 人数,
+                       count(*) filter (where per_app_minutes::text <> '{}') as 内訳ありの行,
+                       count(*) filter (where total_minutes > 0) as ゼロ分でない行,
+                       max(usage_date) as 最新日
+                  from public.usage_daily group by source_mode;"
+
+          echo ""
           echo "=== 7c-6. ポイントの出どころ別（全期間）==="
           q -c "select source, count(*) as 行数, sum(amount) as 合計pt,
                        count(distinct user_id) as 人数,
