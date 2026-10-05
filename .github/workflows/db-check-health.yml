@@ -113,6 +113,35 @@ jobs:
                   from public.eggs group by location order by count(*) desc;"
 
           echo ""
+          echo "=== 7c-2. たまごは本当に育っているか（100=ヒビ1 / 250=ヒビ2 / 500=孵化）==="
+          q -c "select
+                  count(*) filter (where growth_points = 0)              as pt0,
+                  count(*) filter (where growth_points between 1 and 99) as pt1_99,
+                  count(*) filter (where growth_points between 100 and 249) as ヒビ1,
+                  count(*) filter (where growth_points between 250 and 499) as ヒビ2,
+                  count(*) filter (where growth_points >= 500)           as 孵化可能,
+                  count(*) as 合計
+                  from public.eggs where location = 'incubating';"
+
+          echo ""
+          echo "=== 7c-3. アクティブな卵（加点対象）の人ごとの育ち具合 ==="
+          q -c "select left(user_id::text, 8) as user_prefix, growth_points as pt,
+                       to_char(created_at at time zone 'Asia/Tokyo', 'MM-DD') as 入手,
+                       to_char(updated_at at time zone 'Asia/Tokyo', 'MM-DD HH24:MI') as 最終更新
+                  from public.eggs
+                 where is_active
+                 order by growth_points desc
+                 limit 15;"
+
+          echo ""
+          echo "=== 7c-4. 直近7日で成長pt が動いた卵 ==="
+          q -At -c "select count(*) || ' 個 / ' ||
+                           count(distinct user_id) || ' 人'
+                      from public.eggs
+                     where growth_points > 0
+                       and updated_at >= now() - interval '7 days';"
+
+          echo ""
           echo "=== 7d. 孵化してMofiを手に入れた人 ==="
           q -c "select count(distinct user_id) as 人数, count(*) as 行数,
                        coalesce(sum(obtained_count),0) as 累計体数
