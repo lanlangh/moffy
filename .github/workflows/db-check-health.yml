@@ -160,6 +160,25 @@ jobs:
                  order by u.days desc limit 15;"
 
           echo ""
+          echo "=== 7c-5b. 直近に卵が動いた人の、日ごとの中身（最大14日）==="
+          echo "（計測分が 0 や極小なら、端末が利用時間を取れていない）"
+          q -c "with target as (
+                  select user_id from public.eggs where is_active
+                   order by updated_at desc limit 1)
+                select u.usage_date as 日付, u.total_minutes as 計測分,
+                       u.is_finalized as 確定,
+                       b.applied_minutes as 基準分,
+                       coalesce(sum(l.amount) filter (where l.amount > 0), 0) as その日のpt
+                  from public.usage_daily u
+                  join target t on t.user_id = u.user_id
+                  left join public.baselines b
+                    on b.user_id = u.user_id and b.baseline_date = u.usage_date
+                  left join public.point_ledger l
+                    on l.user_id = u.user_id and l.ledger_date = u.usage_date
+                 group by u.usage_date, u.total_minutes, u.is_finalized, b.applied_minutes
+                 order by u.usage_date desc limit 14;"
+
+          echo ""
           echo "=== 7c-6. ポイントの出どころ別（全期間）==="
           q -c "select source, count(*) as 行数, sum(amount) as 合計pt,
                        count(distinct user_id) as 人数,
