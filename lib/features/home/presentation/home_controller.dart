@@ -5,6 +5,10 @@ import '../../../core/constants/remote_config.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/sync/day_finalized_tick.dart';
 import '../../../core/sync/finalize_models.dart';
+import '../../../core/observability/analytics_events.dart';
+import '../../../core/observability/log.dart';
+import '../../../core/observability/observability_providers.dart';
+import '../../../core/usage/usage_provider.dart';
 import '../../../core/usage/usage_providers.dart';
 import '../../eggs/domain/egg_models.dart';
 import '../../eggs/presentation/eggs_controller.dart';
@@ -127,6 +131,35 @@ class HomeController extends AsyncNotifier<HomeState> {
   Future<void> requestPermissionAndReload() async {
     final usageProvider = ref.read(usageProviderProvider);
     await usageProvider.requestPermission();
+    await refresh();
+  }
+
+  /// 【2026-10-05 追加】対象アプリ（iOS の「見守るアプリ」）を選び直して再読込する。
+  ///
+  /// 権限はあるのに対象アプリが未選択だと **永久に0分**になる。ホームの案内から
+  /// メニューを探させずに、その場で OS のピッカーを開くための入口。
+  /// 選択という概念が無い実装（Android 等）では何もしない。
+  Future<void> pickAppsAndReload() async {
+    final usageProvider = ref.read(usageProviderProvider);
+    if (usageProvider is! ScreenTimeAppSelection) return;
+    // ScreenTimeAppSelection は UsageProvider のサブタイプではないため型プロモーションが
+    // 効かない。is! ガード済みなので明示キャストは安全（target_apps_screen.dart と同じ）。
+    final selection = usageProvider as ScreenTimeAppSelection;
+    try {
+      final result = await selection.presentAppPicker();
+      // 未選択からの復帰を数える（この案内に意味があったかはここでしか分からない）。
+      if (result.selected) {
+        ref.read(analyticsProvider).capture(
+          AnalyticsEvents.targetAppsSelected,
+          properties: const {AnalyticsProps.source: 'home'},
+        );
+      }
+    } catch (e, st) {
+      // ピッカーが開けなくても画面は落とさない（次回の案内から再試行できる）。
+      Log.e('presentAppPicker failed', error: e, stack: st);
+    }
+    // 選択状態のキャッシュを捨てて、バナーの出し分けを即座に更新する。
+    ref.invalidate(hasAppSelectionProvider);
     await refresh();
   }
 }

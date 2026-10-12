@@ -32,6 +32,20 @@ abstract final class AnalyticsEvents {
   /// 「使用状況へのアクセス」権限が許可された（利用時間取得の前提 / S2）。
   static const usagePermissionGranted = 'usage_permission_granted';
 
+  /// 【2026-10-05 追加】iOS で「見守るアプリ」を選ばずにオンボーディングを終えた。
+  ///
+  /// iOS は許可だけでは計測できない。`FamilyActivityPicker` で対象を選ばないと
+  /// `DeviceActivity` が何も監視せず **永久に0分**になる（docs/IOS_SCREENTIME.md）。
+  /// 実測（2026-10-05）では削減ptを得たのが全期間で6人だけだったのに、
+  /// 「何人が未選択のまま始めたか」を答えられる計測が1つも無かった。
+  /// プロパティ: [AnalyticsProps.permissionGranted]
+  /// （許可はあるが選ばなかったのか、許可が無くて選べなかったのかを区別する）。
+  static const targetAppsSkipped = 'target_apps_skipped';
+
+  /// 対象アプリを1つ以上選んだ。未選択からの復帰（ホームの案内経由）もここで分かる。
+  /// プロパティ: [AnalyticsProps.source]（'onboarding' / 'home'）。
+  static const targetAppsSelected = 'target_apps_selected';
+
   // --- コアループ（pt → 孵化 → 図鑑 / PRD §2） ---
 
   /// 最初の卵が保証された（FTUE / 空の巣の解消 = コアループへの入口 / migration 0009）。
@@ -87,7 +101,12 @@ abstract final class AnalyticsProps {
   /// 流入経路（どの画面からペイウォールへ来たか）。paywall_viewed。
   /// 値の SSOT は `PaywallSource`（paywall_screen.dart）。実送信値は
   /// 'menu' / 'eggs_storage' / 'home' / 'collection'。
+  /// target_apps_selected では 'onboarding' / 'home'（どちらで選ばれたか）。
   static const source = 'source';
+
+  /// スクリーンタイムが許可済みか（true/false）。target_apps_skipped。
+  /// 「許可はあるが対象を選ばなかった」と「許可が無くて選べなかった」は打ち手が違う。
+  static const permissionGranted = 'permission_granted';
 
   /// 確定ステージ（warmup/provisional/confirmed）。day_finalized。
   /// カテゴリ値のみ（確定 pt の「数値」や利用分数は載せない / PII 厳守）。

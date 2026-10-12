@@ -13,10 +13,14 @@ class ActiveEggPanel extends StatelessWidget {
     super.key,
     required this.state,
     required this.onSetEgg,
+    this.onHatch,
   });
 
   final HomeState state;
   final VoidCallback onSetEgg;
+
+  /// 孵化できる状態のときに出すボタンの行き先（たまご画面）。null ならボタンを出さない。
+  final VoidCallback? onHatch;
 
   @override
   Widget build(BuildContext context) {
@@ -47,11 +51,16 @@ class ActiveEggPanel extends StatelessWidget {
 
     // ハッピー: 孵化進捗。孵化間近なら巣リング微発光（SCREEN_FLOWS §2）。
     final rarity = _rarityToken(egg.rarityLabel);
+    // 【2026-10-05 追加】孵化できる状態（残り0pt）なら、ここから孵化へ送る。
+    //   以前は「まもなく孵化」と出すだけで**ボタンが無く**、孵化するには
+    //   たまごタブ → 卵をタップ → シート → 孵化 の4ステップ必要だった。
+    //   実測（2026-10-05）: 500pt を超えた卵が2個、数週間〜数か月放置されていた。
+    final canHatch = egg.remaining == 0;
     return NestPanel(
       diameter: 180,
-      glow: egg.isNearHatch ? rarity.glow : null,
+      glow: canHatch || egg.isNearHatch ? rarity.glow : null,
       caption: Text(
-        egg.remaining > 0 ? '孵化まであと ${egg.remaining}pt' : 'まもなく孵化',
+        canHatch ? '孵化できます！' : '孵化まであと ${egg.remaining}pt',
         style: AppType.title,
       ),
       subject: EggArt(rarity: rarity, progress: egg.progress),
@@ -63,6 +72,10 @@ class ActiveEggPanel extends StatelessWidget {
             '${(egg.progress * 100).round()}%',
             style: AppType.numLabel,
           ),
+          if (canHatch && onHatch != null) ...[
+            const SizedBox(height: AppSpace.md),
+            PrimaryButton(label: '孵化する', onPressed: onHatch),
+          ],
         ],
       ),
     );

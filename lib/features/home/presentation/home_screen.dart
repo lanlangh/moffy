@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/usage/usage_models.dart';
+import '../../../core/usage/usage_providers.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../paywall/presentation/paywall_screen.dart';
@@ -49,6 +50,10 @@ class HomeScreen extends ConsumerWidget {
             state: state,
             onRefresh: controller.refresh,
             onRequestPermission: controller.requestPermissionAndReload,
+            // 判定できるまで（loading/error）は警告を出さない側に倒す。
+            hasAppSelection:
+                ref.watch(hasAppSelectionProvider).valueOrNull ?? true,
+            onPickApps: controller.pickAppsAndReload,
           ),
         ),
       ),
@@ -61,11 +66,17 @@ class _HomeBody extends StatelessWidget {
     required this.state,
     required this.onRefresh,
     required this.onRequestPermission,
+    required this.hasAppSelection,
+    required this.onPickApps,
   });
 
   final HomeState state;
   final Future<void> Function() onRefresh;
   final Future<void> Function() onRequestPermission;
+
+  /// 対象アプリ（iOS の「見守るアプリ」）が選ばれているか。
+  final bool hasAppSelection;
+  final Future<void> Function() onPickApps;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +104,8 @@ class _HomeBody extends StatelessWidget {
                 ActiveEggPanel(
                   state: state,
                   onSetEgg: () => context.go(AppTab.eggs.path),
+                  // 孵化できる状態のときだけ出る。たまご画面へ送る（そこで卵をタップ）。
+                  onHatch: () => context.go(AppTab.eggs.path),
                 ),
                 const SizedBox(height: AppSpace.xl),
 
@@ -100,6 +113,8 @@ class _HomeBody extends StatelessWidget {
                 ReductionCard(
                   state: state,
                   onRequestPermission: () => onRequestPermission(),
+                  hasAppSelection: hasAppSelection,
+                  onPickApps: () => onPickApps(),
                 ),
                 const SizedBox(height: AppSpace.lg),
 
