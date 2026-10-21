@@ -12,6 +12,7 @@ import 'package:moffy/core/sync/usage_sync_repository.dart';
 import 'package:moffy/core/usage/usage_models.dart';
 import 'package:moffy/core/usage/usage_provider.dart';
 import 'package:moffy/core/usage/usage_providers.dart';
+import 'package:moffy/features/home/data/usual_minutes_repository.dart';
 
 /// 「削減 → usage_daily 提出 → サーバー確定」の**配線**を守る回帰テスト。
 ///
@@ -238,6 +239,12 @@ List<Override> _overrides(
       isOnlineProvider.overrideWithValue(online),
       usageProviderProvider.overrideWithValue(usage),
       usageSyncRepositoryProvider.overrideWithValue(repo),
+      // 0018: 暫定pt（S8 の比較基準）の計算で「ふだんのSNS時間」の申告値を読む。
+      //   実装は SharedPreferences（プラグイン）で、widget テストの FakeAsync では
+      //   プラットフォーム応答が pump の時間内に返らず、提出が 50ms に間に合わない。
+      //   提出の配線を見るテストなので、申告は「未申告（既定の 120 分）」に固定する。
+      usualMinutesRepositoryProvider
+          .overrideWithValue(const _NoUsualMinutesRepository()),
       // 実ルーター（オンボ判定・全タブ構築）を持ち込まない最小ルート。
       appRouterProvider.overrideWithValue(
         GoRouter(
@@ -284,6 +291,26 @@ class _FakeUsageProvider implements UsageProvider {
     required List<String> targetPackages,
   }) async =>
       const [];
+}
+
+/// 「ふだんのSNS時間」を一度も申告していない端末（0018）。
+class _NoUsualMinutesRepository implements UsualMinutesRepository {
+  const _NoUsualMinutesRepository();
+
+  @override
+  Future<int?> localReported() async => null;
+
+  @override
+  Future<bool> hasBeenAsked() async => false;
+
+  @override
+  Future<void> markAsked() async {}
+
+  @override
+  Future<void> report(int minutes) async {}
+
+  @override
+  Future<void> syncPending() async {}
 }
 
 /// サーバー側の状態（対象日・確定済みフラグ）を模した差し替え。

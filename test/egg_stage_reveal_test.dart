@@ -137,7 +137,8 @@ void main() {
       // もよう(1) → ヒビ(2) → ひかり(3)。いまの pt は 300。
       await tester.pumpWidget(harness(growth: 300, lastSeen: 1));
       await settleStart(tester);
-      expect(find.text('もよう・つぎの変化まで あと 100pt'), findsOneWidget);
+      // 見出しの段階名は「前の絵」、残り pt は実際の卵（300 → 次は 500）。
+      expect(find.text('もよう・つぎの変化まで あと 200pt'), findsOneWidget);
 
       // 1段目のチップ（0.5 + 0.6 秒後）。
       await advance(tester, 1200);
@@ -165,8 +166,12 @@ void main() {
       await settleStart(tester);
       expect(find.text('しろいたまご・つぎの変化まで あと 100pt'), findsOneWidget);
 
-      // 0.5秒ホールド + 1.2秒かけて浮かび上がる → チップ。
-      await advance(tester, 500 + 1200 + 100);
+      // 0.5秒ホールド → 浮かび上がり開始（アニメーションの 0 秒目は次のフレーム）。
+      await advance(tester, 600);
+      expect(find.text('もようが うかんできた！'), findsNothing);
+      // 1.2秒かけて浮かび上がる → 完了の合図（チップ）は、その次のフレームで出る。
+      await advance(tester, 1200);
+      await tester.pump();
       expect(find.text('もようが うかんできた！'), findsOneWidget);
       expect(find.text('レアのたまご！'), findsOneWidget);
 
