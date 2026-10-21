@@ -254,6 +254,7 @@ declare
   u_legacy uuid := '00000000-0000-0000-0000-00000000a042';
   u_hatched uuid := '00000000-0000-0000-0000-00000000a043';
   u_rev uuid := '00000000-0000-0000-0000-00000000a044';
+  u_rev2 uuid := '00000000-0000-0000-0000-00000000a045';
   r jsonb;
   v_egg uuid;
   v_pts integer;
@@ -317,7 +318,10 @@ begin
 
   -- 第三者レビュー #1: day2 → day1 の順で呼んでも（RPC を直接叩けば可能）、生涯の付与合計は
   -- hatch（500）を超えない。以前は day2=残り全部(500) + day1=300 で 800 になり得た。
+  -- 再現条件: 0pt の初回ボーナス卵が先にある（fn_ensure_first_egg 等が作る）状態で day2 を先に呼ぶ。
   perform pg_temp.t_user(u_rev);
+  insert into public.eggs(user_id, rarity, growth_points, location, slot_index, is_active, acquired_source)
+    values (u_rev, 'normal', 0, 'incubating', 1, true, 'starter');
   r := public.fn_claim_warmup(2);
   if (r->>'granted')::integer <> 500 or r->>'mode' <> 'top_up' then
     raise exception '[FAIL] day2 を先に呼ぶと 0pt の初回ボーナス卵に残り全部（500）が入るはず: %', r;
@@ -341,6 +345,23 @@ begin
      or exists (select 1 from public.point_ledger
                  where user_id = u_rev and idempotency_key = u_rev::text || ':warmup:1') then
     raise exception '[FAIL] 上限で 0 の day1 が台帳に行を作った: %', r;
+  end if;
+
+  -- 卵がまだ無いユーザーが day2 を先に呼ぶと、初回ボーナス卵が作られて day2=200（active）、
+  -- その後の day1 は 300（上限 500−200）。順序が逆でも合計は 500。
+  perform pg_temp.t_user(u_rev2);
+  r := public.fn_claim_warmup(2);
+  if (r->>'granted')::integer <> 200 or r->>'mode' <> 'active' then
+    raise exception '[FAIL] 卵が無い状態の day2 は 200（active）のはず: %', r;
+  end if;
+  r := public.fn_claim_warmup(1);
+  if (r->>'granted')::integer <> 300 then
+    raise exception '[FAIL] day2(200) の後の day1 は 300 のはず: %', r;
+  end if;
+  select growth_points into v_pts from public.eggs
+    where user_id = u_rev2 and acquired_source = 'starter';
+  if v_pts <> 500 then
+    raise exception '[FAIL] 逆順（卵なし）でも初回ボーナス卵は 500 になるはず: %', v_pts;
   end if;
   raise notice '=== 5. 初回ボーナス（day1=300 / day2=残り全部 / 孵化済みは 200→アクティブ卵 / 逆順でも合計500）PASS ===';
 end $$;
