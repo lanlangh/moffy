@@ -253,6 +253,7 @@ declare
   u_new uuid := '00000000-0000-0000-0000-00000000a041';
   u_legacy uuid := '00000000-0000-0000-0000-00000000a042';
   u_hatched uuid := '00000000-0000-0000-0000-00000000a043';
+  u_rev uuid := '00000000-0000-0000-0000-00000000a044';
   r jsonb;
   v_egg uuid;
   v_pts integer;
@@ -313,7 +314,35 @@ begin
   if v_pts <> 210 then
     raise exception '[FAIL] アクティブ卵に 200 が入っていない: %', v_pts;
   end if;
-  raise notice '=== 5. 初回ボーナス（day1=300 / day2=残り全部 / 孵化済みは 200→アクティブ卵）PASS ===';
+
+  -- 第三者レビュー #1: day2 → day1 の順で呼んでも（RPC を直接叩けば可能）、生涯の付与合計は
+  -- hatch（500）を超えない。以前は day2=残り全部(500) + day1=300 で 800 になり得た。
+  perform pg_temp.t_user(u_rev);
+  r := public.fn_claim_warmup(2);
+  if (r->>'granted')::integer <> 500 or r->>'mode' <> 'top_up' then
+    raise exception '[FAIL] day2 を先に呼ぶと 0pt の初回ボーナス卵に残り全部（500）が入るはず: %', r;
+  end if;
+  r := public.fn_claim_warmup(1);
+  if (r->>'granted')::integer <> 0 or (r->>'already_claimed')::boolean is not true then
+    raise exception '[FAIL] 500 を受け取った後の day1 は上限で 0（already_claimed）のはず: %', r;
+  end if;
+  select growth_points into v_pts from public.eggs
+    where user_id = u_rev and acquired_source = 'starter';
+  if v_pts <> 500 then
+    raise exception '[FAIL] 逆順でも初回ボーナス卵は 500 で止まるはず: %', v_pts;
+  end if;
+  if (select coalesce(sum(amount), 0) from public.point_ledger
+       where user_id = u_rev and source = 'warmup') <> 500 then
+    raise exception '[FAIL] 初回ボーナスの生涯合計が 500 を超えた';
+  end if;
+  -- 上限で 0 になった day1 を再度呼んでも何も起きない（台帳に 0pt の行も作らない）。
+  r := public.fn_claim_warmup(1);
+  if (r->>'granted')::integer <> 0
+     or exists (select 1 from public.point_ledger
+                 where user_id = u_rev and idempotency_key = u_rev::text || ':warmup:1') then
+    raise exception '[FAIL] 上限で 0 の day1 が台帳に行を作った: %', r;
+  end if;
+  raise notice '=== 5. 初回ボーナス（day1=300 / day2=残り全部 / 孵化済みは 200→アクティブ卵 / 逆順でも合計500）PASS ===';
 end $$;
 
 -- ----------------------------------------------------------------------------

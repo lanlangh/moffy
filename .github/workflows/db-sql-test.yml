@@ -29,6 +29,10 @@ on:
       - '.github/workflows/db-sql-test.yml'
   workflow_dispatch:
 
+# GITHUB_TOKEN は読み取りだけ。
+permissions:
+  contents: read
+
 jobs:
   sql-test:
     runs-on: ubuntu-latest

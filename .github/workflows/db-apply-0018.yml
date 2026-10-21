@@ -20,7 +20,12 @@ name: DB Apply 0018 (egg pacing bands)
 # ⚠️ 取り消しにくい変更: 旧4引数版 fn_submit_and_finalize_day の drop と、app_config の
 #   7キーの上書き。関数の旧定義と app_config の旧値は適用前に ops スキーマへ保存する
 #   （ロールバック手順は 0018 のヘッダ ①〜⑥。ops.snap_0018_functions の def を流せば
-#   関数は戻る。grant/revoke だけは手で再掲）。
+#   関数は戻る。grant/revoke だけは手で再掲）。残高・卵は DB 内に複製しない
+#   （個人に紐づくデータを退会後まで残さない / 0018 はデータ行を書かないので比較は
+#   runner の中だけで足りる）。
+#
+# ⚠️ main からだけ実行できる（Guard ステップ）。workflow_dispatch はブランチを選べるため、
+#   レビュー前のブランチの SQL を本番へ流せてしまうのを防ぐ。PR をマージしてから実行する。
 #
 # ⚠️ `gh workflow run` は送った瞬間に始まり、拒否しても止まらない（ORG_STATE 教訓1）。
 #   誤起動を防ぐため、入力 confirm に "apply-0018" と打たないと何もせず終わる。
@@ -36,10 +41,22 @@ on:
         required: true
         type: string
 
+# GITHUB_TOKEN は読み取りだけ（このワークフローはリポジトリに何も書かない）。
+permissions:
+  contents: read
+
 jobs:
   apply:
     runs-on: ubuntu-latest
     steps:
+      - name: Guard (main 以外からは実行しない)
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::このワークフローは main からだけ実行できます（選ばれた ref: $GITHUB_REF）。PR をマージしてから、Branch に main を選んで実行してください。"
+            exit 1
+          fi
+          echo "ref OK: $GITHUB_REF"
+
       - name: Confirm (誤起動ガード)
         env:
           CONFIRM: ${{ inputs.confirm }}
@@ -127,10 +144,9 @@ jobs:
           wc -l /tmp/balances_before.txt /tmp/eggs_before.txt
 
       # --- 本体: 1トランザクションで適用 -------------------------------------------
-      # 先に DB の中（ops スキーマ）へ「戻すための材料」を残す:
+      # 先に DB の中（ops スキーマ）へ「戻すための材料」を残す（個人データは含めない）:
       #   * 旧関数4本の定義（pg_get_functiondef）… ロールバック②③④はこれを流す
       #   * app_config の旧値 … ロールバック⑤
-      #   * 残高・卵 … 事後調査
       # lock_timeout: add column が profiles / usage_daily に ACCESS EXCLUSIVE を取る。
       #   取得待ちは 5 秒で諦めて全体をロールバックする（本番の通常操作を巻き込まない）。
       - name: Apply 0018 (single transaction)
@@ -150,10 +166,6 @@ jobs:
                 create table if not exists ops.snap_0018_app_config as \
                   select key, value, description, now() as taken_at from public.app_config \
                    where key in ('egg_thresholds','daily_bands','usual_minutes_default','usual_minutes_choices','warmup_grants','streak_multipliers','daily_point_cap'); \
-                create table if not exists ops.snap_0018_balances as \
-                  select id, point_balance, pooled_points, gem_balance, now() as taken_at from public.profiles; \
-                create table if not exists ops.snap_0018_eggs as \
-                  select id, user_id, growth_points, location, is_active, acquired_source, now() as taken_at from public.eggs; \
                 revoke all on all tables in schema ops from public, anon, authenticated;" \
             -f supabase/migrations/0018_egg_pacing_bands.sql
 
@@ -177,7 +189,7 @@ jobs:
               echo "::warning::$pair に差分がある。0018 はデータ行を1つも書かないので、通常は適用中の実ユーザー操作（日次確定 / warmup 受取 / 孵化 / 新規サインイン）による正当な変化。"
               echo "差分の行数（内容は PUBLIC リポジトリのログに出さない）:"
               wc -l < /tmp/${pair}_diff.txt
-              echo "※ 全行と同じ行数なら異常。数行〜数十行なら通常トラフィック。中身は Supabase の SQL エディタで ops.snap_0018_* と突き合わせること。"
+              echo "※ 全行と同じ行数なら異常。数行〜数十行なら通常トラフィック。中身を追う必要が出たら Supabase のバックアップ（PITR）で適用直前と比べること（残高・卵のスナップショットは個人データなので DB には残していない）。"
             fi
           done
 
@@ -247,6 +259,11 @@ jobs:
             v_src := coalesce((select prosrc from pg_proc where oid = to_regprocedure('public.fn_claim_warmup(integer)')), '');
             if v_src not like '%top_up%' then
               raise warning '[FAIL] fn_claim_warmup が「残り全部」（top_up）になっていない';
+              v_fail := v_fail + 1;
+            end if;
+            -- 第三者レビュー #1: day2→day1 の順で呼んでも生涯合計が hatch を超えない上限。
+            if v_src not like '%v_warmup_total%' then
+              raise warning '[FAIL] fn_claim_warmup に生涯合計の上限（v_warmup_total）が無い（day2→day1 で 800pt になる）';
               v_fail := v_fail + 1;
             end if;
             if not has_function_privilege('authenticated','public.fn_claim_warmup(integer)','execute') then
@@ -330,10 +347,6 @@ jobs:
               raise warning '[FAIL] ops.snap_0018_app_config が空（旧設定値が残っていない）';
               v_fail := v_fail + 1;
             end if;
-            if coalesce((select count(*) from ops.snap_0018_balances), 0) = 0 then
-              raise warning '[FAIL] ops.snap_0018_balances が空（適用前スナップショットが取れていない）';
-              v_fail := v_fail + 1;
-            end if;
 
             if v_fail > 0 then
               raise exception '0018 DB適用の検証 失敗（% 件）', v_fail;
@@ -347,4 +360,4 @@ jobs:
           echo "✅ 0018 を適用しました。次にやること:"
           echo "  1. 「DB Permission Check」を実行して権限グリッド全体を再確認する（0018 の期待値に更新済み）"
           echo "  2. 両ストアの新アプリ（評価制 ◎○△ / 5段階）を**同日中に**公開する"
-          echo "  3. 落ち着いたら ops.snap_0018_* を drop する（退会ユーザーの物理削除が ops に届かないため）"
+          echo "  3. ロールバックが要らないと分かったら ops.snap_0018_functions / snap_0018_app_config を drop する（個人データは含まない）"

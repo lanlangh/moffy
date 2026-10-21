@@ -26,7 +26,7 @@
 --         usual_minutes_choices / warmup_grants / streak_multipliers / daily_point_cap
 --   関数  fn_submit_and_finalize_day(+p_is_measured) … 0011 版を抽出して置換
 --         fn_finalize_day（評価制）                     … 0016 版を抽出して置換
---         fn_claim_warmup（2日目=残り全部）             … 0016 版を抽出して置換
+--         fn_claim_warmup（2日目=残り全部・生涯合計は hatch まで・行ロック）… 0016 版を抽出して置換
 --         quest_condition_met（reduce_total の計測なし判定 → is_measured）… 0015 版を抽出して置換
 --         fn_set_usual_minutes（新設 / 本人申告の保存）
 --
@@ -643,6 +643,8 @@ declare
   v_starter_loc  public.egg_location;  -- ★0018: 初回ボーナス卵の所在
   v_mode         text := 'day1';       -- ★0018: 'day1' / 'top_up' / 'active'
   v_target_egg   uuid;                 -- ★0018: 充当先（null = アクティブ卵 or プール）
+  v_warmup_total integer := 0;         -- ★0018: これまでの初回ボーナス付与の合計（生涯上限用）
+  v_grant_raw    integer := 0;         -- ★0018: 上限を当てる前の付与額（already_claimed 判定用）
 begin
   if v_uid is null then
     raise exception 'unauthorized' using errcode = '28000';
@@ -653,7 +655,8 @@ begin
 
   -- ユーザーTZの暦日 (台帳 ledger_date 用 / S11)。
   select coalesce(timezone, 'Asia/Tokyo') into v_tz
-    from public.profiles where id = v_uid;
+    from public.profiles where id = v_uid
+    for update;  -- ★0018: 同一ユーザーの day1/day2 同時呼び出しを直列化（生涯上限の読み書きを守る）
   if v_tz is null then
     raise exception 'profile_not_found' using errcode = 'P0002';
   end if;
@@ -689,6 +692,15 @@ begin
     v_mode  := 'active';
     v_grant := coalesce((v_grants->>'day2')::integer, 0);
   end if;
+
+  -- ★0018（第三者レビュー #1）: 初回ボーナスの生涯合計は hatch（500）を超えない。
+  --   day2 を day1 より先に呼ぶ（RPC を直接叩けば可能）と、残り全部(500)+day1(300)=800 に
+  --   なるのを防ぐ。上の profiles 行ロックで同時呼び出しも直列化される。
+  select coalesce(sum(amount), 0) into v_warmup_total
+    from public.point_ledger
+   where user_id = v_uid and source = 'warmup';
+  v_grant_raw := v_grant;
+  v_grant := least(v_grant, greatest(v_hatch - v_warmup_total, 0));
 
   if v_egg_id is null then
     select exists(
@@ -746,7 +758,7 @@ begin
     'egg_applied', v_egg_result,
     'balance_after', v_balance,
     'mode', v_mode,
-    'already_claimed', (v_grant > 0 and not v_inserted));
+    'already_claimed', (v_grant_raw > 0 and not v_inserted));
 end;
 $$;
 

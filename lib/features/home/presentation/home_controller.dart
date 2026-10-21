@@ -86,15 +86,17 @@ class HomeController extends AsyncNotifier<HomeState> {
     // 利用取得（権限なし/失敗でも画面は出す）。
     final usage = await repo.loadUsage(targetPackages: targets, now: now);
 
-    // きのうの結果（初日は無い）。
-    final isFirstDay = day == 1;
-    final yesterday = isFirstDay
-        ? null
-        : await repo.loadYesterdayResult(
-            date: now.subtract(const Duration(days: 1)),
-            usualMinutes: usualMinutes,
-            params: params,
-          );
+    // きのうの結果。
+    // 「きのう」はサーバーの経済日付（profiles.timezone＝Asia/Tokyo に正規化 / 0011）で決まる。
+    // 端末の TZ や時計設定が違っても同じ日を引けるよう、端末ローカルではなく JST の暦日で出す
+    // （第三者レビュー: 海外滞在・TZ 変更で別の日を引き「開かなかった」と誤表示し得た）。
+    // 初日判定もローカルの初回起動日だけで決めず、再インストール等で結果があればそちらを優先。
+    final yesterday = await repo.loadYesterdayResult(
+      date: _jstToday(now).subtract(const Duration(days: 1)),
+      usualMinutes: usualMinutes,
+      params: params,
+    );
+    final isFirstDay = day == 1 && yesterday == null;
 
     return HomeState(
       permission: usage.permission,
@@ -112,6 +114,13 @@ class HomeController extends AsyncNotifier<HomeState> {
       params: params,
       warmupGrant: warmupGrant,
     );
+  }
+
+  /// サーバーの経済日付（Asia/Tokyo の暦日）。本アプリは日本のみ配信で、
+  /// profiles.timezone は 0011 で 'Asia/Tokyo' に正規化されている（他の値は不正）。
+  DateTime _jstToday(DateTime now) {
+    final jst = now.toUtc().add(const Duration(hours: 9));
+    return DateTime(jst.year, jst.month, jst.day);
   }
 
   /// たまごの Egg → ホーム表示用 ActiveEggSummary（無ければ null＝空の巣）。
