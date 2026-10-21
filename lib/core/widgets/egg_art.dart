@@ -406,7 +406,7 @@ class _CrackPainter extends CustomPainter {
     );
 
     if (full) {
-      final root = _EggGeometry.branchRoot;
+      const root = _EggGeometry.branchRoot;
       final branch = Path()
         ..moveTo(root.dx * size.width, root.dy * size.height)
         ..lineTo(
@@ -453,7 +453,7 @@ class _LightPainter extends CustomPainter {
     // ① 卵の中に閉じ込めた、やわらかい光のたまり（ヒビの周り）。
     canvas.save();
     canvas.clipPath(_EggGeometry.eggTop(size));
-    final c = _EggGeometry.leakCenter;
+    const c = _EggGeometry.leakCenter;
     final leakRect = Rect.fromCenter(
       center: Offset(c.dx * w, c.dy * h),
       width: _EggGeometry.leakRx * 2 * w,

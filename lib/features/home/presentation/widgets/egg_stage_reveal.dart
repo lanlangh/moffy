@@ -397,7 +397,7 @@ class _EggStageRevealState extends ConsumerState<EggStageReveal>
 
     return Semantics(
       label: 'たまご: ${look.label}。'
-          '${egg.canHatch ? '孵化できます' : 'つぎの変化まであと${remaining}ポイント'}',
+          '${egg.canHatch ? '孵化できます' : 'つぎの変化まであと$remainingポイント'}',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: busy ? _skip : null,

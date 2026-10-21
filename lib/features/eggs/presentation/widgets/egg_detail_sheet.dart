@@ -32,7 +32,6 @@ class EggDetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final params = state.params;
     final stage = egg.stage(params);
-    final rarity = RarityVisuals.ofEgg(egg.rarity);
     final inIncubator = egg.location == EggLocation.incubating;
     final canHatch = egg.canHatch(params);
 
