@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>たまご5段階の見本</title>
+<!--
+  docs/design/EGG_PACING_DESIGN.md §4 の見本。本番の卵画像（assets/images/egg/*.png）の上に、
+  アプリで重ね描きする予定の目印（ヒビ・光）を SVG で載せている。動き（呼吸・ゆれ・光の揺らぎ）は含まない。
+  S1 の白いたまごはオーナー作の egg_blank.png（2026-10-21・他の4枚と同じ工程で輪郭と余白をそろえた）。
+-->
+<style>
+  :root { --bg:#FBF6EA; --ink:#3A322B; --sub:#7C7269; --faint:#A99F94; --sand:#F0E4CC; --sandRim:#E7C892; --orange:#FF8A3D; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic UI",sans-serif; }
+  main { max-width:1120px; margin:0 auto; padding:20px 16px 32px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  p.lead { font-size:13px; color:var(--sub); margin:0 0 18px; }
+  h2 { font-size:15px; margin:26px 0 10px; }
+  .row { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:10px; }
+  .row.r4 { grid-template-columns:repeat(4, minmax(0,1fr)); max-width:760px; }
+  .cell { text-align:center; }
+  .cell svg { width:100%; height:auto; display:block; }
+  .name { font-weight:700; font-size:14px; margin-top:4px; }
+  .pt { font-size:12px; color:var(--sub); }
+  .line { font-size:12px; color:var(--sub); margin-top:4px; min-height:2.6em; }
+  .note { font-size:11px; color:var(--faint); margin-top:14px; line-height:1.6; }
+  @media (max-width:720px){ .row{ grid-template-columns:repeat(3, minmax(0,1fr)); } .row.r4{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>たまごの5段階（見本）</h1>
+  <p class="lead">SNSをやめている人（毎日◎）は、毎日開くと5日目に孵化します。左から順に変わります。</p>
+
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <!-- 卵の部分だけ（巣の前縁より上）を覆う形。512×512 の画像座標 -->
+      <clipPath id="eggTop"><path d="M256 24 C346 24 402 132 402 236 C402 302 374 356 332 376 Q256 396 180 376 C138 356 110 302 110 236 C110 132 166 24 256 24 Z"/></clipPath>
+      <!-- 色を抜いて明るくする（白いたまご） -->
+      <filter id="whiten" color-interpolation-filters="sRGB">
+        <feColorMatrix type="saturate" values="0"/>
+        <feComponentTransfer><feFuncR type="linear" slope="0.14" intercept="0.85"/><feFuncG type="linear" slope="0.14" intercept="0.85"/><feFuncB type="linear" slope="0.14" intercept="0.84"/></feComponentTransfer>
+      </filter>
+      <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+      <filter id="soft4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+      <radialGradient id="glowWarm"><stop offset="0" stop-color="#FFF6D6" stop-opacity="1"/><stop offset="1" stop-color="#FFE29A" stop-opacity="0"/></radialGradient>
+      <!-- 巣リング（アプリ共通の砂色の台） -->
+      <g id="ring"><circle cx="256" cy="290" r="236" fill="#F0E4CC" stroke="#E7C892" stroke-width="10"/></g>
+      <!-- ヒビ（S3は短い・S4は全幅＋枝） -->
+      <g id="crackShort" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M176 204 L204 184 L230 208 L258 186 L284 208 L310 188 L336 204" stroke="#5A4330" stroke-width="9"/>
+        <path d="M176 204 L204 184 L230 208 L258 186 L284 208 L310 188 L336 204" stroke="#FFFFFF" stroke-width="3" opacity="0.35" transform="translate(2,3)"/>
+      </g>
+      <g id="crackFull" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M122 206 L156 186 L186 210 L216 184 L246 206 L266 188 L290 208 L322 184 L354 208 L390 190" stroke="#5A4330" stroke-width="8"/>
+        <path d="M266 188 L258 158 M266 188 L276 226" stroke="#5A4330" stroke-width="6"/>
+        <path d="M122 206 L156 186 L186 210 L216 184 L246 206 L266 188 L290 208 L322 184 L354 208 L390 190" stroke="#FFFFFF" stroke-width="2.5" opacity="0.35" transform="translate(2,3)"/>
+      </g>
+      <!-- ヒビからもれる光 -->
+      <g id="leak">
+        <ellipse cx="258" cy="198" rx="120" ry="34" fill="url(#glowWarm)" filter="url(#soft4)" clip-path="url(#eggTop)"/>
+        <path d="M122 206 L156 186 L186 210 L216 184 L246 206 L266 188 L290 208 L322 184 L354 208 L390 190" fill="none" stroke="#FFF3C4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <g id="rays" stroke="#FFE7A0" stroke-linecap="round" fill="none">
+        <path d="M232 192 L170 92" stroke-width="7"/><path d="M290 194 L356 96" stroke-width="7"/>
+        <path d="M200 200 L76 150" stroke-width="6"/><path d="M322 196 L446 148" stroke-width="6"/>
+      </g>
+      <g id="raysMore" stroke="#FFF0BC" stroke-linecap="round" fill="none">
+        <path d="M262 186 L262 40" stroke-width="8"/><path d="M170 206 L46 214" stroke-width="5"/>
+        <path d="M350 204 L470 214" stroke-width="5"/><path d="M246 190 L214 52" stroke-width="5"/><path d="M280 190 L312 52" stroke-width="5"/>
+      </g>
+      <g id="sparks" fill="#FFE29A">
+        <circle cx="96" cy="96" r="9"/><circle cx="420" cy="80" r="7"/><circle cx="452" cy="250" r="8"/>
+        <circle cx="62" cy="262" r="6"/><circle cx="180" cy="34" r="6"/><circle cx="350" cy="30" r="7"/>
+      </g>
+    </defs>
+  </svg>
+
+  <h2>段階（レアのたまごの例）</h2>
+  <div class="row">
+    <!-- S1 しろいたまご -->
+    <div class="cell">
+      <svg viewBox="0 0 512 540">
+        <use href="#ring"/>
+        <image href="../../assets/images/egg/egg_blank.png" width="512" height="512"/>
+      </svg>
+      <div class="name">S1 しろいたまご</div><div class="pt">0〜99pt</div>
+      <div class="line">なにが うまれるかな？</div>
+    </div>
+    <!-- S2 もよう -->
+    <div class="cell">
+      <svg viewBox="0 0 512 540">
+        <use href="#ring"/>
+        <image href="../../assets/images/egg/egg_rare.png" width="512" height="512"/>
+      </svg>
+      <div class="name">S2 もよう</div><div class="pt">100pt</div>
+      <div class="line">もようが うかんできた！<br>レアのたまご！</div>
+    </div>
+    <!-- S3 ヒビ -->
+    <div class="cell">
+      <svg viewBox="0 0 512 540">
+        <use href="#ring"/>
+        <image href="../../assets/images/egg/egg_rare.png" width="512" height="512"/>
+        <use href="#crackShort"/>
+      </svg>
+      <div class="name">S3 ヒビ</div><div class="pt">200pt</div>
+      <div class="line">ピキッ！</div>
+    </div>
+    <!-- S4 ひかり -->
+    <div class="cell">
+      <svg viewBox="0 0 512 540">
+        <use href="#ring"/>
+        <circle cx="256" cy="290" r="236" fill="none" stroke="#FFE7A0" stroke-width="22" opacity="0.5" filter="url(#soft)"/>
+        <image href="../../assets/images/egg/egg_rare.png" width="512" height="512"/>
+        <use href="#crackFull"/>
+        <use href="#leak"/>
+        <use href="#rays" opacity="0.85"/>
+      </svg>
+      <div class="name">S4 ひかり</div><div class="pt">300pt</div>
+      <div class="line">ヒビから ひかりが…<br>もうすぐ うまれそう</div>
+    </div>
+    <!-- S4 強まる（400pt） -->
+    <div class="cell">
+      <svg viewBox="0 0 512 540">
+        <use href="#ring"/>
+        <circle cx="256" cy="290" r="236" fill="none" stroke="#FFE7A0" stroke-width="34" opacity="0.8" filter="url(#soft)"/>
+        <g transform="rotate(4 256 470)">
+          <image href="../../assets/images/egg/egg_rare.png" width="512" height="512"/>
+          <use href="#crackFull"/>
+          <use href="#leak"/>
+          <use href="#rays"/>
+          <use href="#raysMore"/>
+        </g>
+        <use href="#sparks"/>
+      </svg>
+      <div class="name">S4 ひかり（強まる）</div><div class="pt">400pt</div>
+      <div class="line">あと少しで うまれる！</div>
+    </div>
+    <!-- S5 うまれる -->
+    <div class="cell">
+      <svg viewBox="0 0 512 540">
+        <circle cx="256" cy="250" r="250" fill="url(#glowWarm)"/>
+        <use href="#ring"/>
+        <image href="../../assets/images/egg/egg_rare.png" width="512" height="512"/>
+        <use href="#crackFull"/>
+        <rect width="512" height="512" fill="#FFFFFF" opacity="0.5" clip-path="url(#eggTop)"/>
+        <use href="#leak"/>
+        <use href="#rays"/><use href="#raysMore"/>
+        <use href="#sparks"/>
+        <rect x="156" y="478" width="200" height="56" rx="28" fill="#FF8A3D"/>
+        <text x="256" y="515" font-size="28" font-weight="700" fill="#FFFFFF" text-anchor="middle">孵化する</text>
+      </svg>
+      <div class="name">S5 うまれる！</div><div class="pt">500pt</div>
+      <div class="line">開いたら そのまま孵化へ</div>
+    </div>
+  </div>
+
+  <h2>S2 で わかるレア度（もようと色）</h2>
+  <div class="row r4">
+    <div class="cell"><svg viewBox="0 0 512 540"><use href="#ring"/><image href="../../assets/images/egg/egg_common.png" width="512" height="512"/></svg><div class="name">ノーマル</div></div>
+    <div class="cell"><svg viewBox="0 0 512 540"><use href="#ring"/><image href="../../assets/images/egg/egg_rare.png" width="512" height="512"/></svg><div class="name">レア</div></div>
+    <div class="cell"><svg viewBox="0 0 512 540"><use href="#ring"/><image href="../../assets/images/egg/egg_sr.png" width="512" height="512"/></svg><div class="name">エピック</div></div>
+    <div class="cell"><svg viewBox="0 0 512 540"><use href="#ring"/><image href="../../assets/images/egg/egg_ssr.png" width="512" height="512"/></svg><div class="name">レジェンド</div></div>
+  </div>
+
+  <p class="note">
+    動き（呼吸・ゆれ・光の揺らぎ）と、段階が変わった瞬間の演出は含みません。<br>
+    S1 の白いたまごは専用の画像（egg_blank.png）です。S2 になると、同じ位置でレア度ごとの画像に切り替わります。<br>
+    「S4 ひかり（強まる）」は段階ではなく、S4 の中の小さな変化です（毎日◎の人なら4日目に見える）。
+  </p>
+</main>
+</body>
+</html>
