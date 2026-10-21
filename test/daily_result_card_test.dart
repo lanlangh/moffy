@@ -61,7 +61,8 @@ void main() {
     await tester.pumpWidget(card(_state(yesterdayUnavailable: true)));
     await tester.pumpAndSettle();
     expect(find.text('きのうの結果を取得できませんでした'), findsOneWidget);
-    expect(find.textContaining('下に引っぱって'), findsOneWidget);
+    // 「きょうのペース」側も利用時間が無いときは同じ案内を出すので、1つ以上あればよい。
+    expect(find.textContaining('下に引っぱって'), findsWidgets);
   });
 }
 
