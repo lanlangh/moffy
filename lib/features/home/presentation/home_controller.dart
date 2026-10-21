@@ -92,12 +92,20 @@ class HomeController extends AsyncNotifier<HomeState> {
     // 使わない。第三者レビュー: 海外滞在・TZ 変更・時計ずれで別の日を引き「開かなかった」と
     // 誤表示し得た / 値を持ち回ると日跨ぎで古くなる）。聞けないときの代用だけ JST の暦日。
     // 初日判定もローカルの初回起動日だけで決めず、再インストール等で結果があればそちらを優先。
-    final yesterday = await repo.loadYesterdayResult(
-      fallbackDate: _jstToday(now).subtract(const Duration(days: 1)),
-      usualMinutes: usualMinutes,
-      params: params,
-      localFirstDay: day == 1,
-    );
+    YesterdayResult? yesterday;
+    var yesterdayUnavailable = !isOnline;
+    try {
+      yesterday = await repo.loadYesterdayResult(
+        fallbackDate: _jstToday(now).subtract(const Duration(days: 1)),
+        usualMinutes: usualMinutes,
+        params: params,
+        localFirstDay: day == 1,
+      );
+    } catch (e, st) {
+      // 取れなくてもホームは出す。カードには「取得できなかった」と出す（「開かなかった」とは言わない）。
+      Log.e('yesterday result unavailable', error: e, stack: st);
+      yesterdayUnavailable = true;
+    }
     final isFirstDay = day == 1 && yesterday == null;
 
     return HomeState(
@@ -107,6 +115,7 @@ class HomeController extends AsyncNotifier<HomeState> {
       usualMinutes: usualMinutes,
       usualMinutesSource: usualSource,
       yesterday: yesterday,
+      yesterdayUnavailable: yesterdayUnavailable,
       isFirstDay: isFirstDay,
       activeEgg: activeEgg,
       pointBalance: snapshot.pointBalance,

@@ -131,6 +131,12 @@ class _YesterdaySection extends StatelessWidget {
     if (state.isFirstDay) {
       headline = 'きょうが1日目';
       sub = 'あしたから「きのうの結果」が出ます。きょうはボーナスで育ちます。';
+    } else if (y == null && state.yesterdayUnavailable) {
+      // 取れなかったときに「開かなかった」と断定しない（反証レビュー #3）。
+      headline = 'きのうの結果を取得できませんでした';
+      sub = state.isOffline
+          ? 'オフラインです。接続すると表示されます。'
+          : '下に引っぱって更新してください。';
     } else if (y == null) {
       headline = 'きのうは開かなかったので、計れませんでした';
       sub = '開いた日の分だけ、たまごが進みます。きょうは開いているので大丈夫。';

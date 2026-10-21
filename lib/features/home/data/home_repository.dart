@@ -215,10 +215,10 @@ class HomeRepository {
         minutes: minutes,
       );
     } catch (e, st) {
-      // きのうの結果が取れなくてもホームは出す（カードは「取得できませんでした」ではなく
-      // 記録なし表示に倒す）。
+      // 取れなかったことは呼び出し側（HomeController）に伝える。null（記録なし）と区別しないと、
+      // カードが「きのうは開かなかった」と事実と違う断定をする（反証レビュー #3）。
       Log.e('loadYesterdayResult failed', error: e, stack: st);
-      return null;
+      rethrow;
     }
   }
 

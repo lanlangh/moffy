@@ -10,6 +10,7 @@ import 'core/router/app_router.dart';
 import 'core/sync/daily_submission.dart';
 import 'core/sync/sync_service.dart';
 import 'core/theme/app_theme.dart';
+import 'features/home/presentation/home_controller.dart';
 
 /// アプリのルート（ARCHITECTURE §1-1: MaterialApp.router + テーマ + Riverpod）。
 class MoffyApp extends ConsumerStatefulWidget {
@@ -47,6 +48,12 @@ class _MoffyAppState extends ConsumerState<MoffyApp> with WidgetsBindingObserver
     // 多重実行は DailySubmissionService 側の single-flight が抑止する。
     if (state == AppLifecycleState.resumed) {
       unawaited(ref.read(dailySubmissionServiceProvider).submitPendingDay());
+      // ホームも復帰のたびに裏で読み直す（0018 / 反証レビュー #1）。
+      //   ホームの再読込は「確定の合図（dayFinalizedTick）」が主な引き金だが、提出が確定に
+      //   至らない復帰（既に確定済み・権限なし・OS 取得失敗・異常日）では合図が出ない。
+      //   日をまたいで復帰したのに「きのうの結果」が前々日のまま、を防ぐ。
+      //   invalidate は前の画面を保ったまま裏で作り直す（スケルトンは出ない）。
+      ref.invalidate(homeControllerProvider);
     }
   }
 

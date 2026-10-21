@@ -30,6 +30,10 @@ class HomeState {
   /// きのうの結果（サーバー確定）。記録が無ければ null（開かなかった日・初日）。
   final YesterdayResult? yesterday;
 
+  /// きのうの結果を取得できなかった（オフライン / 通信・サーバーエラー）。
+  /// [yesterday] が null でもこれが true なら「開かなかった」とは言わない（事実と違う断定を避ける）。
+  final bool yesterdayUnavailable;
+
   /// ローカル初回起動日が今日か（「きのうの結果」は明日から / S1）。
   final bool isFirstDay;
 
@@ -70,6 +74,7 @@ class HomeState {
     required this.params,
     this.usageErrorMessage,
     this.warmupGrant,
+    this.yesterdayUnavailable = false,
   });
 
   /// 権限が無く計測できない（フォールバックUI / §5-1）。
@@ -108,7 +113,8 @@ class HomeState {
 
 /// きのうの結果（サーバー確定 / 0018 §4-5「きのうの結果」）。
 class YesterdayResult {
-  /// 対象日。
+  /// 対象日。年月日だけに意味がある（サーバー由来はローカル 0 時、代用は UTC 0 時なので、
+  /// 時刻や TZ を比較・表示に使わない）。
   final DateTime date;
 
   /// サーバーが確定済みか。false = 提出はあるがまだ確定していない（計算中）。
