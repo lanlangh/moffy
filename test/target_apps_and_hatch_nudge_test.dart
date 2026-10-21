@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart'
     show TargetPlatform, debugDefaultTargetPlatformOverride;
-import 'package:flutter/material.dart' hide Baseline;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -10,20 +10,21 @@ import 'package:moffy/core/observability/analytics.dart';
 import 'package:moffy/core/observability/analytics_events.dart';
 import 'package:moffy/core/observability/observability_providers.dart';
 import 'package:moffy/core/sync/connectivity_provider.dart';
-import 'package:moffy/core/usage/point_calculator.dart';
 import 'package:moffy/core/usage/usage_models.dart';
 import 'package:moffy/core/usage/usage_provider.dart';
 import 'package:moffy/core/usage/usage_providers.dart';
+import 'package:moffy/features/home/data/egg_stage_memory.dart';
+import 'package:moffy/features/home/data/usual_minutes_repository.dart';
 import 'package:moffy/features/home/domain/home_state.dart';
 import 'package:moffy/features/home/presentation/home_controller.dart';
 import 'package:moffy/features/home/presentation/widgets/active_egg_panel.dart';
-import 'package:moffy/features/home/presentation/widgets/reduction_card.dart';
+import 'package:moffy/features/home/presentation/widgets/daily_result_card.dart';
 import 'package:moffy/features/onboarding/data/onboarding_repository.dart';
 import 'package:moffy/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:moffy/features/onboarding/presentation/welcome_screen.dart';
 
 /// 「未選択で進まない」「孵化できるのに放置」の2つを潰した改善の回帰テスト
-/// （2026-10-05 / ORG_STATE の実測を受けた修正）。
+/// （2026-10-05 / ORG_STATE の実測を受けた修正。0018 の 5段階・評価制に追従）。
 ///
 /// 実測で分かっていた事実:
 ///   * 削減ptを得たのは全期間で6人だけ。オーナー自身の iOS アカウントも3か月ずっと
@@ -46,7 +47,7 @@ void main() {
     }
   }
 
-  group('ホームの削減カード: 対象アプリ未選択を知らせる', () {
+  group('ホームの結果カード: 対象アプリ未選択を知らせる', () {
     Widget card({
       required UsagePermissionStatus permission,
       required bool hasAppSelection,
@@ -54,7 +55,7 @@ void main() {
     }) =>
         MaterialApp(
           home: Scaffold(
-            body: ReductionCard(
+            body: DailyResultCard(
               state: _homeState(permission: permission),
               onRequestPermission: () {},
               hasAppSelection: hasAppSelection,
@@ -81,7 +82,7 @@ void main() {
       });
     });
 
-    testWidgets('選択済みなら案内を出さない（通常のカードに戻る）', (tester) async {
+    testWidgets('選択済みなら案内を出さない（きのうの結果／きょうのペースに戻る）', (tester) async {
       await withPlatform(TargetPlatform.iOS, () async {
         await tester.pumpWidget(
           card(
@@ -93,7 +94,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.textContaining('見守るアプリが選ばれていません'), findsNothing);
-        expect(find.text('明日から計測スタート'), findsOneWidget);
+        expect(find.text('きのうの結果'), findsOneWidget);
+        expect(find.text('きょうのペース'), findsOneWidget);
       });
     });
 
@@ -131,28 +133,43 @@ void main() {
   });
 
   group('ホームの巣パネル: 孵化できるなら、その場で孵化へ送る', () {
-    Widget panel({required int growth, VoidCallback? onHatch}) => MaterialApp(
-          home: Scaffold(
-            body: ActiveEggPanel(
-              state: _homeState(
-                permission: UsagePermissionStatus.granted,
-                egg: ActiveEggSummary(
-                  eggId: 'e1',
-                  growthPoints: growth,
-                  hatchThreshold: 500,
-                  rarityLabel: 'normal',
+    Widget panel({
+      required int growth,
+      VoidCallback? onHatch,
+      int? lastSeenStep,
+    }) =>
+        ProviderScope(
+          overrides: [
+            eggStageMemoryProvider.overrideWithValue(
+              InMemoryEggStageMemory(
+                lastSeenStep == null ? null : {'e1': lastSeenStep},
+              ),
+            ),
+            analyticsProvider.overrideWithValue(const NoopAnalytics()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ActiveEggPanel(
+                  state: _homeState(
+                    permission: UsagePermissionStatus.granted,
+                    egg: _egg(growth),
+                  ),
+                  onSetEgg: () {},
+                  onHatch: onHatch,
                 ),
               ),
-              onSetEgg: () {},
-              onHatch: onHatch,
             ),
           ),
         );
 
     testWidgets('残り0ptなら「孵化できます！」と「孵化する」が出る', (tester) async {
       var hatched = 0;
-      await tester.pumpWidget(panel(growth: 500, onHatch: () => hatched++));
-      await tester.pumpAndSettle();
+      // 最後に見た段階が「ひかり（強まる）」＝1段だけ演出が出てから、ボタンが出る。
+      await tester.pumpWidget(
+        panel(growth: 500, onHatch: () => hatched++, lastSeenStep: 4),
+      );
+      await _settleReveal(tester);
 
       expect(find.text('孵化できます！'), findsOneWidget);
       await tester.tap(find.text('孵化する'));
@@ -161,18 +178,19 @@ void main() {
 
     testWidgets('しきい値を超えて貯まっていても孵化できる扱いにする', (tester) async {
       // 実測で放置されていた卵は 500pt を**超えて**いた（remaining は clamp 済み）。
+      // 初めて開く（記憶なし）でも S5 だけは孵化ボタン付きの演出が出る（§5-1）。
       await tester.pumpWidget(panel(growth: 780, onHatch: () {}));
-      await tester.pumpAndSettle();
+      await _settleReveal(tester);
 
       expect(find.text('孵化できます！'), findsOneWidget);
       expect(find.text('孵化する'), findsOneWidget);
     });
 
-    testWidgets('まだ育ち途中なら孵化ボタンを出さない', (tester) async {
+    testWidgets('まだ育ち途中なら孵化ボタンを出さない（段階名と残りptを出す）', (tester) async {
       await tester.pumpWidget(panel(growth: 460, onHatch: () {}));
-      await tester.pumpAndSettle();
+      await _settleReveal(tester);
 
-      expect(find.text('孵化まであと 40pt'), findsOneWidget);
+      expect(find.text('ひかり・つぎの変化まで あと 40pt'), findsOneWidget);
       expect(find.text('孵化する'), findsNothing);
     });
   });
@@ -190,15 +208,7 @@ void main() {
 
     test('残り0ptの卵があれば true', () async {
       final c = containerFor(
-        _homeState(
-          permission: UsagePermissionStatus.granted,
-          egg: const ActiveEggSummary(
-            eggId: 'e1',
-            growthPoints: 500,
-            hatchThreshold: 500,
-            rarityLabel: 'normal',
-          ),
-        ),
+        _homeState(permission: UsagePermissionStatus.granted, egg: _egg(500)),
       );
       await c.read(homeControllerProvider.future);
       expect(c.read(hasHatchableEggProvider), isTrue);
@@ -206,15 +216,7 @@ void main() {
 
     test('育ち途中なら false', () async {
       final c = containerFor(
-        _homeState(
-          permission: UsagePermissionStatus.granted,
-          egg: const ActiveEggSummary(
-            eggId: 'e1',
-            growthPoints: 499,
-            hatchThreshold: 500,
-            rarityLabel: 'normal',
-          ),
-        ),
+        _homeState(permission: UsagePermissionStatus.granted, egg: _egg(499)),
       );
       await c.read(homeControllerProvider.future);
       expect(c.read(hasHatchableEggProvider), isFalse);
@@ -238,9 +240,11 @@ void main() {
 
   group('計測: 対象アプリを選ばずに始めた人を数える', () {
     late _RecordingAnalytics analytics;
+    late _FakeUsualMinutesRepository usualRepo;
 
     Widget harness(UsageProvider usage) {
       analytics = _RecordingAnalytics();
+      usualRepo = _FakeUsualMinutesRepository();
       return ProviderScope(
         overrides: [
           usageProviderProvider.overrideWithValue(usage),
@@ -248,6 +252,7 @@ void main() {
           analyticsProvider.overrideWithValue(analytics),
           onboardingRepositoryProvider
               .overrideWithValue(_FakeOnboardingRepository()),
+          usualMinutesRepositoryProvider.overrideWithValue(usualRepo),
         ],
         child: MaterialApp.router(
           routerConfig: GoRouter(
@@ -284,6 +289,12 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    /// 最終ページ「ふだんのSNS時間」で、選ばずに始める。
+    Future<void> skipUsualMinutes(WidgetTester tester) async {
+      await tester.tap(find.text('わからない・あとで決める').hitTestable());
+      await tester.pumpAndSettle();
+    }
+
     testWidgets('未選択のまま始めたら target_apps_skipped（許可ありを区別できる）',
         (tester) async {
       await withPlatform(TargetPlatform.iOS, () async {
@@ -291,8 +302,9 @@ void main() {
         await tester.pumpAndSettle();
         await goToPickerPage(tester, grantLabel: '次へ');
 
-        await tester.tap(find.text('あとで選んで始める').hitTestable());
+        await tester.tap(find.text('あとで選んで次へ').hitTestable());
         await tester.pumpAndSettle();
+        await skipUsualMinutes(tester);
 
         final e = analytics.single(AnalyticsEvents.targetAppsSkipped);
         expect(e.props?[AnalyticsProps.permissionGranted], isTrue);
@@ -301,6 +313,11 @@ void main() {
           analytics.names,
           isNot(contains(AnalyticsEvents.targetAppsSelected)),
         );
+        // ふだんのSNS時間はスキップ＝既定のまま。次回のシートは出さない（asked）。
+        final u = analytics.single(AnalyticsEvents.usualMinutesReported);
+        expect(u.props?[AnalyticsProps.skipped], isTrue);
+        expect(usualRepo.asked, isTrue);
+        expect(usualRepo.reported, isNull);
       });
     });
 
@@ -318,15 +335,16 @@ void main() {
         await tester.pumpAndSettle();
         await goToPickerPage(tester, grantLabel: '次へ');
 
-        await tester.tap(find.text('あとで選んで始める').hitTestable());
+        await tester.tap(find.text('あとで選んで次へ').hitTestable());
         await tester.pumpAndSettle();
+        await skipUsualMinutes(tester);
 
         final e = analytics.single(AnalyticsEvents.targetAppsSkipped);
         expect(e.props?[AnalyticsProps.permissionGranted], isFalse);
       });
     });
 
-    testWidgets('選んで始めたら target_apps_selected（source=onboarding）',
+    testWidgets('選んで始めたら target_apps_selected（source=onboarding）＋ふだんの時間を申告',
         (tester) async {
       await withPlatform(TargetPlatform.iOS, () async {
         await tester.pumpWidget(harness(_FakeUsage(selected: true, count: 3)));
@@ -335,7 +353,16 @@ void main() {
 
         await tester.tap(find.text('アプリを選ぶ').hitTestable());
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Moffyをはじめる（3件を見守る）').hitTestable());
+        await tester.tap(find.text('次へ（3件を見守る）').hitTestable());
+        await tester.pumpAndSettle();
+
+        // 「ふだんのSNS時間」を選ぶまで「Moffyをはじめる」は押せない（既定へ黙って倒さない）。
+        final start = find.widgetWithText(ElevatedButton, 'Moffyをはじめる');
+        expect(tester.widget<ElevatedButton>(start).enabled, isFalse);
+        await tester.tap(find.text('2時間くらい').hitTestable());
+        await tester.pumpAndSettle();
+        expect(tester.widget<ElevatedButton>(start).enabled, isTrue);
+        await tester.tap(find.text('Moffyをはじめる').hitTestable());
         await tester.pumpAndSettle();
 
         final e = analytics.single(AnalyticsEvents.targetAppsSelected);
@@ -344,6 +371,10 @@ void main() {
           analytics.names,
           isNot(contains(AnalyticsEvents.targetAppsSkipped)),
         );
+        final u = analytics.single(AnalyticsEvents.usualMinutesReported);
+        expect(u.props?[AnalyticsProps.minutes], 120);
+        expect(u.props?[AnalyticsProps.skipped], isFalse);
+        expect(usualRepo.reported, 120);
       });
     });
 
@@ -353,8 +384,9 @@ void main() {
         await tester.pumpAndSettle();
         await goToPickerPage(tester, grantLabel: '設定を開く');
 
-        await tester.tap(find.text('Moffyをはじめる').hitTestable());
+        await tester.tap(find.text('次へ').hitTestable());
         await tester.pumpAndSettle();
+        await skipUsualMinutes(tester);
 
         expect(
           analytics.names,
@@ -403,6 +435,23 @@ void main() {
   });
 }
 
+/// 段階アップ演出（最大 約2.5秒×段数）を進めきる。卵の呼吸は無限ループなので
+/// pumpAndSettle は使えない。
+Future<void> _settleReveal(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+}
+
+ActiveEggSummary _egg(int growth) => ActiveEggSummary(
+      eggId: 'e1',
+      growthPoints: growth,
+      thresholds: EconomyParams.defaults.eggThresholds,
+      rarityLabel: 'normal',
+    );
+
 HomeState _homeState({
   required UsagePermissionStatus permission,
   ActiveEggSummary? egg,
@@ -410,15 +459,10 @@ HomeState _homeState({
     HomeState(
       permission: permission,
       todayUsage: null,
-      baseline: Baseline(
-        date: DateTime(2026, 10, 5),
-        rawAverageMinutes: null,
-        appliedMinutes: 30,
-        sampleDays: 0,
-        stage: BaselineStage.warmup,
-      ),
-      provisionalPoints: 0,
-      yesterdayMinutes: null,
+      usualMinutes: 120,
+      usualMinutesSource: 'default',
+      yesterday: null,
+      isFirstDay: true,
       activeEgg: egg,
       pointBalance: 0,
       gemBalance: 0,
@@ -473,6 +517,30 @@ class _FakeOnboardingRepository implements OnboardingRepository {
 
   @override
   Future<void> markCompleted() async {}
+}
+
+/// 申告をメモリに覚えるだけの fake（SharedPreferences / RPC を使わない）。
+class _FakeUsualMinutesRepository implements UsualMinutesRepository {
+  int? reported;
+  bool asked = false;
+
+  @override
+  Future<int?> localReported() async => reported;
+
+  @override
+  Future<bool> hasBeenAsked() async => asked;
+
+  @override
+  Future<void> markAsked() async => asked = true;
+
+  @override
+  Future<void> report(int minutes) async {
+    reported = minutes;
+    asked = true;
+  }
+
+  @override
+  Future<void> syncPending() async {}
 }
 
 /// 権限状態とピッカーの結果を指定できる fake。

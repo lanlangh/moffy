@@ -2,10 +2,13 @@
 -- 経済セキュリティ・エピックのライブ最終証明（信頼境界の検証）。
 -- BACKEND_SETUP.md §3 の RPC 権限グリッド ＋ 列レベル GRANT（G-2/G-3/H4-1/M4-1/C-1/C-3）を
 -- 実 DB に対して自己検証する。期待と異なれば RAISE EXCEPTION で失敗させる（CI ゲート化）。
--- migration 0001〜0012 適用後に実行する前提（DB Verify ワークフローから呼ぶ）。
+-- migration 0001〜0018 適用後に実行する前提（DB Verify / DB SQL Test ワークフローから呼ぶ）。
 -- ⚠️ 0011 で確定の入口が fn_submit_and_finalize_day 一本になり、fn_finalize_day 本体・
 --    profiles.timezone/INSERT・usage_daily への直接書込は剥奪された。0012 で基準値の
 --    母集団が確定済み日だけに絞られた。期待値もそれに合わせてある。
+-- ⚠️ 0018 で fn_submit_and_finalize_day が5引数（+p_is_measured）になり旧4引数版は撤去、
+--    fn_set_usual_minutes（本人申告）が新設、profiles.usual_minutes* / usage_daily.is_measured
+--    が追加された。新列はクライアントから書けないことまで §3-B で見る。
 
 \echo '================ permission_check.sql 開始 ================'
 
@@ -32,6 +35,8 @@ declare
     'fn_delete_account',         jsonb_build_array(true,  false),
     'fn_claim_warmup',           jsonb_build_array(true,  false),
     'fn_ensure_first_egg',       jsonb_build_array(true,  false),
+    -- 0018: 「ふだんのSNS時間」の本人申告。本人の profiles 行だけを書く definer。
+    'fn_set_usual_minutes',      jsonb_build_array(true,  false),
     'fn_purge_deleted_accounts', jsonb_build_array(false, false),
     'fn_apply_growth',           jsonb_build_array(false, false),
     'quest_condition_met',       jsonb_build_array(false, false),
@@ -97,8 +102,18 @@ do $$
 declare
   fail_count int := 0;
 begin
-  if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is null then
-    raise warning '[§3-A-2 FAIL] fn_submit_and_finalize_day(date,integer,jsonb,text) が存在しない';
+  -- 0018: 入口は5引数版（p_is_measured boolean default null）。旧4引数版が残っていると
+  --   PostgREST の名前解決が曖昧になり（同名2本）、提出が 300 で失敗する。両方を固定する。
+  if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text,boolean)') is null then
+    raise warning '[§3-A-2 FAIL] fn_submit_and_finalize_day(date,integer,jsonb,text,boolean) が存在しない（0018 未適用）';
+    fail_count := fail_count + 1;
+  end if;
+  if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is not null then
+    raise warning '[§3-A-2 FAIL] 旧4引数版 fn_submit_and_finalize_day が残っている（PostgREST の解決が曖昧になる）';
+    fail_count := fail_count + 1;
+  end if;
+  if to_regprocedure('public.fn_set_usual_minutes(integer)') is null then
+    raise warning '[§3-A-2 FAIL] fn_set_usual_minutes(integer) が存在しない（0018 未適用）';
     fail_count := fail_count + 1;
   end if;
   if to_regprocedure('public.fn_pending_finalize_date()') is null then
@@ -141,11 +156,14 @@ begin
 end $$;
 
 -- ============================================================
--- §3-A-4: 基準値の母集団は「確定済み日」だけであること（0012 / fail-closed）
---   fn_finalize_day の基準値クエリが is_anomaly=false しか要求していないと、直接 INSERT
+-- §3-A-4: 確定日だけを母数にすること（0012 / fail-closed）
+--   0012〜0017: fn_finalize_day の基準値クエリが is_anomaly=false しか要求していないと、直接 INSERT
 --   された未確定行（既定 is_finalized=false / is_anomaly=false）が平均に入る。欠損日は
 --   除外される仕様なので、窓内に高い total_minutes の行を1つ注入するだけで基準値が上がり、
 --   削減量が水増しされて日次上限まで加点できてしまう。
+--   0018〜: 基準値は使わないが、「ふだんのSNS時間」R を実測で上方修正する母数（直近7日の
+--   中央値）も同じ理由で確定済み・計測あり・異常なしの行に限る。R が上がるほど ◎ を取り
+--   やすくなるので、未確定行の注入で R を吊り上げられてはいけない。
 --   0011 で直接書込は剥奪したが、REVOKE はテーブルをロックせず、適用前の行も残るため
 --   ACL だけでは塞ぎきれない。本質的な防御はこのフィルタ（0005 quest_condition_met の
 --   C-2 fail-closed と同じ原則）。
@@ -166,9 +184,14 @@ begin
   -- ため、コメントだけで PASS する偽陽性を防ぐ（＝WHERE 条件の本体を検査する）。
   v_body := regexp_replace(v_src, '--[^\n]*', '', 'g');
   if v_body not like '%and is_finalized = true%' then
-    raise exception '§3-A-4 FAIL: fn_finalize_day の基準値クエリに is_finalized=true が無い（0012 未適用＝未確定の注入行が基準値に効く）';
+    raise exception '§3-A-4 FAIL: fn_finalize_day の母数クエリに is_finalized=true が無い（0012 未適用＝未確定の注入行が効く）';
   end if;
-  raise notice '=== §3-A-4 基準値の母集団=確定済み日のみ PASS ===';
+  -- 0018: R の上方修正は「計測あり」の確定日だけを数える（計測なしの 0 分は中央値を下げない。
+  --   逆方向の注入にも使えないよう is_measured=true を要求する）。
+  if v_body not like '%is_measured = true%' then
+    raise exception '§3-A-4 FAIL: fn_finalize_day の R 上方修正が is_measured=true を要求していない（0018 未適用）';
+  end if;
+  raise notice '=== §3-A-4 確定日のみを母数にする PASS ===';
 end $$;
 
 -- ============================================================
@@ -206,6 +229,17 @@ declare
     array['usage_daily','source_mode','INSERT','false'],
     array['usage_daily','total_minutes','UPDATE','false'],
     array['usage_daily','per_app_minutes','UPDATE','false'],
+    -- 0018: 「計測できていたか」は提出 RPC の引数で申告する。列を直接書けると
+    --   確定後に is_measured を立て直して再評価を狙う経路になる（確定は1回なので実害は
+    --   小さいが、提出経路の一本化（0011）を崩さない）。
+    array['usage_daily','is_measured','INSERT','false'],
+    array['usage_daily','is_measured','UPDATE','false'],
+    -- 0018: R（ふだんのSNS時間）は評価 ◎/○/△ の基準。クライアントが直接書けると
+    --   R=300 にして ◎ のラインを 150 分に広げられる。申告は fn_set_usual_minutes
+    --   （選択肢のみ）経由、上方修正はサーバーだけ。
+    array['profiles','usual_minutes','UPDATE','false'],
+    array['profiles','usual_minutes_source','UPDATE','false'],
+    array['profiles','usual_minutes_updated_at','UPDATE','false'],
     -- == 正（true であるべき）== 正規の書込み列 ==
     array['profiles','display_name','UPDATE','true'],
     array['eggs','slot_index','UPDATE','true'],

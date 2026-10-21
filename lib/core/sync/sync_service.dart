@@ -106,9 +106,19 @@ class SyncService {
     // 観測: 日次確定（pt獲得ファネルの代表点 / PRD §5-5）。確定 pt の「数値」や
     // 利用分数は載せず、ステージ（warmup/provisional/confirmed）のカテゴリのみ送る
     // （PII/生データ非送信 / 既存イベントの流儀に合わせる）。
+    // 0018: 評価（◎/○/△/計測なし）と「ふだんのSNS時間」の出どころを添える。
+    //   usual_minutes は選択肢の値（30/60/120/180/300 等）＝カテゴリ値。その日の分数は載せない。
     _ref.read(analyticsProvider).capture(
       AnalyticsEvents.dayFinalized,
-      properties: {AnalyticsProps.stage: result.stage},
+      properties: {
+        AnalyticsProps.stage: result.stage,
+        AnalyticsProps.band: result.band ?? 'unknown',
+        AnalyticsProps.isMeasured: result.isMeasured,
+        if (result.usualMinutes != null)
+          AnalyticsProps.usualMinutes: result.usualMinutes!,
+        if (result.usualMinutesSource != null)
+          AnalyticsProps.usualMinutesSource: result.usualMinutesSource!,
+      },
     );
 
     // S8: サーバー確定pt（today分）とローカル暫定ptを競合解決。減算は抑止する。

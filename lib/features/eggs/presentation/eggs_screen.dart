@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/env.dart';
+import '../../../core/constants/economy.dart';
 import '../../../core/constants/pricing.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/navigation/app_tab.dart';
@@ -415,8 +416,8 @@ class _EggStage extends StatefulWidget {
 }
 
 class _EggStageState extends State<_EggStage> {
-  /// 【お試しビルド専用】表示だけ差し替える成長段階。null = 実データどおり。
-  double? _previewProgress;
+  /// 【お試しビルド専用】表示だけ差し替える成長pt。null = 実データどおり。
+  int? _previewPoints;
 
   /// 【お試しビルド専用】卵の代わりに置く Mofi。null = 卵を表示。
   int? _previewMofi;
@@ -427,9 +428,13 @@ class _EggStageState extends State<_EggStage> {
   @override
   Widget build(BuildContext context) {
     final params = widget.state.params;
-    final progress = _previewProgress ?? widget.egg.progress(params);
-    final stage = _stageFor(progress);
-    final rarity = RarityVisuals.ofEgg(widget.egg.rarity);
+    final t = params.eggThresholds;
+    final points = _previewPoints ?? widget.egg.growthPoints;
+    final stage = EggGrowthStage.fromThresholds(points, t);
+    final strong = EggGrowthStage.isStrongGlow(points, t);
+    final canHatch = points >= t.hatch;
+    final stageProgress = t.stageProgressOf(points);
+    final remainingToNext = t.remainingToNextStage(points);
 
     final size = MediaQuery.sizeOf(context);
     final w = size.width;
@@ -468,23 +473,27 @@ class _EggStageState extends State<_EggStage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // 文字は必ず淡い座布団の上に置く（空や草の上だと読めない）。
+                      // 0018 §4-5: 段階名＋「つぎの変化まで あと Npt」（S5 は「孵化できます！」）。
                       StageChip(
                         child: Text(
                           mofi != null
                               ? '${mofi.label}（見本）'
-                              : widget.egg.canHatch(params)
-                                  ? 'まもなく孵化'
-                                  : '孵化まであと '
-                                      '${widget.egg.remaining(params)}pt',
+                              : canHatch
+                                  ? '孵化できます！'
+                                  : '${stage.label}・つぎの変化まで '
+                                      'あと ${remainingToNext}pt',
                           style: AppType.title,
                         ),
                       ),
                       const SizedBox(height: AppSpace.md),
                       NestRing(
                         diameter: ringDiameter,
-                        glow: widget.egg.isNearHatch(params)
-                            ? rarity.glow
-                            : null,
+                        // S4 以降は暖色の光（レア度の色は使わない / 0018 §4-1）。
+                        glow: strong || canHatch
+                            ? AppColors.eggLight
+                            : (stage == EggGrowthStage.glow
+                                ? AppColors.eggLightRay
+                                : null),
                         // 風景の上なので砂色の円台は出さない（影だけ残す）。
                         showBase: false,
                         child: mofi != null
@@ -496,6 +505,7 @@ class _EggStageState extends State<_EggStage> {
                             : EggSubject(
                                 rarity: widget.egg.rarity,
                                 stage: stage,
+                                strong: strong,
                                 animated: true,
                               ),
                       ),
@@ -505,11 +515,21 @@ class _EggStageState extends State<_EggStage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              GrowthProgressBar(value: progress),
+                              GrowthProgressBar(value: stageProgress),
                               const SizedBox(height: AppSpace.sm),
-                              Text(
-                                '${stage.label}・${(progress * 100).round()}%',
-                                style: AppType.numLabel,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${(stageProgress * 100).round()}%',
+                                    style: AppType.numLabel,
+                                  ),
+                                  const SizedBox(width: AppSpace.md),
+                                  StageDots(
+                                    reached: t.stageIndexOf(points) + 1,
+                                    total: t.stages.length,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -517,12 +537,13 @@ class _EggStageState extends State<_EggStage> {
                       if (Env.previewStages) ...[
                         const SizedBox(height: AppSpace.sm),
                         _PreviewStageBar(
+                          thresholds: t,
                           onSelect: (p) => setState(() {
-                            _previewProgress = p;
+                            _previewPoints = p;
                             _previewMofi = null;
                           }),
                           onReset: () => setState(() {
-                            _previewProgress = null;
+                            _previewPoints = null;
                             _previewMofi = null;
                           }),
                           onHatch: widget.onPreviewHatch,
@@ -546,14 +567,6 @@ class _EggStageState extends State<_EggStage> {
     );
   }
 
-  /// 進捗 → 見た目の段階。`EggSubject` は段階から進捗へ戻す作りなので、
-  /// お試し表示ではこちらで段階を決めて渡す。
-  EggGrowthStage _stageFor(double p) {
-    if (p >= 0.95) return EggGrowthStage.ready;
-    if (p >= 0.6) return EggGrowthStage.crack2;
-    if (p >= 0.3) return EggGrowthStage.crack1;
-    return EggGrowthStage.intact;
-  }
 }
 
 /// 【お試しビルド専用】「孵化した Mofi がこの背景の上でどう見えるか」の見本。
@@ -585,6 +598,7 @@ class _PreviewMofi {
 /// **ストア提出ビルドには入らない。**
 class _PreviewStageBar extends StatelessWidget {
   const _PreviewStageBar({
+    required this.thresholds,
     required this.onSelect,
     required this.onReset,
     required this.onHatch,
@@ -593,7 +607,11 @@ class _PreviewStageBar extends StatelessWidget {
     required this.zoomedIn,
   });
 
-  final ValueChanged<double> onSelect;
+  /// 段階の区切り（ボタンの値はここから作る＝マジックナンバーを持たない）。
+  final EggThresholds thresholds;
+
+  /// 表示だけ差し替える成長pt。
+  final ValueChanged<int> onSelect;
   final VoidCallback onReset;
   final VoidCallback onHatch;
   final VoidCallback onCycleMofi;
@@ -620,10 +638,15 @@ class _PreviewStageBar extends StatelessWidget {
       spacing: 4,
       runSpacing: 4,
       children: [
-        btn('ヒビ前', () => onSelect(0.1)),
-        btn('ヒビ小', () => onSelect(0.35)),
-        btn('ヒビ大', () => onSelect(0.7)),
-        btn('孵化直前', () => onSelect(0.97)),
+        // 0018 の5段階＋S4強まる（区切りの値そのもの）。
+        for (var i = 0; i < thresholds.stages.length - 1; i++)
+          btn(
+            EggGrowthStage.fromThresholds(thresholds.stages[i], thresholds)
+                .label,
+            () => onSelect(thresholds.stages[i]),
+          ),
+        btn('光が強まる', () => onSelect(thresholds.glowStrongAt)),
+        btn('孵化直前', () => onSelect(thresholds.hatch - 1)),
         btn('孵化演出', onHatch),
         btn('Mofi切替', onCycleMofi),
         btn(zoomedIn ? '背景を引く' : '背景を寄せる', onToggleZoom),

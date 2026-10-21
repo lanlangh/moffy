@@ -8,7 +8,8 @@ import '../../domain/egg_models.dart';
 import '../egg_visuals.dart';
 
 /// 卵詳細シート（SCREEN_FLOWS §3）。
-/// 成長進捗（0/100/250/500pt のヒビ段階）+ アクティブ切替 + 枠入替 + 孵化CTA。
+/// 成長進捗（0018: 0/100/200/300/500pt の5段階）+ アクティブ切替 + 枠入替 + 孵化CTA。
+/// S1（しろいたまご）はレア度を隠す（「なぞのたまご」 / §4-4）。
 class EggDetailSheet extends StatelessWidget {
   const EggDetailSheet({
     super.key,
@@ -53,23 +54,41 @@ class EggDetailSheet extends StatelessWidget {
             const SizedBox(height: AppSpace.lg),
             NestPanel(
               diameter: 160,
-              glow: egg.isNearHatch(params) ? rarity.glow : null,
-              subject: EggSubject(rarity: egg.rarity, stage: stage),
-              caption: Text('${egg.rarity.label}のたまご', style: AppType.title),
+              // S4 以降は暖色の光（レア度の色は使わない / 0018 §4-1）。
+              glow: egg.isNearHatch(params) || canHatch
+                  ? AppColors.eggLight
+                  : null,
+              subject: EggSubject(
+                rarity: egg.rarity,
+                stage: stage,
+                strong: egg.isStrongGlow(params),
+              ),
+              caption: Text(
+                stage.hidesRarity ? 'なぞのたまご' : '${egg.rarity.label}のたまご',
+                style: AppType.title,
+              ),
               footer: Column(
                 children: [
-                  GrowthProgressBar(value: egg.progress(params)),
+                  GrowthProgressBar(value: egg.stageProgress(params)),
                   const SizedBox(height: AppSpace.sm),
                   Text(
-                    '${egg.growthPoints} / ${params.eggThresholds.hatch}pt',
+                    canHatch
+                        ? '${stage.label}・孵化できます'
+                        : '${stage.label}・つぎの変化まで あと '
+                            '${egg.remainingToNextStage(params)}pt',
                     style: AppType.numLabel,
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    '${egg.growthPoints} / ${params.eggThresholds.hatch}pt',
+                    style: AppType.caption,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpace.xl),
 
-            // ヒビ段階ラダー（0/100/250/500）。
+            // 段階ラダー（0/100/200/300/500）。
             _StageLadder(egg: egg, params: params),
             const SizedBox(height: AppSpace.xl),
 
@@ -125,7 +144,6 @@ class EggDetailSheet extends StatelessWidget {
   }
 }
 
-/// 成長段階ラダー: 0/100/250/500pt のしきい値到達を可視化（§4-5）。
 /// ボトムシート上端のつまみ。
 class _SheetGrip extends StatelessWidget {
   const _SheetGrip();
@@ -143,6 +161,7 @@ class _SheetGrip extends StatelessWidget {
   }
 }
 
+/// 成長段階ラダー: 5段階（0018 / egg_thresholds.stages）の到達を可視化（§4-5）。
 class _StageLadder extends StatelessWidget {
   const _StageLadder({required this.egg, required this.params});
   final Egg egg;
@@ -151,11 +170,13 @@ class _StageLadder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = params.eggThresholds;
+    // 区切りは SSOT（stages）。段階名は EggGrowthStage の並びに合わせる（先頭=白、末尾=孵化）。
     final steps = <(String, int)>[
-      ('たまご', 0),
-      ('ヒビ①', t.crack1),
-      ('ヒビ②', t.crack2),
-      ('孵化', t.hatch),
+      for (var i = 0; i < t.stages.length; i++)
+        (
+          EggGrowthStage.fromThresholds(t.stages[i], t).label,
+          t.stages[i],
+        ),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/home/data/usual_minutes_repository.dart';
 import '../config/env.dart';
 import '../constants/remote_config.dart';
 import '../observability/log.dart';
-import '../usage/point_calculator.dart';
+import '../usage/day_band.dart';
+import '../usage/usage_provider.dart';
 import '../usage/usage_providers.dart';
 import 'connectivity_provider.dart';
 import 'finalize_models.dart';
@@ -19,9 +21,9 @@ import 'usage_sync_repository.dart';
 /// ## 対象日はサーバーが決める（PRD §S4-2 / S4: 日付境界の正はサーバー時刻 / 0011）
 ///
 /// 端末時計で「昨日」を計算してはいけない。端末が1日進んでいると「端末の昨日」＝
-/// 「サーバーの今日」になり、当日確定が通ってしまう。削減量 = 基準値 - 当日利用分は
-/// 時間とともに**減るだけ**なので、朝の少ない利用時間で満額(480pt上限)を確定でき、
-/// その後は使い放題になる。よって [UsageSyncRepository.pendingFinalizeDate] で
+/// 「サーバーの今日」になり、当日確定が通ってしまう。評価（◎/○/△）はその日の利用分が
+/// 少ないほど良く、利用分は時間とともに**増えるだけ**なので、朝の少ない利用時間で ◎ を
+/// 確定でき、その後は使い放題になる。よって [UsageSyncRepository.pendingFinalizeDate] で
 /// サーバーに対象日を問い合わせる。
 ///
 /// ⚠️ ただしこの問い合わせは「どの日の OS 利用データを集めるか」を知るための**照会**で
@@ -37,6 +39,13 @@ import 'usage_sync_repository.dart';
 /// `usage_daily.is_finalized` が唯一の正本で、`already_finalized` として受け取る。
 /// 確定済み日を再提出しても RPC は行ロック下で早期 return するだけ（エラーにしない）
 /// なので、キューに毒オペレーションが residue として残り続けることはない。
+///
+/// ## 計測できていたか（0018 / `is_measured`）
+///
+/// iOS は権限があっても「見守るアプリ」を選んでいないと永久に 0 分になる。その日を
+/// 「本当に使わなかった日」と区別するため、提出時に **計測できていたか** を添える
+/// （iOS = 対象アプリ選択済み / Android = true）。false の日はサーバーが 0pt・卵は進まない・
+/// 連続日数は据え置きで確定する（責めない）。
 class DailySubmissionService {
   DailySubmissionService(this._ref);
 
@@ -79,39 +88,38 @@ class DailySubmissionService {
         targetPackages: targets,
       );
 
-      // 3. 対象日時点の暫定pt（S8 競合解決の比較基準 = サーバー確定値が下回っても
-      //    画面から減らさないための基準）。基準値は対象日を含まない直近 window 日（S11）。
-      final history = await usageProvider.fetchUsageRange(
-        startDate: target.subtract(Duration(days: params.baselineWindowDays)),
-        endDate: target.subtract(const Duration(days: 1)),
-        targetPackages: targets,
-      );
-      final baseline = Baseline.compute(
-        forDate: target,
-        history: history,
-        params: params,
-      );
-      final calculator = _ref.read(pointCalculatorProvider);
-      final localPoints = baseline.isWarmup
-          ? 0 // ウォームアップ期は削減計算しない（固定ボーナスはサーバー warmup_grants / S1）。
-          : calculator.applyStreakAndCap(
-              basePoints: calculator.calculateBasePoints(
-                today: usage,
-                baseline: baseline,
-                params: params,
-              ),
-              // ストリーク日数はサーバーSSOT。端末は倍率なし（×1.0）で見積もる。
-              currentStreakDays: 1,
-              params: params,
-            );
+      // 3. 計測できていたか（0018）。iOS は対象アプリ選択済みか、Android は常に true。
+      final isMeasured = await _isMeasured(usageProvider);
 
-      // 4. キューへ積んで送信（オフライン中に積めるのが S8 の骨子）。
+      // 4. 対象日時点の暫定pt（S8 競合解決の比較基準 = サーバー確定値が下回っても
+      //    画面から減らさないための基準）。評価は端末の申告値 R で近似する
+      //    （サーバーが実測で R を上げていれば食い違うが、比較基準なので問題ない）。
+      final usual =
+          await _ref.read(usualMinutesRepositoryProvider).localReported() ??
+              params.usualMinutesDefault;
+      final band = DayBandCalculator.evaluate(
+        minutes: usage.totalMinutes,
+        usualMinutes: usual,
+        bands: params.dailyBands,
+        measured: isMeasured && !usage.isAnomaly,
+      );
+      final localPoints = DayBandCalculator.pointsFor(
+        band,
+        params.dailyBands,
+        cap: params.dailyPointCap,
+      );
+
+      // 5. キューへ積んで送信（オフライン中に積めるのが S8 の骨子）。
       //    確定できたかの判定と画面への合図（[dayFinalizedTickProvider]）は
       //    [SyncService] が行う＝確定RPCの戻り値を唯一知っている場所だから。
       //    ここで再照会してはいけない（送信中に日を跨ぐと、再照会は**翌日**について
       //    答えるため、対象日の確定を見逃す/別日の確定を今回の成功と誤認する
       //    / Codex 第2次レビュー #5B）。
-      final draft = UsageDailyDraft.fromDailyUsage(usage, localPoints: localPoints);
+      final draft = UsageDailyDraft.fromDailyUsage(
+        usage,
+        localPoints: localPoints,
+        isMeasured: isMeasured,
+      );
       final sync = _ref.read(syncServiceProvider);
       await sync.enqueueUsageSubmission(draft);
       await sync.syncNow();
@@ -120,6 +128,25 @@ class DailySubmissionService {
       Log.e('submitPendingDay failed', error: e, stack: st);
     } finally {
       _inFlight = false;
+    }
+  }
+
+  /// その日を評価してよいか。
+  ///
+  /// 対象アプリの選択という概念が無い実装（Android / 未対応）は true。iOS は
+  /// `hasAppSelection`。判定に失敗したら false（fail-closed）。サーバーも同じ向き
+  /// （古い iOS アプリ＝フラグ無しは計測なし扱い）に倒しているので、
+  /// 「計測できていない日に幻の pt が出る」側へは転ばない。
+  Future<bool> _isMeasured(UsageProvider usageProvider) async {
+    if (usageProvider is! ScreenTimeAppSelection) return true;
+    // ScreenTimeAppSelection は UsageProvider のサブタイプではないため型プロモーションが
+    // 効かない。is! ガード済みなので明示キャストは安全（usage_providers.dart と同じ作法）。
+    final selection = usageProvider as ScreenTimeAppSelection;
+    try {
+      return await selection.hasAppSelection();
+    } catch (e, st) {
+      Log.e('hasAppSelection failed on submission', error: e, stack: st);
+      return false;
     }
   }
 }

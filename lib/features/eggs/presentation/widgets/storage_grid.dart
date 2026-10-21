@@ -74,9 +74,13 @@ class _StorageEggTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rarity = RarityVisuals.ofEgg(egg.rarity);
+    final stage = egg.stage(params);
+    // 0018 §4-4: S1（しろいたまご）はレア度を隠す（チップは「？」と白）。
+    final hidden = stage.hidesRarity;
     return Semantics(
       button: true,
-      label: '${egg.rarity.label}のたまご ${egg.growthPoints}ポイント',
+      label: '${hidden ? 'なぞのたまご' : '${egg.rarity.label}のたまご'} '
+          '${egg.growthPoints}ポイント',
       child: GestureDetector(
         onTap: onTap,
         child: Column(
@@ -84,21 +88,26 @@ class _StorageEggTile extends StatelessWidget {
           children: [
             NestRing(
               diameter: 64,
-              child: EggSubject(rarity: egg.rarity, stage: egg.stage(params)),
+              child: EggSubject(
+                rarity: egg.rarity,
+                stage: stage,
+                strong: egg.isStrongGlow(params),
+              ),
             ),
             const SizedBox(height: AppSpace.xs),
-            // レアリティチップ（色は §2-3 厳密統一）。
+            // レアリティチップ（色は §2-3 厳密統一）。S1 は「？」。
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpace.sm,
                 vertical: 2,
               ),
               decoration: BoxDecoration(
-                color: rarity.glow,
+                color: hidden ? AppColors.surface : rarity.glow,
                 borderRadius: AppRadius.pillR,
+                border: hidden ? Border.all(color: AppColors.divider) : null,
               ),
               child: Text(
-                egg.rarity.label,
+                hidden ? '？' : egg.rarity.label,
                 style: AppType.caption.copyWith(color: AppColors.textPrimary),
               ),
             ),

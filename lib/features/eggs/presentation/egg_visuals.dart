@@ -29,18 +29,22 @@ abstract final class RarityVisuals {
 }
 
 /// 卵の被写体（本番イラスト / SCREEN_FLOWS §3）。
-/// NestRing の中央に置く。レアリティ色帯ごとの透過イラストを [EggArt] で表示し、
-/// 成長段階（[stage]）は孵化進捗に写してフォールバック時のヒビ段階に反映する。
+/// NestRing の中央に置く。成長段階（[stage]）に応じて [EggArt] が
+/// 白い卵 → レア度の画像 → ヒビ → 光 を出し分ける（0018 / 5段階）。
 class EggSubject extends StatelessWidget {
   const EggSubject({
     super.key,
     required this.rarity,
     required this.stage,
+    this.strong = false,
     this.animated = false,
   });
 
   final EggRarity rarity;
   final EggGrowthStage stage;
+
+  /// S4 の「強まる」（400pt〜）。段階は変えずに光だけ増える。
+  final bool strong;
 
   /// 「生きている」動きを付けるか（主役として大きく出す場所だけ true）。
   /// 保管庫グリッドのように同時に何個も並ぶ場所では付けない。
@@ -48,16 +52,9 @@ class EggSubject extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 段階 → 進捗（フォールバックのベクター描画のヒビ段階に使う・§4-5 のしきい値比）。
-    final progress = switch (stage) {
-      EggGrowthStage.intact => 0.0,
-      EggGrowthStage.crack1 => 0.3,
-      EggGrowthStage.crack2 => 0.6,
-      EggGrowthStage.ready => 0.95,
-    };
     return EggArt(
       rarity: RarityVisuals.ofEgg(rarity),
-      progress: progress,
+      look: stage.look(strong: strong),
       animated: animated,
     );
   }

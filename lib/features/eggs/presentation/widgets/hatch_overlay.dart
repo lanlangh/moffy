@@ -251,8 +251,8 @@ class _ShakingEgg extends StatelessWidget {
           child: NestRing(
             diameter: 200,
             glow: rarity.glow,
-            // 孵化直前なので進捗を高くしてヒビ表現（フォールバック時）を出す。
-            child: EggArt(rarity: rarity, progress: 0.9),
+            // 孵化直前なので S4（強まる）の見た目＝全幅のヒビと光。
+            child: EggArt(rarity: rarity, look: EggLook.glowStrong),
           ),
         ),
         const SizedBox(height: AppSpace.xl),

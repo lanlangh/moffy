@@ -2,9 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart'
     show TargetPlatform, debugDefaultTargetPlatformOverride;
-// `Baseline` は Flutter のウィジェット名と衝突する（material が export している）。
-// ここで欲しいのは point_calculator の基準値モデルなので material 側を隠す。
-import 'package:flutter/material.dart' hide Baseline;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,12 +10,11 @@ import 'package:moffy/core/constants/economy.dart';
 import 'package:moffy/core/observability/analytics.dart';
 import 'package:moffy/core/observability/observability_providers.dart';
 import 'package:moffy/core/sync/connectivity_provider.dart';
-import 'package:moffy/core/usage/point_calculator.dart';
 import 'package:moffy/core/usage/usage_models.dart';
 import 'package:moffy/core/usage/usage_provider.dart';
 import 'package:moffy/core/usage/usage_providers.dart';
 import 'package:moffy/features/home/domain/home_state.dart';
-import 'package:moffy/features/home/presentation/widgets/reduction_card.dart';
+import 'package:moffy/features/home/presentation/widgets/daily_result_card.dart';
 import 'package:moffy/features/onboarding/presentation/onboarding_screen.dart';
 
 /// 権限まわりの回帰テスト（App Store Guideline 5.1.1(iv) / 2.1）。
@@ -187,7 +184,7 @@ void main() {
   group('ホームの権限カード（B-4 / B-5）', () {
     Widget card(UsagePermissionStatus s) => MaterialApp(
           home: Scaffold(
-            body: ReductionCard(
+            body: DailyResultCard(
               state: _homeState(s),
               onRequestPermission: () {},
             ),
@@ -227,15 +224,10 @@ void main() {
 HomeState _homeState(UsagePermissionStatus permission) => HomeState(
       permission: permission,
       todayUsage: null,
-      baseline: Baseline(
-        date: DateTime(2026, 8, 18),
-        rawAverageMinutes: null,
-        appliedMinutes: 30,
-        sampleDays: 0,
-        stage: BaselineStage.warmup,
-      ),
-      provisionalPoints: 0,
-      yesterdayMinutes: null,
+      usualMinutes: 120,
+      usualMinutesSource: 'default',
+      yesterday: null,
+      isFirstDay: true,
       activeEgg: null,
       pointBalance: 0,
       gemBalance: 0,

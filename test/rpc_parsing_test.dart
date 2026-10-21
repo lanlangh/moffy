@@ -158,12 +158,16 @@ void main() {
       // 信頼境界 (H4-1/M4-1 / 0004 G-4 / 0011): is_anomaly / is_finalized はサーバー
       // 専管なので RPC 引数に含めない。user_id も渡さない（サーバーが auth.uid() で
       // 解決する＝他人の行を書けない）。ここが増えると信頼境界が壊れるので固定する。
+      // 0018: p_is_measured は「端末が計測できていたか」の申告（source_mode と同じ性質の
+      // クライアント入力）で、確定フラグではない。
       expect(params.keys.toSet(), {
         'p_date',
         'p_total_minutes',
         'p_per_app_minutes',
         'p_source_mode',
+        'p_is_measured',
       });
+      expect(params['p_is_measured'], isTrue);
 
       // payload 往復で local_points（S8競合解決の比較基準）も保持される。
       final restored = UsageDailyDraft.fromPayload(draft.toPayload());
@@ -172,6 +176,49 @@ void main() {
       expect(restored.perAppMinutes['com.instagram.android'], 40);
       expect(restored.mode, UsageMode.exactMinutes);
       expect(restored.localPoints, 35);
+      expect(restored.isMeasured, isTrue);
+    });
+
+    test('0018: 計測なし（iOS 未選択）は is_measured=false を送り、payload でも往復する', () {
+      final usage = DailyUsage.fromPerApp(
+        date: DateTime(2026, 6, 22),
+        perAppMinutes: const {},
+        mode: UsageMode.thresholdAchievement,
+      );
+      final draft = UsageDailyDraft.fromDailyUsage(usage, isMeasured: false);
+      expect(draft.toRpcParams()['p_is_measured'], isFalse);
+      expect(UsageDailyDraft.fromPayload(draft.toPayload()).isMeasured, isFalse);
+      // 旧ペイロード（キー無し）は計測あり扱い。
+      final old = draft.toPayload()..remove('is_measured');
+      expect(UsageDailyDraft.fromPayload(old).isMeasured, isTrue);
+    });
+
+    test('0018: FinalizeDayResult は band / is_measured / usual_minutes を読む（無ければ既定）', () {
+      final r = FinalizeDayResult.fromJson({
+        'finalized': true,
+        'points_awarded': 100,
+        'stage': 'confirmed',
+        'band': 'great',
+        'is_measured': true,
+        'usual_minutes': 120,
+        'usual_minutes_source': 'reported',
+      });
+      expect(r.band, 'great');
+      expect(r.isMeasured, isTrue);
+      expect(r.usualMinutes, 120);
+      expect(r.usualMinutesSource, 'reported');
+      final legacy = FinalizeDayResult.fromJson({'finalized': true, 'stage': 'confirmed'});
+      expect(legacy.band, isNull);
+      expect(legacy.isMeasured, isTrue);
+      final unmeasured = FinalizeDayResult.fromJson({
+        'finalized': true,
+        'points_awarded': 0,
+        'stage': 'unmeasured',
+        'band': 'unmeasured',
+        'is_measured': false,
+      });
+      expect(unmeasured.isMeasured, isFalse);
+      expect(unmeasured.band, 'unmeasured');
     });
 
     test('異常値（1440分超）は端末ローカルのヒントに留まり DB 行へは送らない（S4 / H4-1）', () {

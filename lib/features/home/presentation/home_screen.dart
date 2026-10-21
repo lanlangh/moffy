@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/remote_config.dart';
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/usage/usage_models.dart';
@@ -9,12 +12,14 @@ import '../../../core/usage/usage_providers.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../paywall/presentation/paywall_screen.dart';
+import '../data/usual_minutes_repository.dart';
 import '../domain/home_state.dart';
 import 'home_controller.dart';
 import 'widgets/active_egg_panel.dart';
 import 'widgets/app_usage_chips.dart';
+import 'widgets/daily_result_card.dart';
 import 'widgets/home_activity.dart';
-import 'widgets/reduction_card.dart';
+import 'widgets/usual_minutes_sheet.dart';
 import 'widgets/warmup_celebration.dart';
 
 /// ホーム画面（最も開く画面 / SCREEN_FLOWS §2）。
@@ -23,13 +28,45 @@ import 'widgets/warmup_celebration.dart';
 ///   * ローディング: AsyncValue.loading -> 巣リング型スケルトン（全画面ブロックしない）。
 ///   * エラー(致命): AsyncValue.error -> ErrorView + リトライ。
 ///   * ハッピー/権限なし/空/マイナス/オフライン: data 内で局所的に出し分け。
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   static const String routeName = 'home';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _promptScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 0018: 既存ユーザーには「ふだんのSNS時間」を1回だけ聞く（スキップ可 / §2-1）。
+    // オンボーディングで答えた新規ユーザーには出ない（asked フラグが立っている）。
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_maybeAskUsualMinutes()),
+    );
+  }
+
+  Future<void> _maybeAskUsualMinutes() async {
+    if (_promptScheduled || !mounted) return;
+    _promptScheduled = true;
+    final repo = ref.read(usualMinutesRepositoryProvider);
+    if (await repo.hasBeenAsked()) return;
+    final params = await ref.read(economyParamsProvider.future);
+    if (!mounted) return;
+    await showUsualMinutesSheet(
+      context,
+      choices: params.usualMinutesChoices,
+      onDone: (minutes) =>
+          ref.read(homeControllerProvider.notifier).reportUsualMinutes(minutes),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(homeControllerProvider);
     final controller = ref.read(homeControllerProvider.notifier);
 
@@ -100,7 +137,7 @@ class _HomeBody extends StatelessWidget {
                   const SizedBox(height: AppSpace.xl),
                 ],
 
-                // 主役: 育成卵 or 空枠誘導（§5-2）。
+                // 主役: 育成卵（5段階＋段階アップ演出）or 空枠誘導（§5-2）。
                 ActiveEggPanel(
                   state: state,
                   onSetEgg: () => context.go(AppTab.eggs.path),
@@ -109,8 +146,8 @@ class _HomeBody extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpace.xl),
 
-                // 今日の削減カード（権限/ウォームアップ/マイナス/ハッピー出し分け）。
-                ReductionCard(
+                // きのうの結果＋きょうのペース（0018 §4-5）。権限なし/未選択はこの中でフォールバック。
+                DailyResultCard(
                   state: state,
                   onRequestPermission: () => onRequestPermission(),
                   hasAppSelection: hasAppSelection,
@@ -142,9 +179,7 @@ class _HomeBody extends StatelessWidget {
                 //    アプリを識別できず全アプリ0分のチップが4枚並んでいた
                 //    （削減できているのに「0分」と出る嘘 / docs/IOS_SCREENTIME.md）。
                 //    Platform.isIOS ではなく計測モードで分岐する（Web/テストでも壊れない）。
-                if (!state.isPermissionMissing &&
-                    !state.isWarmup &&
-                    state.todayUsage != null) ...[
+                if (!state.isPermissionMissing && state.todayUsage != null) ...[
                   if (state.todayUsage!.mode == UsageMode.exactMinutes) ...[
                     Text('アプリ別', style: AppType.bodyStrong),
                     const SizedBox(height: AppSpace.sm),

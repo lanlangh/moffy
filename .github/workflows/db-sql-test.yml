@@ -1,0 +1,81 @@
+name: DB SQL Test
+
+# サーバー側の経済ロジック（migration の関数）を、**本番に触れずに** CI の PostgreSQL で検証する。
+#
+# なぜ必要か（0018 / たまごの孵化ペース）:
+#   評価 ◎/○/△・計測なし・R の上方修正・2日目「残り全部」はすべてサーバー関数の中にあり、
+#   Dart の単体テストでは原理的に検証できない。これまでは本番 DB に対する手動ワークフロー
+#   （DB Verify / DB Permission Check）しか無く、関数の挙動を PR の段階で確かめる場が無かった。
+#
+# 仕組み:
+#   1. postgres サービスコンテナ（素の PostgreSQL）を起動
+#   2. supabase/tests/local_auth_stub.sql で Supabase 相当の土台（anon/authenticated ロール・
+#      auth.users・auth.uid()・既定権限）を作る ← 本番には絶対に流さない
+#   3. 0001〜0018 を順に適用（0006 のトリガーも auth.users があるので動く）
+#   4. permission_check.sql（権限グリッド）と egg_pacing_check.sql（0018 の仕様）を実行
+#      → 期待と違えば raise exception で落ちる
+#
+# ⚠️ Secrets は一切使わない（接続先は CI の中のコンテナだけ）。本番の URL を渡してはいけない。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/db-sql-test.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/db-sql-test.yml'
+  workflow_dispatch:
+
+jobs:
+  sql-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Supabase は PostgreSQL 15 系（2026-10 時点）。メジャーを合わせる。
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: moffy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: moffy_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: psql version
+        run: psql --version
+
+      - name: Bootstrap (Supabase 相当の土台 / ローカル専用)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/local_auth_stub.sql
+
+      - name: Apply migrations 0001 -> 0018
+        run: |
+          set -e
+          for f in supabase/migrations/00*.sql; do
+            echo "=== $f ==="
+            psql -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Permission grid (permission_check.sql)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/permission_check.sql
+
+      - name: Egg pacing spec (egg_pacing_check.sql)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/egg_pacing_check.sql
+
+      - name: Drop distribution (distribution_check.sql)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/distribution_check.sql

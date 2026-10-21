@@ -1,0 +1,350 @@
+name: DB Apply 0018 (egg pacing bands)
+
+# 0018（たまごの孵化ペースと5段階 / 評価制 ◎○△・計測なし・ふだんのSNS時間 R・
+# 2日目「残り全部」）をライブ DB(moffy-prod)へ **1トランザクションで** 適用する。
+#
+#   DDL   profiles.usual_minutes / usual_minutes_source / usual_minutes_updated_at
+#         usage_daily.is_measured（default true = 既存行は計測あり扱い）
+#   設定  app_config: egg_thresholds(+stages) / daily_bands / usual_minutes_default /
+#         usual_minutes_choices / warmup_grants / streak_multipliers / daily_point_cap
+#   関数  fn_submit_and_finalize_day（5引数化・旧4引数版は drop）/ fn_finalize_day（評価制）/
+#         fn_claim_warmup（2日目=残り全部）/ quest_condition_met（is_measured）/
+#         fn_set_usual_minutes（新設）
+#
+# ⚠️ アプリとの適用順: **DB を先に適用してから、両ストアの新アプリを公開する**。
+#   新アプリは p_is_measured を送る。関数が5引数になっていないと PostgREST が 404 を返し
+#   提出が失敗する。逆に DB だけ先に当てても、公開中の 1.2.1 は4引数で呼び続けられる
+#   （新引数にはデフォルトがある）。ただし旧アプリの端末側の暫定表示（分×倍率）は
+#   確定値（◎/○/△）と食い違うので、**当てたら同日中にアプリを公開する**。
+#
+# ⚠️ 取り消しにくい変更: 旧4引数版 fn_submit_and_finalize_day の drop と、app_config の
+#   7キーの上書き。関数の旧定義と app_config の旧値は適用前に ops スキーマへ保存する
+#   （ロールバック手順は 0018 のヘッダ ①〜⑥。ops.snap_0018_functions の def を流せば
+#   関数は戻る。grant/revoke だけは手で再掲）。
+#
+# ⚠️ `gh workflow run` は送った瞬間に始まり、拒否しても止まらない（ORG_STATE 教訓1）。
+#   誤起動を防ぐため、入力 confirm に "apply-0018" と打たないと何もせず終わる。
+#
+# 冪等: add column if not exists / create or replace / drop if exists / on conflict do update /
+#       revoke・grant は再実行安全。ops のスナップショットは if not exists なので初回の値が残る。
+# 接続は Secret SUPABASE_DB_URL。前提: 0001〜0017 は適用済み（db-apply-v11 まで）。手動実行のみ。
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '本番 DB に 0018 を適用します。意思確認として apply-0018 と入力'
+        required: true
+        type: string
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm (誤起動ガード)
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "apply-0018" ]; then
+            echo "::error::confirm が apply-0018 ではありません（入力: '$CONFIRM'）。何もせず終了します。"
+            exit 1
+          fi
+          echo "confirm OK"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check secret present
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret が未設定です。"
+            exit 1
+          fi
+          psql --version
+
+      # --- 前提の確認: 0011 / 0012 / 0016 / 0017 が入っていること -----------------
+      # 0018 は 0011 の提出RPC・0016 の fn_finalize_day / fn_claim_warmup・0015 の
+      # quest_condition_met を**全文置換**する。土台が無い DB に当てると、置換で
+      # 以前の修正（基準値の fail-closed・発生源キー）が巻き戻った状態になる。
+      - name: Gate (前提マイグレーションの確認)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            -- 0011: 提出RPC。再実行（既に 0018 適用済み）なら5引数版が居るのでそれも許す。
+            if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is null
+               and to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text,boolean)') is null then
+              raise exception '適用中止: 0011 が未適用（fn_submit_and_finalize_day が無い）。先に db-apply-0011 を実行すること。';
+            end if;
+            -- 0012: 確定日だけを母数にするガード（0016/0018 も同じ文字列を保つ）。
+            if coalesce((select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                          where n.nspname='public' and p.proname='fn_finalize_day'), '')
+               not like '%and is_finalized = true%' then
+              raise exception '適用中止: 0012 が未適用、または fn_finalize_day が存在しない。';
+            end if;
+            -- 0016: 4引数版 fn_apply_growth（発生源キー）。0018 の関数はこれを呼ぶ。
+            if to_regprocedure('public.fn_apply_growth(uuid,integer,date,text)') is null then
+              raise exception '適用中止: 0016 が未適用（4引数版 fn_apply_growth が無い）。先に db-apply-v11 を実行すること。';
+            end if;
+            -- 0017: 進化名の列（v1.1 の最後）。
+            if not exists (select 1 from information_schema.columns
+                            where table_schema='public' and table_name='mofi_species'
+                              and column_name='evolved_name') then
+              raise exception '適用中止: 0017 が未適用（mofi_species.evolved_name が無い）。';
+            end if;
+            raise notice '=== 前提ゲート PASS（0011/0012/0016/0017 適用済み）===';
+          end $$;
+          SQL
+
+      # --- 適用前の可視化: 件数だけ（PUBLIC リポジトリ。ID・残高は出さない） ----------
+      - name: Inspect before apply (件数のみ・失敗させない)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          echo "### 初日で止まっている初回ボーナス卵（growth=200 / 育成中）= 2日目「残り全部」で孵る候補"
+          psql "$DB_URL" -c "select count(*) filter (where growth_points = 200) as stuck_200, count(*) as starter_incubating from public.eggs where acquired_source='starter' and location='incubating';" || true
+          echo "### 計測ゼロで確定していた日（iOS の幻の 30pt が出ていた日）の件数。0018 以降は 0pt になる"
+          psql "$DB_URL" -c "select source_mode, count(*) from public.usage_daily where is_finalized and total_minutes = 0 group by 1 order by 1;" || true
+          echo "### app_config の現在値（上書き対象の 7 キー）"
+          psql "$DB_URL" -c "select key, value from public.app_config where key in ('egg_thresholds','daily_bands','usual_minutes_default','usual_minutes_choices','warmup_grants','streak_multipliers','daily_point_cap') order by key;" || true
+
+      # 残高・卵の成長度は「1ptも動かさない」ことが 0018 の約束（データ行への UPDATE は無い）。
+      # 適用の前後で突き合わせる。スナップショットは runner のローカル（行数だけログに出す）。
+      - name: Snapshot BEFORE (runner ローカルのみ / 公開しない)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -At -F '|' \
+            -c "select id, point_balance, pooled_points, gem_balance from public.profiles order by id;" \
+            > /tmp/balances_before.txt
+          psql "$DB_URL" -At -F '|' \
+            -c "select id, growth_points, location, is_active from public.eggs order by id;" \
+            > /tmp/eggs_before.txt
+          echo "### 取得できた行数だけを出す（ID・残高は公開ログに出さない）"
+          wc -l /tmp/balances_before.txt /tmp/eggs_before.txt
+
+      # --- 本体: 1トランザクションで適用 -------------------------------------------
+      # 先に DB の中（ops スキーマ）へ「戻すための材料」を残す:
+      #   * 旧関数4本の定義（pg_get_functiondef）… ロールバック②③④はこれを流す
+      #   * app_config の旧値 … ロールバック⑤
+      #   * 残高・卵 … 事後調査
+      # lock_timeout: add column が profiles / usage_daily に ACCESS EXCLUSIVE を取る。
+      #   取得待ちは 5 秒で諦めて全体をロールバックする（本番の通常操作を巻き込まない）。
+      - name: Apply 0018 (single transaction)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 --single-transaction \
+            -c "set lock_timeout = '5s'; set statement_timeout = '180s';" \
+            -c "create schema if not exists ops; \
+                revoke all on schema ops from public, anon, authenticated; \
+                create table if not exists ops.snap_0018_functions as \
+                  select p.proname, pg_get_function_identity_arguments(p.oid) as args, \
+                         pg_get_functiondef(p.oid) as def, now() as taken_at \
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace \
+                   where n.nspname = 'public' \
+                     and p.proname in ('fn_submit_and_finalize_day','fn_finalize_day','fn_claim_warmup','quest_condition_met'); \
+                create table if not exists ops.snap_0018_app_config as \
+                  select key, value, description, now() as taken_at from public.app_config \
+                   where key in ('egg_thresholds','daily_bands','usual_minutes_default','usual_minutes_choices','warmup_grants','streak_multipliers','daily_point_cap'); \
+                create table if not exists ops.snap_0018_balances as \
+                  select id, point_balance, pooled_points, gem_balance, now() as taken_at from public.profiles; \
+                create table if not exists ops.snap_0018_eggs as \
+                  select id, user_id, growth_points, location, is_active, acquired_source, now() as taken_at from public.eggs; \
+                revoke all on all tables in schema ops from public, anon, authenticated;" \
+            -f supabase/migrations/0018_egg_pacing_bands.sql
+
+      # --- 前後比較（異常判定ではなく、人間が見る材料） ------------------------------
+      # ⚠️ ここを exit 1 にしてはいけない。適用は既に COMMIT 済み。落としても何も戻らない。
+      #    両ストア公開中は、適用中に走った実ユーザーの通常操作だけで差分が出る＝偽陽性が常態。
+      - name: Compare balances and eggs (warning only)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -At -F '|' \
+            -c "select id, point_balance, pooled_points, gem_balance from public.profiles order by id;" \
+            > /tmp/balances_after.txt
+          psql "$DB_URL" -At -F '|' \
+            -c "select id, growth_points, location, is_active from public.eggs order by id;" \
+            > /tmp/eggs_after.txt
+          for pair in balances eggs; do
+            if diff -u /tmp/${pair}_before.txt /tmp/${pair}_after.txt > /tmp/${pair}_diff.txt; then
+              echo "=== $pair は1行も動いていない ==="
+            else
+              echo "::warning::$pair に差分がある。0018 はデータ行を1つも書かないので、通常は適用中の実ユーザー操作（日次確定 / warmup 受取 / 孵化 / 新規サインイン）による正当な変化。"
+              echo "差分の行数（内容は PUBLIC リポジトリのログに出さない）:"
+              wc -l < /tmp/${pair}_diff.txt
+              echo "※ 全行と同じ行数なら異常。数行〜数十行なら通常トラフィック。中身は Supabase の SQL エディタで ops.snap_0018_* と突き合わせること。"
+            fi
+          done
+
+      # ⚠️ 必ず「失敗したら落ちる」形にすること（単なる select は false でも緑になる）。
+      - name: Verify (関数・列・権限・設定値の検査)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_fail int := 0;
+            v_src  text;
+            v_cfg  jsonb;
+          begin
+            -- ============ 提出RPC: 5引数版のみ ============
+            if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text,boolean)') is null then
+              raise warning '[FAIL] 5引数版 fn_submit_and_finalize_day が無い';
+              v_fail := v_fail + 1;
+            elsif not has_function_privilege('authenticated','public.fn_submit_and_finalize_day(date,integer,jsonb,text,boolean)','execute') then
+              raise warning '[FAIL] authenticated が提出RPC を実行できない（提出経路が死ぬ）';
+              v_fail := v_fail + 1;
+            elsif has_function_privilege('anon','public.fn_submit_and_finalize_day(date,integer,jsonb,text,boolean)','execute') then
+              raise warning '[FAIL] anon が提出RPC を実行できる';
+              v_fail := v_fail + 1;
+            end if;
+            if to_regprocedure('public.fn_submit_and_finalize_day(date,integer,jsonb,text)') is not null then
+              raise warning '[FAIL] 旧4引数版 fn_submit_and_finalize_day が残っている（PostgREST の解決が曖昧になる）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- ============ fn_set_usual_minutes（新設） ============
+            if to_regprocedure('public.fn_set_usual_minutes(integer)') is null then
+              raise warning '[FAIL] fn_set_usual_minutes が無い';
+              v_fail := v_fail + 1;
+            elsif not has_function_privilege('authenticated','public.fn_set_usual_minutes(integer)','execute')
+               or has_function_privilege('anon','public.fn_set_usual_minutes(integer)','execute') then
+              raise warning '[FAIL] fn_set_usual_minutes の権限が authenticated=可 / anon=不可 になっていない';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- ============ fn_finalize_day（評価制） ============
+            v_src := coalesce((select prosrc from pg_proc where oid = to_regprocedure('public.fn_finalize_day(date)')), '');
+            if v_src = '' then
+              raise warning '[FAIL] fn_finalize_day(date) が無い';
+              v_fail := v_fail + 1;
+            else
+              if v_src not like '%daily_bands%' or v_src not like '%is_measured = true%' then
+                raise warning '[FAIL] fn_finalize_day が評価制（daily_bands / is_measured）になっていない';
+                v_fail := v_fail + 1;
+              end if;
+              if v_src like '%streak_multiplier(%' or v_src like '%v_floor_min%' then
+                raise warning '[FAIL] fn_finalize_day に旧ロジック（連続倍率 / 基準値クランプ）が残っている';
+                v_fail := v_fail + 1;
+              end if;
+              if v_src not like '%and is_finalized = true%' then
+                raise warning '[FAIL] fn_finalize_day から 0012 の is_finalized=true が消えた';
+                v_fail := v_fail + 1;
+              end if;
+              if has_function_privilege('authenticated','public.fn_finalize_day(date)','execute') then
+                raise warning '[FAIL] authenticated が本体 fn_finalize_day を直接実行できる（0012 の剥奪が巻き戻った）';
+                v_fail := v_fail + 1;
+              end if;
+            end if;
+
+            -- ============ fn_claim_warmup（2日目=残り全部） ============
+            v_src := coalesce((select prosrc from pg_proc where oid = to_regprocedure('public.fn_claim_warmup(integer)')), '');
+            if v_src not like '%top_up%' then
+              raise warning '[FAIL] fn_claim_warmup が「残り全部」（top_up）になっていない';
+              v_fail := v_fail + 1;
+            end if;
+            if not has_function_privilege('authenticated','public.fn_claim_warmup(integer)','execute') then
+              raise warning '[FAIL] authenticated が fn_claim_warmup を実行できない（初回ボーナスが死ぬ）';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- ============ quest_condition_met（reduce_total は is_measured） ============
+            v_src := coalesce((select prosrc from pg_proc where oid = to_regprocedure('public.quest_condition_met(uuid, jsonb, public.quest_kind, date)')), '');
+            if v_src not like '%v_measured is not true%' then
+              raise warning '[FAIL] quest_condition_met の reduce_total が is_measured を見ていない';
+              v_fail := v_fail + 1;
+            end if;
+            if v_src like '%v_today = 0 and v_source_mode%' then
+              raise warning '[FAIL] quest_condition_met に 0015 の「iOS の 0 分は一律未達」が残っている（計測ありの 0 分が未達になる）';
+              v_fail := v_fail + 1;
+            end if;
+            if has_function_privilege('authenticated','public.quest_condition_met(uuid, jsonb, public.quest_kind, date)','execute') then
+              raise warning '[FAIL] authenticated が quest_condition_met を直接実行できる';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- ============ 列: 存在し、クライアントから書けない ============
+            if (select count(*) from information_schema.columns
+                 where table_schema='public' and table_name='profiles'
+                   and column_name in ('usual_minutes','usual_minutes_source','usual_minutes_updated_at')) <> 3 then
+              raise warning '[FAIL] profiles.usual_minutes* の列が揃っていない';
+              v_fail := v_fail + 1;
+            end if;
+            if not exists (select 1 from information_schema.columns
+                            where table_schema='public' and table_name='usage_daily' and column_name='is_measured') then
+              raise warning '[FAIL] usage_daily.is_measured が無い';
+              v_fail := v_fail + 1;
+            end if;
+            if has_column_privilege('authenticated','public.profiles'::regclass,'usual_minutes','UPDATE')
+               or has_column_privilege('authenticated','public.profiles'::regclass,'usual_minutes_source','UPDATE') then
+              raise warning '[FAIL] authenticated が profiles.usual_minutes を直接更新できる（R を吊り上げて ◎ を広げられる）';
+              v_fail := v_fail + 1;
+            end if;
+            if has_column_privilege('authenticated','public.usage_daily'::regclass,'is_measured','UPDATE')
+               or has_column_privilege('authenticated','public.usage_daily'::regclass,'is_measured','INSERT') then
+              raise warning '[FAIL] authenticated が usage_daily.is_measured を直接書ける';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- ============ app_config の値 ============
+            v_cfg := (select value from public.app_config where key = 'egg_thresholds');
+            if v_cfg -> 'stages' is distinct from '[0,100,200,300,500]'::jsonb or (v_cfg ->> 'hatch')::int <> 500 then
+              raise warning '[FAIL] egg_thresholds が設計値（stages 0/100/200/300/500・hatch 500）でない: %', v_cfg;
+              v_fail := v_fail + 1;
+            end if;
+            if (select (value)::text::int from public.app_config where key = 'daily_point_cap') <> 100 then
+              raise warning '[FAIL] daily_point_cap が 100 でない';
+              v_fail := v_fail + 1;
+            end if;
+            if (select value from public.app_config where key = 'warmup_grants') is distinct from '{"day1":300,"day2":200}'::jsonb then
+              raise warning '[FAIL] warmup_grants が {day1:300, day2:200} でない';
+              v_fail := v_fail + 1;
+            end if;
+            if exists (select 1 from jsonb_array_elements((select value from public.app_config where key = 'streak_multipliers')) t
+                        where (t ->> 'mult')::numeric <> 1.0) then
+              raise warning '[FAIL] streak_multipliers に ×1.0 以外が残っている（倍率廃止が効いていない）';
+              v_fail := v_fail + 1;
+            end if;
+            v_cfg := (select value from public.app_config where key = 'daily_bands');
+            if v_cfg is null or (v_cfg -> 'great' ->> 'points')::int <> 100 or (v_cfg -> 'good' ->> 'points')::int <> 70 then
+              raise warning '[FAIL] daily_bands が設計値（◎100 / ○70）でない: %', v_cfg;
+              v_fail := v_fail + 1;
+            end if;
+            if (select value from public.app_config where key = 'usual_minutes_choices') is distinct from '[30,60,120,180,300]'::jsonb then
+              raise warning '[FAIL] usual_minutes_choices が設計値でない';
+              v_fail := v_fail + 1;
+            end if;
+
+            -- ============ 戻すための材料が残っていること ============
+            if coalesce((select count(*) from ops.snap_0018_functions), 0) < 4 then
+              raise warning '[FAIL] ops.snap_0018_functions に旧関数4本の定義が無い（ロールバックの材料が無い）';
+              v_fail := v_fail + 1;
+            end if;
+            if coalesce((select count(*) from ops.snap_0018_app_config), 0) = 0 then
+              raise warning '[FAIL] ops.snap_0018_app_config が空（旧設定値が残っていない）';
+              v_fail := v_fail + 1;
+            end if;
+            if coalesce((select count(*) from ops.snap_0018_balances), 0) = 0 then
+              raise warning '[FAIL] ops.snap_0018_balances が空（適用前スナップショットが取れていない）';
+              v_fail := v_fail + 1;
+            end if;
+
+            if v_fail > 0 then
+              raise exception '0018 DB適用の検証 失敗（% 件）', v_fail;
+            end if;
+            raise notice '=== 0018 DB適用の検証 PASS ===';
+          end $$;
+          SQL
+
+      - name: Next steps
+        run: |
+          echo "✅ 0018 を適用しました。次にやること:"
+          echo "  1. 「DB Permission Check」を実行して権限グリッド全体を再確認する（0018 の期待値に更新済み）"
+          echo "  2. 両ストアの新アプリ（評価制 ◎○△ / 5段階）を**同日中に**公開する"
+          echo "  3. 落ち着いたら ops.snap_0018_* を drop する（退会ユーザーの物理削除が ops に届かないため）"

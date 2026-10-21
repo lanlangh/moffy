@@ -8,6 +8,7 @@
 library;
 
 import '../../../core/constants/economy.dart';
+import '../../../core/widgets/egg_art.dart';
 import '../../collection/domain/mofi_models.dart';
 
 /// 卵レアリティ（migration: egg_rarity enum / §4-4）。
@@ -50,37 +51,88 @@ class StorageFullException implements Exception {
   String toString() => 'StorageFullException';
 }
 
-/// 卵の成長段階（§4-5: ヒビ①100 / ヒビ②250 / 孵化500）。
+/// 卵の成長段階（0018 / 5段階: 0 / 100 / 200 / 300 / 500pt）。
+///
+/// 区切りは [EggThresholds.stages]（`app_config.egg_thresholds.stages` / SSOT）から決める。
+/// 以前の4値（intact / crack1 / crack2 / ready）は「ヒビなし → ヒビが伸びる」の実質2段階で、
+/// 日ごとの違いが見えなかった（docs/design/EGG_PACING_DESIGN.md §4）。
 enum EggGrowthStage {
-  /// 0〜99pt: ヒビなし。
-  intact,
+  /// S1 しろいたまご（0〜99pt）。何が生まれるか分からない＝レア度を隠す。
+  blank,
 
-  /// 100〜249pt: ヒビ①。
-  crack1,
+  /// S2 もよう（100〜199pt）。レア度の色と模様が浮かぶ。
+  pattern,
 
-  /// 250〜499pt: ヒビ②。
-  crack2,
+  /// S3 ヒビ（200〜299pt）。
+  crack,
 
-  /// 500pt〜: 孵化可能。
+  /// S4 ひかり（300〜499pt）。400pt から光が強まる（[EggGrowthStage.isStrongGlow]）。
+  glow,
+
+  /// S5 うまれる！（500pt〜）。孵化可能。
   ready;
 
-  /// 表示ラベル（卵詳細のヒビ段階表示 / SCREEN_FLOWS §3）。
+  /// 表示ラベル（吹き出し・卵詳細の段階表示）。
   String get label => switch (this) {
-        EggGrowthStage.intact => 'たまご',
-        EggGrowthStage.crack1 => 'ヒビ①',
-        EggGrowthStage.crack2 => 'ヒビ②',
-        EggGrowthStage.ready => '孵化可能',
+        EggGrowthStage.blank => 'しろいたまご',
+        EggGrowthStage.pattern => 'もよう',
+        EggGrowthStage.crack => 'ヒビ',
+        EggGrowthStage.glow => 'ひかり',
+        EggGrowthStage.ready => 'うまれる！',
       };
 
-  /// 累積成長pt + 経済パラメータ（しきい値SSOT）から段階を判定する。
-  /// しきい値は [EconomyParams.eggThresholds] 経由（マジックナンバー禁止 / ARCHITECTURE §0-1）。
-  static EggGrowthStage of(int growthPoints, EconomyParams params) {
-    final t = params.eggThresholds;
-    if (growthPoints >= t.hatch) return EggGrowthStage.ready;
-    if (growthPoints >= t.crack2) return EggGrowthStage.crack2;
-    if (growthPoints >= t.crack1) return EggGrowthStage.crack1;
-    return EggGrowthStage.intact;
+  /// 段階が上がった瞬間のひとこと（§4-2）。
+  String get stageUpLine => switch (this) {
+        EggGrowthStage.blank => 'なにが うまれるかな？',
+        EggGrowthStage.pattern => 'もようが うかんできた！',
+        EggGrowthStage.crack => 'ピキッ！',
+        EggGrowthStage.glow => 'ヒビから ひかりが…もうすぐ うまれそう',
+        EggGrowthStage.ready => 'うまれる！',
+      };
+
+  /// レア度を隠す段階か（S1 は「なぞのたまご」）。
+  bool get hidesRarity => this == EggGrowthStage.blank;
+
+  /// 見た目（[EggArt] に渡す段階）。S4 は [strong] で「強まる」に切り替わる。
+  EggLook look({bool strong = false}) => switch (this) {
+        EggGrowthStage.blank => EggLook.blank,
+        EggGrowthStage.pattern => EggLook.pattern,
+        EggGrowthStage.crack => EggLook.crack,
+        EggGrowthStage.glow => strong ? EggLook.glowStrong : EggLook.glow,
+        EggGrowthStage.ready => EggLook.ready,
+      };
+
+  /// 累積成長pt ＋ しきい値（SSOT）から段階を判定する。
+  ///
+  /// `stages` の長さが 5 でない設定でも落ちない: 先頭＝blank、末尾＝ready、
+  /// 間は順に pattern / crack / glow へ割り当てる（余れば glow）。
+  static EggGrowthStage fromThresholds(int growthPoints, EggThresholds t) {
+    final idx = t.stageIndexOf(growthPoints);
+    final last = t.stages.length - 1;
+    if (idx >= last) return EggGrowthStage.ready;
+    if (idx <= 0) return EggGrowthStage.blank;
+    return switch (idx) {
+      1 => EggGrowthStage.pattern,
+      2 => EggGrowthStage.crack,
+      _ => EggGrowthStage.glow,
+    };
   }
+
+  /// [fromThresholds] の経済パラメータ版。
+  static EggGrowthStage of(int growthPoints, EconomyParams params) =>
+      fromThresholds(growthPoints, params.eggThresholds);
+
+  /// S4 の「強まる」（400pt〜 / [EggThresholds.glowStrongAt]）か。
+  static bool isStrongGlow(int growthPoints, EggThresholds t) =>
+      fromThresholds(growthPoints, t) == EggGrowthStage.glow &&
+      growthPoints >= t.glowStrongAt;
+
+  /// 「最後に見た段階」として端末に保存する値（0..5 / [EggLook.step] と同じ）。
+  /// S4 の「強まる」も 1 段として数える（§4-3）。
+  static int visualStep(int growthPoints, EggThresholds t) =>
+      fromThresholds(growthPoints, t)
+          .look(strong: isStrongGlow(growthPoints, t))
+          .step;
 }
 
 /// ユーザーの卵（migration: eggs）。
@@ -88,7 +140,7 @@ class Egg {
   final String id;
   final EggRarity rarity;
 
-  /// 累積成長pt（§4-5: 100=ヒビ① / 250=ヒビ② / 500=孵化）。
+  /// 累積成長pt（0018: 0/100/200/300 で段階が変わり、500 で孵化）。
   final int growthPoints;
   final EggLocation location;
 
@@ -115,11 +167,31 @@ class Egg {
   EggGrowthStage stage(EconomyParams params) =>
       EggGrowthStage.of(growthPoints, params);
 
+  /// S4 の「強まる」か。
+  bool isStrongGlow(EconomyParams params) =>
+      EggGrowthStage.isStrongGlow(growthPoints, params.eggThresholds);
+
+  /// 見た目（[EggArt] 用）。
+  EggLook look(EconomyParams params) =>
+      stage(params).look(strong: isStrongGlow(params));
+
+  /// 「最後に見た段階」の値（0..5）。
+  int visualStep(EconomyParams params) =>
+      EggGrowthStage.visualStep(growthPoints, params.eggThresholds);
+
   /// 孵化までの進捗 0.0〜1.0。
   double progress(EconomyParams params) {
     final hatch = params.eggThresholds.hatch;
     return hatch <= 0 ? 0 : (growthPoints / hatch).clamp(0.0, 1.0);
   }
+
+  /// いまの段階の中での進捗 0.0〜1.0（進捗バー用 / §4-5）。
+  double stageProgress(EconomyParams params) =>
+      params.eggThresholds.stageProgressOf(growthPoints);
+
+  /// つぎの変化まで残りpt（孵化可能なら 0）。
+  int remainingToNextStage(EconomyParams params) =>
+      params.eggThresholds.remainingToNextStage(growthPoints);
 
   /// 孵化まで残りpt。
   int remaining(EconomyParams params) {
@@ -131,11 +203,10 @@ class Egg {
   bool canHatch(EconomyParams params) =>
       growthPoints >= params.eggThresholds.hatch;
 
-  /// 孵化間近（巣リング微発光・残50pt以内 / SCREEN_FLOWS §2, S9と同基準）。
-  bool isNearHatch(EconomyParams params) {
-    final r = remaining(params);
-    return r <= 50 && r > 0;
-  }
+  /// 孵化間近（巣リング微発光のトリガ / SCREEN_FLOWS §2）。
+  /// 0018: 残50pt ではなく **S4 の「強まる」（400pt〜）** に置き換えた（§4-2）。
+  bool isNearHatch(EconomyParams params) =>
+      isStrongGlow(params) && !canHatch(params);
 
   factory Egg.fromJson(Map<String, Object?> j) => Egg(
         id: j['id']! as String,
