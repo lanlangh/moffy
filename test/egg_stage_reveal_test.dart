@@ -169,8 +169,9 @@ void main() {
       // 0.5秒ホールド → 浮かび上がり開始（アニメーションの 0 秒目は次のフレーム）。
       await advance(tester, 600);
       expect(find.text('もようが うかんできた！'), findsNothing);
-      // 1.2秒かけて浮かび上がる → 完了の合図（チップ）は、その次のフレームで出る。
-      await advance(tester, 1200);
+      // 1.2秒かけて浮かび上がる。完了判定は「1.2秒を超えたフレーム」で起き、
+      // 完了の合図（チップ）はその次のフレームで出る。
+      await advance(tester, 1250);
       await tester.pump();
       expect(find.text('もようが うかんできた！'), findsOneWidget);
       expect(find.text('レアのたまご！'), findsOneWidget);
