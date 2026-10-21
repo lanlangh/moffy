@@ -6,7 +6,6 @@ import '../../../core/observability/analytics_events.dart';
 import '../../../core/observability/log.dart';
 import '../../../core/observability/observability_providers.dart';
 import '../../../core/sync/connectivity_provider.dart';
-import '../../../core/sync/daily_submission.dart';
 import '../../../core/sync/day_finalized_tick.dart';
 import '../../../core/sync/finalize_models.dart';
 import '../../../core/usage/usage_provider.dart';
@@ -89,13 +88,12 @@ class HomeController extends AsyncNotifier<HomeState> {
 
     // きのうの結果。
     // 「きのう」はサーバーの経済日付（profiles.timezone＝Asia/Tokyo に正規化 / 0011）で決まる。
-    // 提出処理がサーバーに問い合わせた「確定すべき日」をそのまま使い、まだ無ければ JST の暦日で
-    // 代用する。端末ローカルの「昨日」は使わない（第三者レビュー: 海外滞在・TZ 変更・時計ずれで
-    // 別の日を引き「開かなかった」と誤表示し得た）。
+    // リポジトリが読み込むたびにサーバーへ「確定すべき日」を聞き直す（端末ローカルの「昨日」は
+    // 使わない。第三者レビュー: 海外滞在・TZ 変更・時計ずれで別の日を引き「開かなかった」と
+    // 誤表示し得た / 値を持ち回ると日跨ぎで古くなる）。聞けないときの代用だけ JST の暦日。
     // 初日判定もローカルの初回起動日だけで決めず、再インストール等で結果があればそちらを優先。
-    final serverTarget = ref.watch(pendingTargetDateProvider);
     final yesterday = await repo.loadYesterdayResult(
-      date: serverTarget ?? _jstToday(now).subtract(const Duration(days: 1)),
+      fallbackDate: _jstToday(now).subtract(const Duration(days: 1)),
       usualMinutes: usualMinutes,
       params: params,
       localFirstDay: day == 1,
@@ -156,8 +154,8 @@ class HomeController extends AsyncNotifier<HomeState> {
     // null = Mock/オフライン/エラー（no-op）。再試行は次回ロードで可能（生涯1回キー）。
     if (res == null) return null;
     if (day == 2 && (res.granted > 0 || res.alreadyClaimed)) {
-      // 付与済み。初回ボーナス卵が孵化可能なまま（残り0）で付与が 0 のときは記録しない
-      // ＝孵化後に開いた日に warmup_grants.day2 がアクティブ卵へ入る（設計書 §3-3）。
+      // 付与した、または「もう付与しない」（受取済み／生涯上限／残り全部が 0 = 初回ボーナス卵が
+      // 既に孵化できる）。どちらも終端なので記録し、以後の起動で day2 を呼ばない（0018）。
       await tracker.markDay2Claimed();
     }
     // 新規付与（granted>0）でのみ祝福を出す。冪等スキップ（既受取）は通常ホーム。

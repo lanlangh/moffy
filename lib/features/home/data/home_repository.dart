@@ -6,6 +6,7 @@ import '../../../core/observability/log.dart';
 import '../../../core/providers/supabase_provider.dart';
 import '../../../core/sync/connectivity_provider.dart';
 import '../../../core/sync/finalize_models.dart';
+import '../../../core/sync/usage_sync_repository.dart';
 import '../../../core/usage/day_band.dart';
 import '../../../core/usage/usage_models.dart';
 import '../../../core/usage/usage_providers.dart';
@@ -132,8 +133,13 @@ class HomeRepository {
   /// `usage_daily`（提出・確定の有無・計測の有無）と `point_ledger`（卵に入った pt と評価）を
   /// 本人 select で読む。行が無ければ null（＝その日は開かなかった / 初日）。
   /// 確定済みなのに台帳の評価が無い（0018 以前に確定した日）は、R から評価を再計算して出す。
+  ///
+  /// 「きのう」はサーバーに聞く（`fn_pending_finalize_date` が返す「確定すべき日」= サーバー基準の
+  /// 前日 / 0011）。端末の時計・TZ で計算した日とサーバーが確定した日が食い違うと、結果があるのに
+  /// 「開かなかった」と出る。読み込むたびに聞き直すので、値を持ち回って日跨ぎで古くなることもない。
+  /// 聞けないときだけ [fallbackDate]（JST の暦日から出した代用）で引く。
   Future<YesterdayResult?> loadYesterdayResult({
-    required DateTime date,
+    required DateTime fallbackDate,
     required int usualMinutes,
     required EconomyParams params,
     bool localFirstDay = false,
@@ -141,9 +147,10 @@ class HomeRepository {
     // モック/プレビューにはサーバーが無いので、ローカル初日は「結果なし」にして
     // 初日の文言（きょうが1日目）を見られるようにする。本番はサーバーの行の有無で決まる。
     if (!Env.useSupabase) {
-      return localFirstDay ? null : _mockYesterday(date, params);
+      return localFirstDay ? null : _mockYesterday(fallbackDate, params);
     }
     if (!_ref.read(isOnlineProvider)) return null;
+    final date = await _serverYesterday(fallbackDate);
     try {
       final client = _ref.read(supabaseClientProvider);
       final key = _dateKey(date);
@@ -212,6 +219,18 @@ class HomeRepository {
       // 記録なし表示に倒す）。
       Log.e('loadYesterdayResult failed', error: e, stack: st);
       return null;
+    }
+  }
+
+  /// サーバーの「確定すべき日」（= きのう）。取れなければ [fallbackDate]。
+  Future<DateTime> _serverYesterday(DateTime fallbackDate) async {
+    try {
+      final pending =
+          await _ref.read(usageSyncRepositoryProvider).pendingFinalizeDate();
+      return pending?.targetDate ?? fallbackDate;
+    } catch (e, st) {
+      Log.e('pendingFinalizeDate for yesterday failed', error: e, stack: st);
+      return fallbackDate;
     }
   }
 

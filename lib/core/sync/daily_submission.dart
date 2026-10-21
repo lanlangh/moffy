@@ -72,8 +72,6 @@ class DailySubmissionService {
       // 1. 対象日をサーバーに聞く（S4: 日付境界の正はサーバー時刻 + ユーザーTZ）。
       final pending = await repo.pendingFinalizeDate();
       if (pending == null) return; // 実DB無し（モック）＝提出しない。
-      // ホームの「きのうの結果」もこの日（サーバー基準の前日）を引く（端末の時計・TZ に依存しない）。
-      _ref.read(pendingTargetDateProvider.notifier).set(pending.targetDate);
       if (pending.alreadyFinalized) return; // 既に確定済み＝何もしない。
 
       final usageProvider = _ref.read(usageProviderProvider);
@@ -152,21 +150,6 @@ class DailySubmissionService {
     }
   }
 }
-
-/// サーバーが最後に答えた「確定すべき日」（= サーバー基準の前日 / 0011 `fn_pending_finalize_date`）。
-///
-/// ホームの「きのうの結果」はこの日を引く（0018 §4-5）。端末の時計や TZ で「昨日」を計算すると、
-/// サーバーが確定した日と食い違う（第三者レビュー: 海外滞在・TZ 変更・時計ずれ）。
-/// まだ問い合わせていない（起動直後・オフライン・モック）間は null で、その間は JST の暦日で代用する。
-class PendingTargetDate extends Notifier<DateTime?> {
-  @override
-  DateTime? build() => null;
-
-  void set(DateTime date) => state = date;
-}
-
-final pendingTargetDateProvider =
-    NotifierProvider<PendingTargetDate, DateTime?>(PendingTargetDate.new);
 
 /// 実バックエンドへ提出してよい環境か（ARCHITECTURE §1-3 / テストで override 可能）。
 ///
