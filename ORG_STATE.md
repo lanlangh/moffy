@@ -64,9 +64,9 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 | 検証 | Flutter テスト（`ci.yml`）。**新ワークフロー `DB SQL Test`**＝PR ごとに CI の中の素の PostgreSQL へ `local_auth_stub.sql` → 0001〜0018 を流し、`permission_check.sql`・`egg_pacing_check.sql`・`distribution_check.sql` を実行（**本番に触れない**）。初回で緑 |
 | 本番適用 | `DB Apply 0018`（手動。**main からだけ**動く・入力欄に `apply-0018` と打たないと動かない・GitHub Environment `production` に紐づく・1トランザクション・適用前に `ops.snap_0018_functions / snap_0018_app_config` へ旧関数4本の定義と旧設定値を保存（残高・卵などの個人データは DB に残さない）・検証ブロック付き） |
 
-**設計書から決めた点（オーナー確認待ち）**: ①クエスト `reduce_total` は `is_measured` で判定（計測ありの iOS 0分は達成、計測なしは未達）②R の上方修正は「計測ありの確定日が7日たまったら直近7日の中央値、その日は修正前の R で評価」③2日目ボーナスは3経路（`day1`／育成中の初回ボーナス卵へ残り全部 `top_up`／孵化済みなら200をアクティブ卵へ `active`）④「光が強まる」点は区切りから導出（最後の区間の中間＝400）⑤**初回ボーナスの生涯合計は hatch（500）まで**（Codex の指摘: 0pt の初回ボーナス卵がある状態で day2→day1 の順に RPC を叩くと 800 になった。台帳の `warmup` 合計で上限＋profiles 行ロック）⑥ホームの「きのう」はサーバーの対象日（`fn_pending_finalize_date`）を使う（端末 TZ・時計に依存しない）。
+**設計書から決めた点（オーナー確認待ち）**: ①クエスト `reduce_total` は `is_measured` で判定（計測ありの iOS 0分は達成、計測なしは未達）②R の上方修正は「計測ありの確定日が7日たまったら直近7日の中央値、その日は修正前の R で評価」③2日目ボーナスは3経路（`day1`／育成中の初回ボーナス卵へ残り全部 `top_up`／孵化済みなら200をアクティブ卵へ `active`）④「光が強まる」点は区切りから導出（最後の区間の中間＝400）⑤**初回ボーナスの生涯合計は hatch（500）まで**（Codex の指摘: 0pt の初回ボーナス卵がある状態で day2→day1 の順に RPC を叩くと 800 になった。台帳の `warmup` 合計で上限＋profiles 行ロック）⑥ホームの「きのう」は読み込むたびにサーバーの対象日（`fn_pending_finalize_date`）を聞いて決める（端末 TZ・時計に依存しない。値を持ち回ると日跨ぎで古くなるので持ち回らない）。
 
-**Codex（別モデル）レビュー**: 1回目 4件（高2・中1・低1）→ 全部採用して修正 → 2回目 6件（解消2・採用4）→ 修正 → CI 緑。棄却 0。残る「保留」は GitHub Environment `production` の必須レビュアー設定（リポジトリ設定＝オーナー作業・任意）だけ。
+**Codex（別モデル）レビュー**: 1回目 4件（高2・中1・低1）→ 全部採用して修正 → 2回目 6件（解消2・採用4）→ 修正 → 3回目 2件（中1・低1）→ 修正 → CI 緑。棄却 0。残る「保留」は GitHub Environment `production` の必須レビュアー設定（リポジトリ設定＝オーナー作業・任意）だけ。
 
 **リリース順（厳守・DB が先）**: ①`DB Apply 0018` → ②`DB Permission Check` が緑 → ③両ストアへ新アプリ（同日中）。
 **ストア文言の修正が必要**: `docs/store/play_description.txt` 17行目「連続で続けると効率アップする『ストリーク』」と ASO スクショの「続けるほど、効率アップ」は倍率廃止で事実と違う。公開前に差し替える。
