@@ -255,6 +255,7 @@ declare
   u_hatched uuid := '00000000-0000-0000-0000-00000000a043';
   u_rev uuid := '00000000-0000-0000-0000-00000000a044';
   u_rev2 uuid := '00000000-0000-0000-0000-00000000a045';
+  u_done uuid := '00000000-0000-0000-0000-00000000a046';
   r jsonb;
   v_egg uuid;
   v_pts integer;
@@ -362,6 +363,24 @@ begin
     where user_id = u_rev2 and acquired_source = 'starter';
   if v_pts <> 500 then
     raise exception '[FAIL] 逆順（卵なし）でも初回ボーナス卵は 500 になるはず: %', v_pts;
+  end if;
+
+  -- 旧スキーム（day1=200 + day2=300）を受取済みで、初回ボーナス卵が 500 のまま未孵化の既存ユーザー:
+  -- day2 の「残り全部」は 0 なので何も付与せず、already_claimed=true を返す
+  -- （端末はこれで受取済みと記録し、起動のたびに呼び直さない / 第三者レビュー再確認 #4）。
+  perform pg_temp.t_user(u_done);
+  insert into public.eggs(user_id, rarity, growth_points, location, slot_index, is_active, acquired_source)
+    values (u_done, 'normal', 500, 'incubating', 1, true, 'starter');
+  insert into public.point_ledger(user_id, ledger_date, source, amount, idempotency_key, meta) values
+    (u_done, current_date - 40, 'warmup', 200, u_done::text || ':warmup:1', '{"day":1}'::jsonb),
+    (u_done, current_date - 39, 'warmup', 300, u_done::text || ':warmup:2', '{"day":2}'::jsonb);
+  r := public.fn_claim_warmup(2);
+  if (r->>'granted')::integer <> 0 or (r->>'already_claimed')::boolean is not true then
+    raise exception '[FAIL] 旧スキームで受取済みの day2 は 0 / already_claimed のはず: %', r;
+  end if;
+  if (select count(*) from public.point_ledger where user_id = u_done and source = 'warmup') <> 2
+     or (select growth_points from public.eggs where user_id = u_done and acquired_source = 'starter') <> 500 then
+    raise exception '[FAIL] 受取済みユーザーの台帳・卵が動いた';
   end if;
   raise notice '=== 5. 初回ボーナス（day1=300 / day2=残り全部 / 孵化済みは 200→アクティブ卵 / 逆順でも合計500）PASS ===';
 end $$;

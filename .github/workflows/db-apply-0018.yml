@@ -48,6 +48,11 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
+    # 本番 DB を書く job は GitHub Environment「production」に紐づける。
+    # リポジトリの Settings → Environments → production で「Required reviewers」を設定すると、
+    # 実行のたびに承認待ちになる（第三者レビュー #2）。Environment が無ければ初回実行時に
+    # 保護ルール無しで自動作成される（Secret はリポジトリ Secret のままでも読める）。
+    environment: production
     steps:
       - name: Guard (main 以外からは実行しない)
         run: |

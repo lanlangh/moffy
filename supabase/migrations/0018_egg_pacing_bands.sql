@@ -644,7 +644,6 @@ declare
   v_mode         text := 'day1';       -- ★0018: 'day1' / 'top_up' / 'active'
   v_target_egg   uuid;                 -- ★0018: 充当先（null = アクティブ卵 or プール）
   v_warmup_total integer := 0;         -- ★0018: これまでの初回ボーナス付与の合計（生涯上限用）
-  v_grant_raw    integer := 0;         -- ★0018: 上限を当てる前の付与額（already_claimed 判定用）
 begin
   if v_uid is null then
     raise exception 'unauthorized' using errcode = '28000';
@@ -699,7 +698,6 @@ begin
   select coalesce(sum(amount), 0) into v_warmup_total
     from public.point_ledger
    where user_id = v_uid and source = 'warmup';
-  v_grant_raw := v_grant;
   v_grant := least(v_grant, greatest(v_hatch - v_warmup_total, 0));
 
   if v_egg_id is null then
@@ -750,6 +748,8 @@ begin
     end if;
   end if;
 
+  -- ★0018: already_claimed = 今回は何も付与しなかった（受取済み / 生涯上限 / 残り全部が 0）。
+  --   端末はこれを見て day2 を「受取済み」と記録し、起動のたびに呼び直さない。
   return jsonb_build_object(
     'claimed', true,
     'day', p_day,
@@ -758,7 +758,7 @@ begin
     'egg_applied', v_egg_result,
     'balance_after', v_balance,
     'mode', v_mode,
-    'already_claimed', (v_grant_raw > 0 and not v_inserted));
+    'already_claimed', (not v_inserted));
 end;
 $$;
 

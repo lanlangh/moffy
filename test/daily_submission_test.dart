@@ -59,6 +59,26 @@ void main() {
     expect(usage.fetchedDates, contains(serverTarget));
   });
 
+  test('0018: サーバーが答えた対象日をホームの「きのう」用に公開する（確定済みでも）', () async {
+    final usage = _FakeUsageProvider();
+    final repo = _FakeUsageSyncRepository(targetDate: serverTarget);
+    final container = containerWith(usage, repo);
+    expect(container.read(pendingTargetDateProvider), isNull);
+
+    await container.read(dailySubmissionServiceProvider).submitPendingDay();
+    expect(container.read(pendingTargetDateProvider), serverTarget);
+
+    // 確定済みの日でも「サーバーの前日」は公開する（ホームはその日の結果を出す）。
+    final done = _FakeUsageSyncRepository(
+      targetDate: DateTime(2026, 7, 11),
+      alreadyFinalized: true,
+    );
+    final c2 = containerWith(usage, done);
+    await c2.read(dailySubmissionServiceProvider).submitPendingDay();
+    expect(done.submitted, isEmpty);
+    expect(c2.read(pendingTargetDateProvider), DateTime(2026, 7, 11));
+  });
+
   test('サーバーが確定済みと言えば何もしない（無駄な往復とOS取得を省く）', () async {
     final usage = _FakeUsageProvider();
     final repo = _FakeUsageSyncRepository(

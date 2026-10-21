@@ -136,8 +136,13 @@ class HomeRepository {
     required DateTime date,
     required int usualMinutes,
     required EconomyParams params,
+    bool localFirstDay = false,
   }) async {
-    if (!Env.useSupabase) return _mockYesterday(date, params);
+    // モック/プレビューにはサーバーが無いので、ローカル初日は「結果なし」にして
+    // 初日の文言（きょうが1日目）を見られるようにする。本番はサーバーの行の有無で決まる。
+    if (!Env.useSupabase) {
+      return localFirstDay ? null : _mockYesterday(date, params);
+    }
     if (!_ref.read(isOnlineProvider)) return null;
     try {
       final client = _ref.read(supabaseClientProvider);
