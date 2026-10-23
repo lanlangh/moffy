@@ -52,6 +52,22 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
+### 🔴🥚 **本番で孵化演出が出ない（2026-10-23 オーナー報告）＝PR #108 で修正・main にマージ済み（a54cbf1）・未リリース**
+
+**症状**: 100% の卵で「孵化させる」→ 何も起きず、新しい 0% の卵だけが置かれた。
+メニューの「獲得Mofi」は 1→2 に増えた＝**サーバーでは孵化成功**。演出・ステージに残る子・`egg_hatched` 計測・図鑑の読み直しが飛んでいた。
+**初期コミットからの不具合で、実バックエンドでの孵化はすべてこうなっていた**（PostHog の `egg_hatched` が本番でほぼ出ていないはず＝未確認）。
+
+**真因**: `EggsController.hatch` → `refresh()` の `state = loading` が riverpod 2.6.1 では `isReloading` になり、既定の `when` がスケルトンを出す → 押した `_EggsBody` が破棄 → `_hatch` が `context.mounted` で黙って return。新しい卵は空の巣を見た `fn_ensure_first_egg`。
+**モック（Web プレビュー・テスト）は待ちが無く、フレームが挟まらないので再現しない**。→ 演出まわりの確認は Web プレビューでは足りない。
+
+**修正（PR #108 / ブランチ `fix/hatch-overlay-lost`・main から）**: `skipLoadingOnReload: async.hasValue`／await 前に root navigator と ProviderContainer を取る／孵化の二度押し防止／図鑑の読み直し失敗時に古い値で進化判定しない／最後の卵を孵化して付与されなくても孵化した子を残す。
+待ちのあるフェイクのウィジェットテスト4本（`test/hatch_flow_widget_test.dart`）。**修正前のコードで期待どおり落ちることを CI で確認済み**（run 39930619188）。Codex 第三者レビュー: 重大0・中2・低2・細1 → 4件採用・1件見送り（退会と孵化が重なる極端なケース）。
+
+**残り**: ①実機での確認（ローカル flutter 不可・モックでは再現しない）②リリース。main には未リリースの #104〜#106 も入っている（#106 は孵化ペース改修の結論が出るまで出さない方針）ので、**0018（PR #107）と一緒に出す**のが既定。急ぐなら 1.2.1 から #108 だけを載せた修正版を別に作る（オーナー判断）。③作業ブランチ `feat/egg-pacing-5stages` へは main を取り込み済み（再現テストの「まもなく孵化」は、このブランチでは「孵化できます！」）。
+
+---
+
 ### 🥚🛠 **たまごの孵化ペース（0018）を実装した（2026-10-21 / PR #107・CI緑・Codex レビュー済み・未マージ・未リリース・本番DB未適用）**
 
 > 設計書 `docs/design/EGG_PACING_DESIGN.md` をそのまま仕様にした。ブランチ `feat/egg-pacing-5stages`。
