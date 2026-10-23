@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:moffy/core/constants/economy.dart';
 import 'package:moffy/core/sync/connectivity_provider.dart';
 import 'package:moffy/core/sync/finalize_models.dart';
@@ -33,7 +34,14 @@ void main() {
           eggRepositoryProvider.overrideWithValue(repo),
           isOnlineProvider.overrideWithValue(true),
         ],
-        child: const MaterialApp(home: EggsScreen()),
+        // 孵化の処理は GoRouter.of(context) を使うので、本番と同じく router の下に置く。
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            routes: [
+              GoRoute(path: '/', builder: (_, __) => const EggsScreen()),
+            ],
+          ),
+        ),
       ),
     );
     // 初回の読み込み（待ちあり）。
