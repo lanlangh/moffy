@@ -21,9 +21,8 @@ import 'package:moffy/features/eggs/presentation/widgets/hatch_overlay.dart';
 ///   モックは待ちが無く、loading と data の間にフレームが挟まらないので、既存の
 ///   テストと Web プレビューでは再現しなかった。ここでは通信の待ちを入れて本番を模す。
 void main() {
-  /// たまご画面を出し、主役ステージの卵 → 詳細シート → 「孵化させる」まで進める。
-  /// 孵化 RPC と、その後の再読込の待ちが終わるまでフレームを回す。
-  Future<void> hatchFromEggsScreen(
+  /// たまご画面を出す（本番と同じく router の下・初回の読み込みの待ちを流す）。
+  Future<void> openEggsScreen(
     WidgetTester tester,
     _SlowEggRepository repo,
   ) async {
@@ -48,11 +47,13 @@ void main() {
         ),
       ),
     );
-    // 初回の読み込み（待ちあり）。
     await tester.pump();
     await tester.pump(_SlowEggRepository.latency * 2);
     expect(find.text('育成枠'), findsOneWidget);
+  }
 
+  /// 主役ステージの卵 → 詳細シート → 「孵化させる」を押す（待ちは流さない）。
+  Future<void> tapHatch(WidgetTester tester) async {
     // 卵は揺れ続けるので pumpAndSettle は使えない（終わらない）。時間を指定して回す。
     await tester.tap(find.text('まもなく孵化').first);
     await tester.pump();
@@ -61,8 +62,11 @@ void main() {
     await tester.ensureVisible(hatchButton);
     await tester.pump();
     await tester.tap(hatchButton);
+    await tester.pump();
+  }
 
-    // 孵化 RPC → 再読込（空なので最初の卵保証 → もう一度読込）。待ちのたびにフレームを回す。
+  /// 孵化 RPC → 再読込（空なので最初の卵保証 → もう一度読込）。待ちのたびにフレームを回す。
+  Future<void> waitForHatch(WidgetTester tester) async {
     for (var i = 0; i < 12; i++) {
       await tester.pump(_SlowEggRepository.latency);
     }
@@ -77,7 +81,9 @@ void main() {
 
   testWidgets('通信に時間がかかっても、孵化させるを押すと孵化演出が出る', (tester) async {
     final repo = _SlowEggRepository();
-    await hatchFromEggsScreen(tester, repo);
+    await openEggsScreen(tester, repo);
+    await tapHatch(tester);
+    await waitForHatch(tester);
 
     expect(repo.hatchCalls, 1);
     expect(
@@ -93,7 +99,9 @@ void main() {
     // 再読込の失敗でたまご画面はエラー表示に差し替わり、押した側の画面は破棄される。
     // それでも演出を出す（ここで黙って抜けると、孵化した子を一度も見られない）。
     final repo = _SlowEggRepository(failReloadAfterHatch: true);
-    await hatchFromEggsScreen(tester, repo);
+    await openEggsScreen(tester, repo);
+    await tapHatch(tester);
+    await waitForHatch(tester);
 
     expect(repo.hatchCalls, 1);
     expect(
@@ -103,6 +111,45 @@ void main() {
     );
     await tearDownOverlay(tester);
   });
+
+  testWidgets('孵化の通信中にもう一度押しても、孵化は1回だけで演出も1つ', (tester) async {
+    final repo = _SlowEggRepository(hatchLatency: const Duration(seconds: 3));
+    await openEggsScreen(tester, repo);
+    await tapHatch(tester);
+    // シートが閉じきるのを待ってから、1回目の RPC が終わる前に同じ卵をもう一度押す。
+    await tester.pump(const Duration(milliseconds: 400));
+    await tapHatch(tester);
+    await tester.pump(const Duration(seconds: 3));
+    await waitForHatch(tester);
+
+    expect(repo.hatchCalls, 1);
+    expect(find.byType(HatchOverlay), findsOneWidget);
+    await tearDownOverlay(tester);
+  });
+
+  testWidgets('最後の卵を孵化して新しい卵が付与されなくても、孵化した子はステージに残る',
+      (tester) async {
+    final repo = _SlowEggRepository(grantRefill: false);
+    await openEggsScreen(tester, repo);
+    await tapHatch(tester);
+    await waitForHatch(tester);
+    expect(find.byType(HatchOverlay), findsOneWidget);
+
+    // 演出を最後まで流して「とじる」。
+    await tester.pump(const Duration(seconds: 3));
+    await tester.tap(find.text('とじる'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(HatchOverlay), findsNothing);
+    expect(
+      find.text('図鑑に送る'),
+      findsOneWidget,
+      reason: '巣が空になったら空表示が優先され、孵化した子が見えなくなっている',
+    );
+    expect(find.text('まだ卵がありません'), findsNothing);
+    await tearDownOverlay(tester);
+  });
 }
 
 /// 本番の Supabase を模して、すべての呼び出しに待ちを入れたフェイク。
@@ -110,12 +157,20 @@ void main() {
 /// 卵は孵化可能な1つだけ。孵化すると巣が空になり、`ensureFirstEgg` が 0pt の
 /// 新しい卵を付与する（本番の fn_ensure_first_egg と同じ流れ）。
 /// [failReloadAfterHatch] が true なら、孵化後の読み込みは通信エラーで失敗する。
+/// [grantRefill] が false なら、空になっても新しい卵は付与されない（付与の失敗を模す）。
+/// [hatchLatency] は孵化 RPC だけの待ち（通信中の二度押しを試すときに長くする）。
 class _SlowEggRepository implements EggRepository {
-  _SlowEggRepository({this.failReloadAfterHatch = false});
+  _SlowEggRepository({
+    this.failReloadAfterHatch = false,
+    this.grantRefill = true,
+    this.hatchLatency = latency,
+  });
 
   static const latency = Duration(milliseconds: 120);
 
   final bool failReloadAfterHatch;
+  final bool grantRefill;
+  final Duration hatchLatency;
   int hatchCalls = 0;
   bool _hatched = false;
   bool _refilled = false;
@@ -164,7 +219,7 @@ class _SlowEggRepository implements EggRepository {
   @override
   Future<EnsureFirstEggResult> ensureFirstEgg() async {
     await Future<void>.delayed(latency);
-    if (_active != null) return EnsureFirstEggResult.notGranted;
+    if (_active != null || !grantRefill) return EnsureFirstEggResult.notGranted;
     _refilled = true;
     return const EnsureFirstEggResult(
       granted: true,
@@ -177,7 +232,7 @@ class _SlowEggRepository implements EggRepository {
   @override
   Future<HatchResult> hatch(String eggId) async {
     hatchCalls++;
-    await Future<void>.delayed(latency);
+    await Future<void>.delayed(hatchLatency);
     _hatched = true;
     return HatchResult(
       species: const MofiSpecies(

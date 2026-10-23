@@ -70,6 +70,11 @@ class EggsScreen extends ConsumerWidget {
   }
 }
 
+/// 孵化の通信中か（別の卵の孵化を重ねて受け付けないため / [_EggsBody._hatch]）。
+///
+/// `_EggsBody` は再読込で作り直されうるので、フラグは画面の外（provider）に置く。
+final _hatchInFlightProvider = StateProvider<bool>((ref) => false);
+
 class _EggsBody extends ConsumerWidget {
   const _EggsBody({required this.state});
   final EggsState state;
@@ -81,7 +86,9 @@ class _EggsBody extends ConsumerWidget {
     final pending = ref.watch(pendingHatchProvider);
 
     // 完全に空（保管も育成も無し）→ クエスト誘導の空状態（SCREEN_FLOWS §3）。
-    if (state.isCompletelyEmpty) {
+    // 最後の卵を孵化した直後（新しい卵を付与できなかった場合）は、孵化した子を
+    // ステージに残すほうを優先する（空表示で隠さない）。
+    if (state.isCompletelyEmpty && pending == null) {
       return Column(
         children: [
           if (state.isOffline) const OfflineBar(),
@@ -292,57 +299,42 @@ class _EggsBody extends ConsumerWidget {
     // 新しい 0% の卵だけが置かれる。破棄されない root navigator と container を先に取っておく。
     final container = ProviderScope.containerOf(context, listen: false);
 
-    HatchResult? result;
+    // 孵化の通信中は、別の卵の孵化を受け付けない（演出が重なり、ステージに残る子が
+    // 後から終わったほうで上書きされるため）。演出が出れば下の画面は触れないので、
+    // 演出を出す直前に解除する。
+    final inFlight = container.read(_hatchInFlightProvider.notifier);
+    if (inFlight.state) return;
+    inFlight.state = true;
+
+    final HatchPresentation presentation;
     try {
-      result = await ref.read(eggsControllerProvider.notifier).hatch(egg.id);
-    } catch (_) {
-      // エラー: ptを消費せずリトライ可能（二重孵化しない / §5-2）。
-      messenger.showSnackBar(
-        const SnackBar(content: Text('孵化に失敗しました。もう一度お試しください。')),
-      );
-      return;
+      HatchResult? result;
+      try {
+        result = await ref.read(eggsControllerProvider.notifier).hatch(egg.id);
+      } catch (_) {
+        // エラー: ptを消費せずリトライ可能（二重孵化しない / §5-2）。
+        messenger.showSnackBar(
+          const SnackBar(content: Text('孵化に失敗しました。もう一度お試しください。')),
+        );
+        return;
+      }
+
+      // オフライン: 孵化確定はオンラインのみ（S8）。
+      if (result == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('孵化はオンラインで確定します。接続したら確定されます。')),
+        );
+        return;
+      }
+
+      if (!navigator.mounted) return;
+      presentation = await _prepareHatchPresentation(container, result);
+      if (!navigator.mounted) return;
+    } finally {
+      inFlight.state = false;
     }
 
-    // オフライン: 孵化確定はオンラインのみ（S8）。
-    if (result == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('孵化はオンラインで確定します。接続したら確定されます。')),
-      );
-      return;
-    }
-
-    if (!navigator.mounted) return;
-    final hatched = result;
-
-    // ファネル: 孵化（コアループの山場 / PRD §5-5）。生データ（pt等）は載せず、
-    // レアリティ・色違いのカテゴリ値のみ（PII/生データ非送信 / OBSERVABILITY_SETUP.md）。
-    final analytics = container.read(analyticsProvider);
-    analytics.capture(
-      AnalyticsEvents.eggHatched,
-      properties: {
-        AnalyticsProps.mofiRarity: hatched.species.rarity.wire,
-        AnalyticsProps.isShiny: hatched.isShiny,
-      },
-    );
-    if (hatched.isShiny) {
-      // 色違いは専用集計（グロースの種 / S13）。
-      analytics.capture(AnalyticsEvents.shinyHatched);
-    }
-    if (hatched.isNewDexEntry) {
-      // ファネル: 図鑑への新規登録（コレクション進捗 / PRD §5-5）。
-      analytics.capture(
-        AnalyticsEvents.dexRegistered,
-        properties: {AnalyticsProps.mofiRarity: hatched.species.rarity.wire},
-      );
-    }
-
-    // 進化の判定材料を取る。サーバーの fn_hatch_egg は「どの Mofi か」までしか
-    // 返さず**所持数を返さない**ので、図鑑を読み直して所持数を得る
-    // （DB を変えずに済ませるための設計 / docs/EVOLUTION.md）。
-    await container.read(collectionControllerProvider.notifier).refresh();
-    final dex = container.read(collectionControllerProvider).valueOrNull;
-    // 導出は [HatchPresentation.fromDex] に切り出してある（テストで固定するため）。
-    final presentation = HatchPresentation.fromDex(result: hatched, dex: dex);
+    final hatched = presentation.result;
     final stage = presentation.stage;
     final justEvolved = presentation.justEvolved;
     final toNext = presentation.toNextEvolution;
@@ -392,6 +384,44 @@ class _EggsBody extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// 孵化の計測を送り、図鑑を読み直して演出の材料（進化段階など）をそろえる。
+  Future<HatchPresentation> _prepareHatchPresentation(
+    ProviderContainer container,
+    HatchResult hatched,
+  ) async {
+    // ファネル: 孵化（コアループの山場 / PRD §5-5）。生データ（pt等）は載せず、
+    // レアリティ・色違いのカテゴリ値のみ（PII/生データ非送信 / OBSERVABILITY_SETUP.md）。
+    final analytics = container.read(analyticsProvider);
+    analytics.capture(
+      AnalyticsEvents.eggHatched,
+      properties: {
+        AnalyticsProps.mofiRarity: hatched.species.rarity.wire,
+        AnalyticsProps.isShiny: hatched.isShiny,
+      },
+    );
+    if (hatched.isShiny) {
+      // 色違いは専用集計（グロースの種 / S13）。
+      analytics.capture(AnalyticsEvents.shinyHatched);
+    }
+    if (hatched.isNewDexEntry) {
+      // ファネル: 図鑑への新規登録（コレクション進捗 / PRD §5-5）。
+      analytics.capture(
+        AnalyticsEvents.dexRegistered,
+        properties: {AnalyticsProps.mofiRarity: hatched.species.rarity.wire},
+      );
+    }
+
+    // 進化の判定材料を取る。サーバーの fn_hatch_egg は「どの Mofi か」までしか
+    // 返さず**所持数を返さない**ので、図鑑を読み直して所持数を得る
+    // （DB を変えずに済ませるための設計 / docs/EVOLUTION.md）。
+    await container.read(collectionControllerProvider.notifier).refresh();
+    // 読み直しが成功したときだけ使う。失敗時の AsyncError は孵化前の値を抱えたままで、
+    // それで進化を判定すると所持数が1つ少なく出る（fromDex は null なら控えめに倒す）。
+    final dex = container.read(collectionControllerProvider).asData?.value;
+    // 導出は [HatchPresentation.fromDex] に切り出してある（テストで固定するため）。
+    return HatchPresentation.fromDex(result: hatched, dex: dex);
   }
 }
 
