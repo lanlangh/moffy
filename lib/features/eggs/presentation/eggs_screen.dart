@@ -54,6 +54,10 @@ class EggsScreen extends ConsumerWidget {
       body: SafeArea(
         top: false,
         child: async.when(
+          // 表示中のデータがあれば、再読込のあいだもそれを出し続ける。
+          // 既定（false）だと refresh() の `state = loading` でスケルトンに差し替わり、
+          // 本体と開いている詳細シートの context が破棄される（孵化演出が出なかった原因）。
+          skipLoadingOnReload: async.hasValue,
           loading: () => const Center(child: NestSkeleton(label: '巣をのぞいています')),
           error: (e, _) => ErrorView(
             message: '卵の読み込みに失敗しました。通信環境を確認してもう一度お試しください。',
@@ -66,6 +70,11 @@ class EggsScreen extends ConsumerWidget {
   }
 }
 
+/// 孵化の通信中か（別の卵の孵化を重ねて受け付けないため / [_EggsBody._hatch]）。
+///
+/// `_EggsBody` は再読込で作り直されうるので、フラグは画面の外（provider）に置く。
+final _hatchInFlightProvider = StateProvider<bool>((ref) => false);
+
 class _EggsBody extends ConsumerWidget {
   const _EggsBody({required this.state});
   final EggsState state;
@@ -77,7 +86,9 @@ class _EggsBody extends ConsumerWidget {
     final pending = ref.watch(pendingHatchProvider);
 
     // 完全に空（保管も育成も無し）→ クエスト誘導の空状態（SCREEN_FLOWS §3）。
-    if (state.isCompletelyEmpty) {
+    // 最後の卵を孵化した直後（新しい卵を付与できなかった場合）は、孵化した子を
+    // ステージに残すほうを優先する（空表示で隠さない）。
+    if (state.isCompletelyEmpty && pending == null) {
       return Column(
         children: [
           if (state.isOffline) const OfflineBar(),
@@ -282,32 +293,107 @@ class _EggsBody extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
     final navigator = Navigator.of(context, rootNavigator: true);
+    // 🔴 await のあとは、この `_EggsBody` の context / ref を使わない（2026-10-23 本番で発生）。
+    // 孵化後の再読込や読み込み失敗で画面が作り直されると、この要素は破棄される。
+    // そのとき `context.mounted` で抜けると、サーバーでは孵化済みなのに演出が出ず、
+    // 新しい 0% の卵だけが置かれる。破棄されない root navigator と container を先に取っておく。
+    final container = ProviderScope.containerOf(context, listen: false);
 
-    HatchResult? result;
+    // 孵化の通信中は、別の卵の孵化を受け付けない（演出が重なり、ステージに残る子が
+    // 後から終わったほうで上書きされるため）。演出が出れば下の画面は触れないので、
+    // 演出を出す直前に解除する。
+    final inFlight = container.read(_hatchInFlightProvider.notifier);
+    if (inFlight.state) return;
+    inFlight.state = true;
+
+    final HatchPresentation presentation;
     try {
-      result = await ref.read(eggsControllerProvider.notifier).hatch(egg.id);
-    } catch (_) {
-      // エラー: ptを消費せずリトライ可能（二重孵化しない / §5-2）。
-      messenger.showSnackBar(
-        const SnackBar(content: Text('孵化に失敗しました。もう一度お試しください。')),
-      );
-      return;
+      HatchResult? result;
+      try {
+        result = await ref.read(eggsControllerProvider.notifier).hatch(egg.id);
+      } catch (_) {
+        // エラー: ptを消費せずリトライ可能（二重孵化しない / §5-2）。
+        messenger.showSnackBar(
+          const SnackBar(content: Text('孵化に失敗しました。もう一度お試しください。')),
+        );
+        return;
+      }
+
+      // オフライン: 孵化確定はオンラインのみ（S8）。
+      if (result == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('孵化はオンラインで確定します。接続したら確定されます。')),
+        );
+        return;
+      }
+
+      if (!navigator.mounted) return;
+      presentation = await _prepareHatchPresentation(container, result);
+      if (!navigator.mounted) return;
+    } finally {
+      inFlight.state = false;
     }
 
-    // オフライン: 孵化確定はオンラインのみ（S8）。
-    if (result == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('孵化はオンラインで確定します。接続したら確定されます。')),
-      );
-      return;
-    }
+    final hatched = presentation.result;
+    final stage = presentation.stage;
+    final justEvolved = presentation.justEvolved;
+    final toNext = presentation.toNextEvolution;
 
-    if (!context.mounted) return;
-    final hatched = result;
+    // 演出のあともステージに残して眺められるようにする（オーナー提案 2026-08-19）。
+    // 図鑑への登録は孵化時にサーバーが済ませているので、これは表示のための状態。
+    container.read(pendingHatchProvider.notifier).state = presentation;
 
+    // 孵化演出オーバーレイ（操作ロック / スキップ可）。
+    await navigator.push<void>(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        pageBuilder: (_, __, ___) => HatchOverlay(
+          result: hatched,
+          eggRarity: egg.rarity,
+          stage: stage,
+          justEvolved: justEvolved,
+          toNextEvolution: toNext,
+          onClose: () => navigator.maybePop(),
+          onGoToDex: () {
+            navigator.maybePop();
+            router.go(AppTab.collection.path);
+          },
+          onShare: (imageBytes) async {
+            // S13 グロースの種: 結果カードのキャプチャ画像 + 文面をSNSへ共有。
+            // 画像生成・共有はサービスに委譲（プラグイン依存の隔離 / ベストエフォート）。
+            final text = buildHatchShareText(hatched, stage: stage);
+            final ok = await container
+                .read(hatchShareServiceProvider)
+                .shareHatch(
+                  text: text,
+                  subject: buildHatchShareSubject(hatched),
+                  imageBytes: imageBytes,
+                );
+            // 失敗/未対応時のフォールバック: 文面をクリップボードへコピーしトースト通知
+            // （拡散の起点を完全には失わせない / プラットフォーム未対応時の分岐）。
+            if (!ok) {
+              await Clipboard.setData(ClipboardData(text: text));
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('シェア用のテキストをコピーしました。'),
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  /// 孵化の計測を送り、図鑑を読み直して演出の材料（進化段階など）をそろえる。
+  Future<HatchPresentation> _prepareHatchPresentation(
+    ProviderContainer container,
+    HatchResult hatched,
+  ) async {
     // ファネル: 孵化（コアループの山場 / PRD §5-5）。生データ（pt等）は載せず、
     // レアリティ・色違いのカテゴリ値のみ（PII/生データ非送信 / OBSERVABILITY_SETUP.md）。
-    final analytics = ref.read(analyticsProvider);
+    final analytics = container.read(analyticsProvider);
     analytics.capture(
       AnalyticsEvents.eggHatched,
       properties: {
@@ -330,57 +416,12 @@ class _EggsBody extends ConsumerWidget {
     // 進化の判定材料を取る。サーバーの fn_hatch_egg は「どの Mofi か」までしか
     // 返さず**所持数を返さない**ので、図鑑を読み直して所持数を得る
     // （DB を変えずに済ませるための設計 / docs/EVOLUTION.md）。
-    await ref.read(collectionControllerProvider.notifier).refresh();
-    final dex = ref.read(collectionControllerProvider).valueOrNull;
+    await container.read(collectionControllerProvider.notifier).refresh();
+    // 読み直しが成功したときだけ使う。失敗時の AsyncError は孵化前の値を抱えたままで、
+    // それで進化を判定すると所持数が1つ少なく出る（fromDex は null なら控えめに倒す）。
+    final dex = container.read(collectionControllerProvider).asData?.value;
     // 導出は [HatchPresentation.fromDex] に切り出してある（テストで固定するため）。
-    final presentation = HatchPresentation.fromDex(result: hatched, dex: dex);
-    final stage = presentation.stage;
-    final justEvolved = presentation.justEvolved;
-    final toNext = presentation.toNextEvolution;
-
-    // 演出のあともステージに残して眺められるようにする（オーナー提案 2026-08-19）。
-    // 図鑑への登録は孵化時にサーバーが済ませているので、これは表示のための状態。
-    ref.read(pendingHatchProvider.notifier).state = presentation;
-
-    // 孵化演出オーバーレイ（操作ロック / スキップ可）。
-    await navigator.push<void>(
-      PageRouteBuilder(
-        opaque: false,
-        barrierColor: Colors.transparent,
-        pageBuilder: (_, __, ___) => HatchOverlay(
-          result: hatched,
-          eggRarity: egg.rarity,
-          stage: stage,
-          justEvolved: justEvolved,
-          toNextEvolution: toNext,
-          onClose: () => navigator.maybePop(),
-          onGoToDex: () {
-            navigator.maybePop();
-            router.go(AppTab.collection.path);
-          },
-          onShare: (imageBytes) async {
-            // S13 グロースの種: 結果カードのキャプチャ画像 + 文面をSNSへ共有。
-            // 画像生成・共有はサービスに委譲（プラグイン依存の隔離 / ベストエフォート）。
-            final text = buildHatchShareText(hatched, stage: stage);
-            final ok = await ref.read(hatchShareServiceProvider).shareHatch(
-                  text: text,
-                  subject: buildHatchShareSubject(hatched),
-                  imageBytes: imageBytes,
-                );
-            // 失敗/未対応時のフォールバック: 文面をクリップボードへコピーしトースト通知
-            // （拡散の起点を完全には失わせない / プラットフォーム未対応時の分岐）。
-            if (!ok) {
-              await Clipboard.setData(ClipboardData(text: text));
-              messenger.showSnackBar(
-                const SnackBar(
-                  content: Text('シェア用のテキストをコピーしました。'),
-                ),
-              );
-            }
-          },
-        ),
-      ),
-    );
+    return HatchPresentation.fromDex(result: hatched, dex: dex);
   }
 }
 
