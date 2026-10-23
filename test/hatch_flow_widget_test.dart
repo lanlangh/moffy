@@ -21,13 +21,17 @@ import 'package:moffy/features/eggs/presentation/widgets/hatch_overlay.dart';
 ///   モックは待ちが無く、loading と data の間にフレームが挟まらないので、既存の
 ///   テストと Web プレビューでは再現しなかった。ここでは通信の待ちを入れて本番を模す。
 void main() {
-  testWidgets('通信に時間がかかっても、孵化させるを押すと孵化演出が出る', (tester) async {
+  /// たまご画面を出し、主役ステージの卵 → 詳細シート → 「孵化させる」まで進める。
+  /// 孵化 RPC と、その後の再読込の待ちが終わるまでフレームを回す。
+  Future<void> hatchFromEggsScreen(
+    WidgetTester tester,
+    _SlowEggRepository repo,
+  ) async {
     // 既定の 800x600 だと詳細シートの下のボタンが画面外に出るので、縦長の端末にする。
     tester.view.physicalSize = const Size(1170, 2532);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    final repo = _SlowEggRepository();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -49,7 +53,6 @@ void main() {
     await tester.pump(_SlowEggRepository.latency * 2);
     expect(find.text('育成枠'), findsOneWidget);
 
-    // 主役ステージの卵をタップ → 詳細シート → 孵化させる。
     // 卵は揺れ続けるので pumpAndSettle は使えない（終わらない）。時間を指定して回す。
     await tester.tap(find.text('まもなく孵化').first);
     await tester.pump();
@@ -63,6 +66,18 @@ void main() {
     for (var i = 0; i < 12; i++) {
       await tester.pump(_SlowEggRepository.latency);
     }
+  }
+
+  /// 演出のタイマーを流しきってから閉じる（テスト終了時の保留タイマー対策）。
+  Future<void> tearDownOverlay(WidgetTester tester) async {
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  }
+
+  testWidgets('通信に時間がかかっても、孵化させるを押すと孵化演出が出る', (tester) async {
+    final repo = _SlowEggRepository();
+    await hatchFromEggsScreen(tester, repo);
 
     expect(repo.hatchCalls, 1);
     expect(
@@ -70,11 +85,23 @@ void main() {
       findsOneWidget,
       reason: '孵化は成功したのに演出が出ていない（再読込で画面が作り直された）',
     );
+    await tearDownOverlay(tester);
+  });
 
-    // 演出のタイマーを流しきってから閉じる（テスト終了時の保留タイマー対策）。
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump(const Duration(seconds: 3));
+  testWidgets('孵化後の再読込が失敗しても、孵化演出は出る（孵化はサーバーで確定済み）',
+      (tester) async {
+    // 再読込の失敗でたまご画面はエラー表示に差し替わり、押した側の画面は破棄される。
+    // それでも演出を出す（ここで黙って抜けると、孵化した子を一度も見られない）。
+    final repo = _SlowEggRepository(failReloadAfterHatch: true);
+    await hatchFromEggsScreen(tester, repo);
+
+    expect(repo.hatchCalls, 1);
+    expect(
+      find.byType(HatchOverlay),
+      findsOneWidget,
+      reason: '再読込の失敗で画面が作り直され、演出が出ていない',
+    );
+    await tearDownOverlay(tester);
   });
 }
 
@@ -82,9 +109,13 @@ void main() {
 ///
 /// 卵は孵化可能な1つだけ。孵化すると巣が空になり、`ensureFirstEgg` が 0pt の
 /// 新しい卵を付与する（本番の fn_ensure_first_egg と同じ流れ）。
+/// [failReloadAfterHatch] が true なら、孵化後の読み込みは通信エラーで失敗する。
 class _SlowEggRepository implements EggRepository {
+  _SlowEggRepository({this.failReloadAfterHatch = false});
+
   static const latency = Duration(milliseconds: 120);
 
+  final bool failReloadAfterHatch;
   int hatchCalls = 0;
   bool _hatched = false;
   bool _refilled = false;
@@ -118,6 +149,9 @@ class _SlowEggRepository implements EggRepository {
   @override
   Future<EggsState> loadEggs(EconomyParams params) async {
     await Future<void>.delayed(latency);
+    if (failReloadAfterHatch && _hatched) {
+      throw Exception('network error after hatch');
+    }
     return EggsState(
       incubatorSlots: [_active, null, null],
       storage: const [],

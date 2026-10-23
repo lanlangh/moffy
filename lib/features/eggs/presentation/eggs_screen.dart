@@ -54,6 +54,10 @@ class EggsScreen extends ConsumerWidget {
       body: SafeArea(
         top: false,
         child: async.when(
+          // 表示中のデータがあれば、再読込のあいだもそれを出し続ける。
+          // 既定（false）だと refresh() の `state = loading` でスケルトンに差し替わり、
+          // 本体と開いている詳細シートの context が破棄される（孵化演出が出なかった原因）。
+          skipLoadingOnReload: async.hasValue,
           loading: () => const Center(child: NestSkeleton(label: '巣をのぞいています')),
           error: (e, _) => ErrorView(
             message: '卵の読み込みに失敗しました。通信環境を確認してもう一度お試しください。',
@@ -282,6 +286,11 @@ class _EggsBody extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
     final navigator = Navigator.of(context, rootNavigator: true);
+    // 🔴 await のあとは、この `_EggsBody` の context / ref を使わない（2026-10-23 本番で発生）。
+    // 孵化後の再読込や読み込み失敗で画面が作り直されると、この要素は破棄される。
+    // そのとき `context.mounted` で抜けると、サーバーでは孵化済みなのに演出が出ず、
+    // 新しい 0% の卵だけが置かれる。破棄されない root navigator と container を先に取っておく。
+    final container = ProviderScope.containerOf(context, listen: false);
 
     HatchResult? result;
     try {
@@ -302,12 +311,12 @@ class _EggsBody extends ConsumerWidget {
       return;
     }
 
-    if (!context.mounted) return;
+    if (!navigator.mounted) return;
     final hatched = result;
 
     // ファネル: 孵化（コアループの山場 / PRD §5-5）。生データ（pt等）は載せず、
     // レアリティ・色違いのカテゴリ値のみ（PII/生データ非送信 / OBSERVABILITY_SETUP.md）。
-    final analytics = ref.read(analyticsProvider);
+    final analytics = container.read(analyticsProvider);
     analytics.capture(
       AnalyticsEvents.eggHatched,
       properties: {
@@ -330,8 +339,8 @@ class _EggsBody extends ConsumerWidget {
     // 進化の判定材料を取る。サーバーの fn_hatch_egg は「どの Mofi か」までしか
     // 返さず**所持数を返さない**ので、図鑑を読み直して所持数を得る
     // （DB を変えずに済ませるための設計 / docs/EVOLUTION.md）。
-    await ref.read(collectionControllerProvider.notifier).refresh();
-    final dex = ref.read(collectionControllerProvider).valueOrNull;
+    await container.read(collectionControllerProvider.notifier).refresh();
+    final dex = container.read(collectionControllerProvider).valueOrNull;
     // 導出は [HatchPresentation.fromDex] に切り出してある（テストで固定するため）。
     final presentation = HatchPresentation.fromDex(result: hatched, dex: dex);
     final stage = presentation.stage;
@@ -340,7 +349,7 @@ class _EggsBody extends ConsumerWidget {
 
     // 演出のあともステージに残して眺められるようにする（オーナー提案 2026-08-19）。
     // 図鑑への登録は孵化時にサーバーが済ませているので、これは表示のための状態。
-    ref.read(pendingHatchProvider.notifier).state = presentation;
+    container.read(pendingHatchProvider.notifier).state = presentation;
 
     // 孵化演出オーバーレイ（操作ロック / スキップ可）。
     await navigator.push<void>(
@@ -362,7 +371,9 @@ class _EggsBody extends ConsumerWidget {
             // S13 グロースの種: 結果カードのキャプチャ画像 + 文面をSNSへ共有。
             // 画像生成・共有はサービスに委譲（プラグイン依存の隔離 / ベストエフォート）。
             final text = buildHatchShareText(hatched, stage: stage);
-            final ok = await ref.read(hatchShareServiceProvider).shareHatch(
+            final ok = await container
+                .read(hatchShareServiceProvider)
+                .shareHatch(
                   text: text,
                   subject: buildHatchShareSubject(hatched),
                   imageBytes: imageBytes,
