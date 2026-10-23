@@ -49,6 +49,11 @@ class SupabaseUsageSyncRepository implements UsageSyncRepository {
 
   @override
   Future<PendingFinalizeDate?> pendingFinalizeDate() async {
+    if (_client.auth.currentUser == null) {
+      // サーバーも auth.uid() で弾く（anon は実行不可）が、無駄な往復と 42501 のエラー記録を
+      // 避けるため手前で止める（submitAndFinalize と同じ / 反証レビュー #2）。
+      throw const AuthFailure('対象日の照会には認証セッションが必要です');
+    }
     try {
       final res = await _client.rpc('fn_pending_finalize_date');
       if (res is! Map) {

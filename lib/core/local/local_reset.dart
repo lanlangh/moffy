@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/home/data/egg_stage_memory.dart';
+import '../../features/home/data/usual_minutes_repository.dart';
 import '../../features/home/data/warmup_tracker.dart';
 import '../../features/onboarding/data/onboarding_repository.dart';
 import '../observability/log.dart';
@@ -13,12 +15,14 @@ import '../sync/sync_queue.dart';
 ///
 ///   1. オンボーディング完了フラグ … 残すと新規ユーザーがオンボと「最初の卵」を
 ///      スキップして、いきなりホームに落ちる（go_router の redirect がこれを見る）。
-///   2. ウォームアップ初回起動日 … 残すと初回起動から2日を過ぎた判定になり、
-///      新しいアカウントが Day1/Day2 のボーナス（200pt/300pt）を**永久に受け取れない**。
-///      ＝ 正規の新規ユーザーより貧しい状態で始まる。
+///   2. ウォームアップ初回起動日・Day2 受取済み … 残すと新しいアカウントが Day1/Day2 の
+///      ボーナスを**受け取れない**。＝ 正規の新規ユーザーより貧しい状態で始まる。
 ///   3. 送信キュー … 旧ユーザー分の未送信の利用データが残ったまま再サインインすると、
 ///      提出は user_id を送らずサーバーが auth.uid() で解決する設計なので、
 ///      **旧ユーザーの記録が新ユーザーのものとして確定される**（クロスアカウント汚染）。
+///   4. 「ふだんのSNS時間」の申告 … 残すと新しいアカウントの R が前の人の値で始まる。
+///   5. 卵ごとの「最後に見た段階」 … 残すと前アカウントの卵IDの記録が居座る
+///      （害は無いが、`pendingHatch` の教訓どおり別アカウントの状態は持ち越さない）。
 ///
 /// ## 意図的に消さないもの
 ///   * 通知設定 … 通知機能そのものが未実装（kNotificationsEnabled=false）で、
@@ -28,7 +32,7 @@ import '../sync/sync_queue.dart';
 ///     実体の無いものを指していた。
 ///
 /// ## トレードオフ（記録として残す）
-/// 2 を消すことで「退会 → 再開」を繰り返せばウォームアップ 200+300pt と初回卵を
+/// 2 を消すことで「退会 → 再開」を繰り返せばウォームアップのボーナスと初回卵を
 /// 何度でも取り直せる。ただし代償として図鑑・残高・ストリークを毎回すべて失うため
 /// 自己破壊的で、ランキングや交換の仕組みも無いので他人に影響しない。
 /// 消さない場合の害（新規が永久にボーナスを受け取れない）のほうが大きいと判断した。
@@ -47,9 +51,16 @@ Future<void> resetLocalUserState(SyncQueue syncQueue) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(SharedPrefsOnboardingRepository.prefsKey);
     await prefs.remove(WarmupTracker.firstLaunchPrefsKey);
+    await prefs.remove(WarmupTracker.day2ClaimedPrefsKey);
+    await prefs.remove(SharedPrefsUsualMinutesRepository.reportedKey);
+    await prefs.remove(SharedPrefsUsualMinutesRepository.syncedKey);
+    await prefs.remove(SharedPrefsUsualMinutesRepository.askedKey);
   } catch (e, st) {
     // ここが失敗しても削除自体は成功している。次の起動で不整合が出るだけなので
     // ユーザーには「削除できませんでした」と見せない（誤解を与える）。
     Log.e('local prefs reset failed on account deletion', error: e, stack: st);
   }
+
+  // 卵ごとの「最後に見た段階」（接頭辞で全消し）。失敗は内部でログ済み。
+  await const SharedPrefsEggStageMemory().clear();
 }

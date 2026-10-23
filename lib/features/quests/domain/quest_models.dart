@@ -184,6 +184,12 @@ class StreakState {
     required this.tiers,
   });
 
+  /// 倍率の仕組みが有効か（どこかの段が ×1.0 を超えているか）。
+  ///
+  /// 0018 で倍率は廃止され `streak_multipliers` は全段 ×1.0 になった。false のとき
+  /// 画面は倍率バッジ・次マイルストーンを出さず、連続日数だけを見せる。
+  bool get hasMultipliers => tiers.any((t) => t.mult > 1.0);
+
   /// 記録済みの連続日数に対応する倍率（×1.0〜×2.0 / S14: 間の日数は直下段）。
   ///
   /// ⚠️ 表示には [todayMultiplier] を使うこと。こちらは「昨日までの実績」に対する値で、

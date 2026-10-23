@@ -78,6 +78,56 @@ class GrowthProgressBar extends StatelessWidget {
   }
 }
 
+/// 孵化までの段階を示す点（0018 / §4-5「孵化までの5つの点 ●●●○○」）。
+///
+/// [total] 個の点のうち、[reached] 個（いまの段階まで）を塗る。
+/// 進捗バーが「段階の中の 0〜100%」になったので、全体の位置はこちらで示す。
+class StageDots extends StatelessWidget {
+  const StageDots({
+    super.key,
+    required this.reached,
+    required this.total,
+    this.color = AppColors.primary,
+  });
+
+  /// 塗る点の数（1 = 最初の段階にいる）。
+  final int reached;
+
+  /// 点の総数（= 段階の数。既定 5）。
+  final int total;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = total < 1 ? 1 : total;
+    final r = reached.clamp(0, n);
+    return Semantics(
+      label: '孵化まで $n 段階のうち $r 段階目',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < n; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs / 2),
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i < r ? color : Colors.transparent,
+                  border: Border.all(
+                    color: i < r ? color : AppColors.textDisabled,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 主CTA（PrimaryButton / DESIGN_SYSTEM §7）。pill / 高さ52 / orange。
 /// 実体は [ElevatedButtonTheme]（app_theme）に委譲し、ラベルのみ受ける。
 class PrimaryButton extends StatelessWidget {

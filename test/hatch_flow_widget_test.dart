@@ -55,7 +55,8 @@ void main() {
   /// 主役ステージの卵 → 詳細シート → 「孵化させる」を押す（待ちは流さない）。
   Future<void> tapHatch(WidgetTester tester) async {
     // 卵は揺れ続けるので pumpAndSettle は使えない（終わらない）。時間を指定して回す。
-    await tester.tap(find.text('まもなく孵化').first);
+    // 0018: 孵化できる卵の主役ステージは「孵化できます！」。
+    await tester.tap(find.text('孵化できます！').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     final hatchButton = find.text('孵化させる');

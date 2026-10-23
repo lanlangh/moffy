@@ -70,9 +70,13 @@ class _Slot extends StatelessWidget {
 
     final rarity = RarityVisuals.ofEgg(e.rarity);
     final active = e.isActive;
+    final stage = e.stage(params);
+    // 0018 §4-4: S1（しろいたまご）はレア度を隠す。読み上げも「なぞのたまご」、
+    // 発光もレア度の色ではなく暖色にする（色で正体が割れないように）。
+    final name = stage.hidesRarity ? 'なぞのたまご' : '${e.rarity.label}のたまご';
     return Semantics(
       button: true,
-      label: '${e.rarity.label}のたまご・${active ? '育成中' : 'まちぼうけ'}',
+      label: '$name・${active ? '育成中' : 'まちぼうけ'}',
       child: GestureDetector(
         onTap: onTap,
         child: Column(
@@ -81,9 +85,15 @@ class _Slot extends StatelessWidget {
             // 地面影ぶん中心がズレるため）。
             NestRing(
               diameter: 72,
-              glow: active ? rarity.glow : null,
+              glow: active
+                  ? (stage.hidesRarity ? AppColors.primarySoft : rarity.glow)
+                  : null,
               borderColor: active ? AppColors.primary : null,
-              child: EggSubject(rarity: e.rarity, stage: e.stage(params)),
+              child: EggSubject(
+                rarity: e.rarity,
+                stage: stage,
+                strong: e.isStrongGlow(params),
+              ),
             ),
             const SizedBox(height: AppSpace.xs),
             Text(

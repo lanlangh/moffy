@@ -41,6 +41,14 @@ class UsageDailyDraft {
   /// S8 競合解決（確定ptを減らさない方向のみ反映）の比較基準に使う（サーバー確定前の楽観値）。
   final int localPoints;
 
+  /// 【0018】その日を計測できていたか（`usage_daily.is_measured`）。
+  ///
+  /// iOS は「対象アプリを選んでいる」こと、Android は常に true。false の日はサーバーが
+  /// 0pt・卵は進まない・連続日数は据え置きで確定する（評価しない / 責めない）。
+  /// これはクライアントの計測能力の申告であり、確定フラグ（is_finalized / is_anomaly）
+  /// のようなサーバー専管の値ではない＝RPC 引数に含めてよい。
+  final bool isMeasured;
+
   const UsageDailyDraft({
     required this.usageDate,
     required this.totalMinutes,
@@ -48,12 +56,14 @@ class UsageDailyDraft {
     required this.mode,
     this.isAnomaly = false,
     this.localPoints = 0,
+    this.isMeasured = true,
   });
 
   /// 端末の [DailyUsage]（楽観的に算出した確定相当pt付き）から提出ドラフトを作る。
   factory UsageDailyDraft.fromDailyUsage(
     DailyUsage usage, {
     int localPoints = 0,
+    bool isMeasured = true,
   }) =>
       UsageDailyDraft(
         usageDate: usage.date,
@@ -62,6 +72,7 @@ class UsageDailyDraft {
         mode: usage.mode,
         isAnomaly: usage.isAnomaly,
         localPoints: localPoints,
+        isMeasured: isMeasured,
       );
 
   /// `p_date`（fn_finalize_day 引数）/ usage_date に渡す YYYY-MM-DD 文字列。
@@ -89,6 +100,8 @@ class UsageDailyDraft {
         'p_total_minutes': totalMinutes,
         'p_per_app_minutes': perAppMinutes,
         'p_source_mode': mode.wire,
+        // 0018: 計測できていたか（iOS=対象アプリ選択済み / Android=true）。
+        'p_is_measured': isMeasured,
       };
 
   /// sync_queue（[SyncOperation.payload]）へ積む形へ直列化する。
@@ -99,6 +112,7 @@ class UsageDailyDraft {
         'source_mode': mode.wire,
         'is_anomaly': isAnomaly,
         'local_points': localPoints,
+        'is_measured': isMeasured,
       };
 
   /// sync_queue ペイロードから復元する（[toPayload] の逆）。
@@ -115,6 +129,8 @@ class UsageDailyDraft {
       mode: UsageMode.fromWire('${p['source_mode']}'),
       isAnomaly: p['is_anomaly'] == true,
       localPoints: (p['local_points'] as num?)?.toInt() ?? 0,
+      // 旧ペイロード（キー無し）は計測あり扱い（0018 以前の挙動と同じ）。
+      isMeasured: p['is_measured'] != false,
     );
   }
 }
@@ -196,6 +212,19 @@ class FinalizeDayResult {
   /// 既に確定済みで今回は加算されなかった（冪等スキップ / S8）。
   final bool alreadyFinalized;
 
+  /// 【0018】1日の評価（'great' | 'good' | 'poor' | 'unmeasured'）。
+  /// 旧サーバー（0018 未適用）の戻りには無く、その場合は null。
+  final String? band;
+
+  /// 【0018】その日を計測できていたか。旧サーバーの戻りには無く、その場合は true。
+  final bool isMeasured;
+
+  /// 【0018】評価に使ったふだんのSNS時間（分 / 選択肢の値）。無ければ null。
+  final int? usualMinutes;
+
+  /// 【0018】'default' | 'reported' | 'measured'。無ければ null。
+  final String? usualMinutesSource;
+
   const FinalizeDayResult({
     required this.finalized,
     this.reason,
@@ -209,6 +238,10 @@ class FinalizeDayResult {
     this.streakAfter = 0,
     this.eggApplied,
     this.alreadyFinalized = false,
+    this.band,
+    this.isMeasured = true,
+    this.usualMinutes,
+    this.usualMinutesSource,
   });
 
   /// migration 0002 の `jsonb_build_object(...)` 形からパースする。
@@ -232,6 +265,10 @@ class FinalizeDayResult {
       streakAfter: (j['streak_after'] as num?)?.toInt() ?? 0,
       eggApplied: _asMap(j['egg_applied']),
       alreadyFinalized: j['already_finalized'] == true,
+      band: j['band'] as String?,
+      isMeasured: j['is_measured'] != false,
+      usualMinutes: (j['usual_minutes'] as num?)?.toInt(),
+      usualMinutesSource: j['usual_minutes_source'] as String?,
     );
   }
 

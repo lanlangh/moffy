@@ -46,6 +46,10 @@ abstract final class AnalyticsEvents {
   /// プロパティ: [AnalyticsProps.source]（'onboarding' / 'home'）。
   static const targetAppsSelected = 'target_apps_selected';
 
+  /// 【0018】「ふだんのSNS時間」を申告した（またはスキップした）。
+  /// プロパティ: [AnalyticsProps.minutes]（選択肢の値）、[AnalyticsProps.skipped]。
+  static const usualMinutesReported = 'usual_minutes_reported';
+
   // --- コアループ（pt → 孵化 → 図鑑 / PRD §2） ---
 
   /// 最初の卵が保証された（FTUE / 空の巣の解消 = コアループへの入口 / migration 0009）。
@@ -54,8 +58,15 @@ abstract final class AnalyticsEvents {
   static const firstEggGranted = 'first_egg_granted';
 
   /// 日次の削減ポイントが確定した（pt獲得の代表点 / S1・S4）。
-  /// 注: 確定 pt の「数値」は載せない（生データ非送信）。is_provisional 等の区分のみ可。
+  /// 注: 確定 pt の「数値」は載せない（生データ非送信）。
+  /// 【0018】[AnalyticsProps.band] / [AnalyticsProps.isMeasured] /
+  /// [AnalyticsProps.usualMinutes] / [AnalyticsProps.usualMinutesSource] を付ける。
   static const dayFinalized = 'day_finalized';
+
+  /// 【0018】たまごの段階が進んだ（ホームで演出を出した）。
+  /// プロパティ: [AnalyticsProps.fromStep] / [AnalyticsProps.toStep] /
+  /// [AnalyticsProps.steps] / [AnalyticsProps.eggRarity]。
+  static const eggStageUp = 'egg_stage_up';
 
   /// 卵が孵化した（コアループの山場 / S5）。
   static const eggHatched = 'egg_hatched';
@@ -85,8 +96,10 @@ abstract final class AnalyticsEvents {
 ///
 /// PII 厳守: ここに「分数・金額・ユーザー名・メール」等の生値キーは定義しない。
 /// 載せてよいのはカテゴリ値（レアリティ・プラン期間・経路）のみ。
+/// 例外として [usualMinutes] / [minutes] は**選択肢の値**（30/60/120/180/300 等のカテゴリ）
+/// であり、利用生データ（その日の分数）ではない（設計書 §7 で合意）。
 abstract final class AnalyticsProps {
-  /// 卵レアリティ（normal/rare/epic/legend）。egg_hatched 等。
+  /// 卵レアリティ（normal/rare/epic/legend）。egg_hatched / egg_stage_up。
   static const eggRarity = 'egg_rarity';
 
   /// Mofi レアリティ（n/r/sr/ssr）。egg_hatched / dex_registered。
@@ -108,7 +121,32 @@ abstract final class AnalyticsProps {
   /// 「許可はあるが対象を選ばなかった」と「許可が無くて選べなかった」は打ち手が違う。
   static const permissionGranted = 'permission_granted';
 
-  /// 確定ステージ（warmup/provisional/confirmed）。day_finalized。
+  /// 確定ステージ（0018 以降: provisional/confirmed/unmeasured）。day_finalized。
   /// カテゴリ値のみ（確定 pt の「数値」や利用分数は載せない / PII 厳守）。
   static const stage = 'stage';
+
+  /// 【0018】1日の評価（great/good/poor/unmeasured）。day_finalized。
+  static const band = 'band';
+
+  /// 【0018】その日を計測できていたか（true/false）。day_finalized。
+  static const isMeasured = 'is_measured';
+
+  /// 【0018】ふだんのSNS時間（選択肢の値 / 分）。day_finalized。
+  static const usualMinutes = 'usual_minutes';
+
+  /// 【0018】ふだんのSNS時間の出どころ（default/reported/measured）。day_finalized。
+  static const usualMinutesSource = 'usual_minutes_source';
+
+  /// 【0018】段階アップ演出の前後（0..5）。egg_stage_up。
+  static const fromStep = 'from';
+  static const toStep = 'to';
+
+  /// 【0018】一度に進んだ段数。egg_stage_up。
+  static const steps = 'steps';
+
+  /// 【0018】申告した「ふだんのSNS時間」（選択肢の値 / 分）。usual_minutes_reported。
+  static const minutes = 'minutes';
+
+  /// 【0018】申告をスキップしたか。usual_minutes_reported。
+  static const skipped = 'skipped';
 }

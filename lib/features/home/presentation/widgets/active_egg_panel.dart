@@ -5,9 +5,11 @@ import '../../../../core/widgets/common_widgets.dart';
 import '../../../../core/widgets/egg_art.dart';
 import '../../../../core/widgets/nest_panel.dart';
 import '../../domain/home_state.dart';
+import 'egg_stage_reveal.dart';
 
 /// ホーム主役の巣パネル（SCREEN_FLOWS §2-2,3）。
-/// アクティブ卵があれば孵化進捗を、無ければ空枠誘導を表示（§5-2 空状態）。
+/// アクティブ卵があれば 5段階の見た目＋段階アップ演出（[EggStageReveal]）を、
+/// 無ければ空枠誘導を表示（§5-2 空状態）。
 class ActiveEggPanel extends StatelessWidget {
   const ActiveEggPanel({
     super.key,
@@ -49,42 +51,10 @@ class ActiveEggPanel extends StatelessWidget {
       );
     }
 
-    // ハッピー: 孵化進捗。孵化間近なら巣リング微発光（SCREEN_FLOWS §2）。
-    final rarity = _rarityToken(egg.rarityLabel);
-    // 【2026-10-05 追加】孵化できる状態（残り0pt）なら、ここから孵化へ送る。
-    //   以前は「まもなく孵化」と出すだけで**ボタンが無く**、孵化するには
-    //   たまごタブ → 卵をタップ → シート → 孵化 の4ステップ必要だった。
-    //   実測（2026-10-05）: 500pt を超えた卵が2個、数週間〜数か月放置されていた。
-    final canHatch = egg.remaining == 0;
-    return NestPanel(
-      diameter: 180,
-      glow: canHatch || egg.isNearHatch ? rarity.glow : null,
-      caption: Text(
-        canHatch ? '孵化できます！' : '孵化まであと ${egg.remaining}pt',
-        style: AppType.title,
-      ),
-      subject: EggArt(rarity: rarity, progress: egg.progress),
-      footer: Column(
-        children: [
-          GrowthProgressBar(value: egg.progress),
-          const SizedBox(height: AppSpace.sm),
-          Text(
-            '${(egg.progress * 100).round()}%',
-            style: AppType.numLabel,
-          ),
-          if (canHatch && onHatch != null) ...[
-            const SizedBox(height: AppSpace.md),
-            PrimaryButton(label: '孵化する', onPressed: onHatch),
-          ],
-        ],
-      ),
-    );
+    // ハッピー: 5段階の見た目。段階が進んでいれば「変わった！」の演出を出す（0018 §4-3）。
+    // 孵化できる状態（残り0pt）なら演出の最後に「孵化する」ボタン。以前は
+    // 「まもなく孵化」と出すだけで**ボタンが無く**、たまごタブ → 卵をタップ → シート → 孵化 の
+    // 4ステップ必要だった（実測 2026-10-05: 500pt を超えた卵が2個、数週間〜数か月放置）。
+    return EggStageReveal(egg: egg, onHatch: onHatch);
   }
-
-  RarityToken _rarityToken(String label) => switch (label) {
-        'rare' => RarityToken.rare,
-        'epic' => RarityToken.sr, // epic卵 ≈ SR色帯（表示上の近似）
-        'legend' => RarityToken.ssr,
-        _ => RarityToken.common,
-      };
 }

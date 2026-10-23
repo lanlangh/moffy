@@ -16,7 +16,7 @@ import '../../../core/widgets/nest_panel.dart';
 /// 目的は初回ユーザーの「使い方が分からない」を解消すること：
 ///   1. これからあなたが育てる **最初の卵** を主役として見せる（巣リング＋微発光）。
 ///   2. コアループ（減らす→ポイント→卵が育つ→孵化）を 1→2→3 で言葉にする。
-///   3. CTA でホームへ。ホーム初回ロードで warmup（+200pt と最初の卵）が付与され、
+///   3. CTA でホームへ。ホーム初回ロードで warmup（+300pt と最初の卵）が付与され、
 ///      この画面で見せた卵が「はじまりのボーナス」として実体化する（home_controller）。
 ///
 /// 状態は持たない（表示は1回・経路で担保）。オンボーディングは初回のみ表示されるため、
@@ -67,13 +67,13 @@ class WelcomeScreen extends ConsumerWidget {
                       const _HowToStep(
                         index: 1,
                         icon: Icons.timer_outlined,
-                        text: 'SNSを減らすと、その時間がポイントになります。',
+                        text: 'SNSから離れた日ほど、たまごに大きなポイントが入ります。',
                       ),
                       const SizedBox(height: AppSpace.md),
                       const _HowToStep(
                         index: 2,
                         icon: Icons.trending_up_rounded,
-                        text: 'ポイントがたまると、卵が少しずつ育ちます。',
+                        text: '白いたまごに模様が浮かび、ヒビが入り、光がもれて育ちます。',
                       ),
                       const SizedBox(height: AppSpace.md),
                       const _HowToStep(

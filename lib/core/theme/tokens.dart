@@ -69,6 +69,19 @@ abstract final class AppColors {
   static const error = _Prim.error;
   static const warn = _Prim.warn;
   static const offline = _Prim.offline;
+
+  // --- たまごの光とヒビ（0018 / 5段階の見た目 / DESIGN_DIRECTION: 光源は左上・紫はSRだけ） ---
+  // 光は全レア度で暖色の白〜金（common の glow は灰緑でクリーム地に埋もれるため使わない）。
+  /// ヒビから漏れる光の中心（白寄り）。
+  static const eggLightSoft = Color(0xFFFFF6D6);
+  /// 光の外側・リングの発光・粒（金寄り）。
+  static const eggLight = Color(0xFFFFE29A);
+  /// 光の筋（S4）。
+  static const eggLightRay = Color(0xFFFFE7A0);
+  /// 増えた光の筋（S4 強まる）。より淡い。
+  static const eggLightRayPale = Color(0xFFFFF0BC);
+  /// ヒビの線。nest.bark より一段濃い焦げ茶（画像の輪郭色 #4A3B2E に寄せる）。
+  static const eggCrack = Color(0xFF5A4330);
 }
 
 /// レアリティ色（DESIGN_SYSTEM §2-3。卵・Mofi・図鑑で厳密統一）。

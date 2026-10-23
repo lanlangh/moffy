@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/economy.dart';
+import '../../../core/constants/remote_config.dart';
 import '../../../core/observability/analytics_events.dart';
 import '../../../core/observability/log.dart';
 import '../../../core/observability/observability_providers.dart';
@@ -17,13 +18,15 @@ import '../../../core/widgets/common_widgets.dart';
 import '../../../core/widgets/egg_art.dart';
 import '../../../core/widgets/nest_panel.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../home/data/usual_minutes_repository.dart';
+import '../../home/presentation/widgets/usual_minutes_sheet.dart';
 import '../data/onboarding_repository.dart';
 import 'welcome_screen.dart';
 
 /// オンボーディング画面（SCREEN_FLOWS §1）。
 ///
 /// フロー: OB1 価値説明 → OB2 権限の理由 → OS権限付与（UsageAccess誘導/未許可フォールバック）
-///   → 対象SNS選択 → 完了でホームへ。初回のみ表示（フラグはローカル）。
+///   → 対象SNS選択 → ふだんのSNS時間（0018 / スキップ可）→ 完了でホームへ。初回のみ表示（フラグはローカル）。
 ///
 /// 5状態（SCREEN_FLOWS §1）:
 ///   * ハッピー: OB1→OB2→許可→選択→ホーム。
@@ -69,7 +72,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// iOS のピッカーは未許可だとネイティブ側が無言で空を返すため、その判別に使う。
   bool get _permissionGranted => _permission?.isGranted ?? false;
 
-  static const int _pageCount = 4; // OB1 / OB2 / 権限 / 対象選択
+  static const int _pageCount = 5; // OB1 / OB2 / 権限 / 対象選択 / ふだんのSNS時間
+
+  /// 0018: 「ふだんのSNS時間」の選択（分）。null = 未選択。
+  int? _usualMinutes;
 
   @override
   void dispose() {
@@ -179,10 +185,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  Future<void> _finish() async {
+  /// 0018: 「ふだんのSNS時間」を記録して完了する。[skipped] なら既定（120分）のまま。
+  ///
+  /// 申告は端末に保存→サーバーへ送る（オフラインなら次の起動で再送）。
+  /// スキップでも「聞いた」記録を残し、ホームでもう一度は聞かない。
+  Future<void> _finish({bool skipped = false}) async {
+    final usualRepo = ref.read(usualMinutesRepositoryProvider);
+    final minutes = skipped ? null : _usualMinutes;
+    if (minutes != null) {
+      await usualRepo.report(minutes);
+    } else {
+      await usualRepo.markAsked();
+    }
     await ref.read(onboardingRepositoryProvider).markCompleted();
     ref.invalidate(onboardingCompletedProvider);
     final analytics = ref.read(analyticsProvider);
+    analytics.capture(
+      AnalyticsEvents.usualMinutesReported,
+      properties: {
+        if (minutes != null) AnalyticsProps.minutes: minutes,
+        AnalyticsProps.skipped: minutes == null,
+      },
+    );
     // 【2026-10-05 追加】iOS で対象アプリを選ばずに始めた人を数える。
     //   選ばないと永久に0分なのに、未選択を示す計測が無く「何人が詰まっているか」を
     //   答えられなかった（ORG_STATE 2026-10-05 / 削減ptを得たのは全期間で6人）。
@@ -203,6 +227,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // 歓迎画面（最初の卵プレゼント）を経由してホームへ（warmup はホームで付与）。
     context.go(WelcomeScreen.routePath);
   }
+
+  /// 「ふだんのSNS時間」の選択肢（app_config.usual_minutes_choices / 取得前は既定）。
+  List<int> get _usualChoices =>
+      ref.watch(economyParamsProvider).valueOrNull?.usualMinutesChoices ??
+      EconomyParams.defaults.usualMinutesChoices;
 
   @override
   Widget build(BuildContext context) {
@@ -236,12 +265,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     picked: _iosPicked,
                     permissionGranted: _permissionGranted,
                     onPick: _requesting ? null : _pickIOSApps,
-                    onFinish: isOnline ? _finish : null,
+                    onNext: _next,
                   )
                 else
-                  _TargetSelectPage(
-                    onFinish: isOnline ? _finish : null,
-                  ),
+                  _TargetSelectPage(onNext: _next),
+                // 0018: ふだんのSNS時間（評価 ◎/○/△ の基準 R）。スキップ可。
+                _UsualMinutesPage(
+                  choices: _usualChoices,
+                  selected: _usualMinutes,
+                  onSelect: (m) => setState(() => _usualMinutes = m),
+                  onFinish: isOnline && _usualMinutes != null ? _finish : null,
+                  onSkip: isOnline ? () => _finish(skipped: true) : null,
+                ),
               ],
             ),
           ),
@@ -365,12 +400,10 @@ class _PermissionGrantPage extends StatelessWidget {
 /// v1.1 で「選べるように見えるトグル」をやめ、事実どおりの表示専用一覧にした
 /// （選択を保存する先が無く、切り替えても計測対象が変わらなかった）。
 class _TargetSelectPage extends StatelessWidget {
-  const _TargetSelectPage({
-    required this.onFinish,
-  });
+  const _TargetSelectPage({required this.onNext});
 
-  /// オフライン時は null（匿名認証オンライン必須 / グレーアウト）。
-  final VoidCallback? onFinish;
+  /// 次のページ（ふだんのSNS時間）へ。
+  final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -395,16 +428,7 @@ class _TargetSelectPage extends StatelessWidget {
               ],
             ),
           ),
-          if (onFinish == null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpace.sm),
-              child: Text(
-                '接続すると始められます。',
-                style: AppType.caption.copyWith(color: AppColors.offline),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          PrimaryButton(label: 'Moffyをはじめる', onPressed: onFinish),
+          PrimaryButton(label: '次へ', onPressed: onNext),
         ],
       ),
     );
@@ -423,7 +447,7 @@ class _IOSAppPickerPage extends StatelessWidget {
     required this.picked,
     required this.permissionGranted,
     required this.onPick,
-    required this.onFinish,
+    required this.onNext,
   });
 
   final bool requesting;
@@ -436,8 +460,8 @@ class _IOSAppPickerPage extends StatelessWidget {
   final bool permissionGranted;
   final VoidCallback? onPick;
 
-  /// オフライン時は null（匿名認証オンライン必須 / グレーアウト）。
-  final VoidCallback? onFinish;
+  /// 次のページ（ふだんのSNS時間）へ。
+  final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -494,7 +518,66 @@ class _IOSAppPickerPage extends StatelessWidget {
                     ),
             ),
           ),
-          if (onFinish == null)
+          PrimaryButton(
+            label: picked ? '次へ（$selectedCount件を見守る）' : 'あとで選んで次へ',
+            onPressed: onNext,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 「ふだんのSNS時間」（0018 / docs/design/EGG_PACING_DESIGN.md §2-1）。
+///
+/// 毎日の評価 ◎/○/△ の基準 R。選択肢は iOS のしきい値と同じ刻み。
+/// 「だいたいでOK」と添えて迷わせない。スキップは既定の 120 分で始まる（責めない・止めない）。
+/// 実測で R を上げる方向にだけ直すので、少なめに申告して損をする人は出ない。
+class _UsualMinutesPage extends StatelessWidget {
+  const _UsualMinutesPage({
+    required this.choices,
+    required this.selected,
+    required this.onSelect,
+    required this.onFinish,
+    required this.onSkip,
+  });
+
+  final List<int> choices;
+  final int? selected;
+  final ValueChanged<int> onSelect;
+
+  /// 未選択・オフライン時は null（匿名認証オンライン必須 / グレーアウト）。
+  final VoidCallback? onFinish;
+
+  /// オフライン時は null。
+  final VoidCallback? onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpace.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: AppSpace.xl),
+          Text('ふだん、SNSをどれくらい？', style: AppType.title),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            'これを「ふだん」として、毎日どれだけ離れられたかを ◎○△ で見ます。'
+            '$usualMinutesHint',
+            style: AppType.caption,
+          ),
+          const SizedBox(height: AppSpace.lg),
+          Expanded(
+            child: SingleChildScrollView(
+              child: UsualMinutesChooser(
+                choices: choices,
+                selected: selected,
+                onSelect: onSelect,
+              ),
+            ),
+          ),
+          if (onSkip == null)
             Padding(
               padding: const EdgeInsets.only(bottom: AppSpace.sm),
               child: Text(
@@ -503,11 +586,11 @@ class _IOSAppPickerPage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-          PrimaryButton(
-            label: picked
-                ? 'Moffyをはじめる（$selectedCount件を見守る）'
-                : 'あとで選んで始める',
-            onPressed: onFinish,
+          PrimaryButton(label: 'Moffyをはじめる', onPressed: onFinish),
+          const SizedBox(height: AppSpace.xs),
+          TextButton(
+            onPressed: onSkip,
+            child: const Text('わからない・あとで決める'),
           ),
         ],
       ),

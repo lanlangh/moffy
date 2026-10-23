@@ -4,8 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'android_usage_provider.dart';
 import 'ios_usage_provider.dart';
-import 'point_calculator.dart';
-import 'usage_models.dart';
 import 'usage_provider.dart';
 
 /// OS抽象（利用時間取得）の DI（ARCHITECTURE §1-3 usageProviderProvider）。
@@ -31,6 +29,9 @@ final usageProviderProvider = Provider<UsageProvider>((ref) {
 ///   実測（2026-10-05）: オーナー自身のアカウントも3か月ずっと
 ///   `total_minutes=0 / per_app_minutes={}` で、削減ptを得たのは全期間で6人だけ。
 ///
+/// 【0018】この値はそのまま提出の `is_measured` にもなる（iOS は選択済みなら計測あり、
+///   Android は常に計測あり）。計測なしの日は 0pt・卵は進まない・連続日数は据え置き。
+///
 /// 選択という概念が無い実装（Android / 未対応 / テスト）は **true**（＝問題なし）を返す。
 /// Android は権限さえあれば端末全体を見られるため。
 final hasAppSelectionProvider = FutureProvider<bool>((ref) async {
@@ -46,15 +47,4 @@ final hasAppSelectionProvider = FutureProvider<bool>((ref) async {
     // 判定できないときは警告を出さない側に倒す（誤警告で混乱させない）。
     return true;
   }
-});
-
-/// ポイント計算の DI（ARCHITECTURE §1-3 pointCalculatorProvider）。
-/// usageProvider の mode に追従して exact / threshold を選ぶ。
-final pointCalculatorProvider = Provider<PointCalculator>((ref) {
-  final mode = ref.watch(usageProviderProvider).mode;
-  return switch (mode) {
-    UsageMode.exactMinutes => const ExactMinutesPointCalculator(),
-    UsageMode.thresholdAchievement =>
-      const ThresholdAchievementPointCalculator(),
-  };
 });

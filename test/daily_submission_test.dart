@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moffy/app.dart';
+import 'package:moffy/core/constants/economy.dart';
 import 'package:moffy/core/router/app_router.dart';
 import 'package:moffy/core/sync/connectivity_provider.dart';
 import 'package:moffy/core/sync/daily_submission.dart';
@@ -12,6 +13,9 @@ import 'package:moffy/core/sync/usage_sync_repository.dart';
 import 'package:moffy/core/usage/usage_models.dart';
 import 'package:moffy/core/usage/usage_provider.dart';
 import 'package:moffy/core/usage/usage_providers.dart';
+import 'package:moffy/features/home/data/usual_minutes_repository.dart';
+import 'package:moffy/features/home/domain/home_state.dart';
+import 'package:moffy/features/home/presentation/home_controller.dart';
 
 /// 「削減 → usage_daily 提出 → サーバー確定」の**配線**を守る回帰テスト。
 ///
@@ -193,6 +197,50 @@ void main() {
     );
   });
 
+  testWidgets('復帰のたびにホームを作り直す（確定の合図が無くても「きのう」が古いままにならない / 0018）',
+      (tester) async {
+    final usage = _FakeUsageProvider();
+    final repo = _FakeUsageSyncRepository(targetDate: serverTarget);
+    var builds = 0;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, __) => Consumer(
+            builder: (_, ref, __) {
+              ref.watch(homeControllerProvider);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._overrides(usage, repo, router: router),
+          homeControllerProvider
+              .overrideWith(() => _CountingHomeController(() => builds++)),
+        ],
+        child: const MoffyApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(builds, 1);
+    expect(repo.submitted, hasLength(1));
+
+    // 次の復帰ではサーバーが「確定済み」と答える＝確定の合図（tick）は出ない。
+    repo.alreadyFinalized = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(repo.submitted, hasLength(1)); // 提出はしていない
+    expect(builds, 2, reason: '復帰でホームが作り直されていない（app.dart の invalidate が無い）');
+  });
+
   testWidgets('日を跨いでフォアグラウンド復帰すると次の日の分を提出する（#2）',
       (tester) async {
     final usage = _FakeUsageProvider();
@@ -231,6 +279,7 @@ List<Override> _overrides(
   _FakeUsageProvider usage,
   _FakeUsageSyncRepository repo, {
   bool online = true,
+  GoRouter? router,
 }) =>
     [
       // Env.useSupabase はコンパイル時定数のため、判定をプロバイダ経由にして差し替える。
@@ -238,15 +287,47 @@ List<Override> _overrides(
       isOnlineProvider.overrideWithValue(online),
       usageProviderProvider.overrideWithValue(usage),
       usageSyncRepositoryProvider.overrideWithValue(repo),
+      // 0018: 暫定pt（S8 の比較基準）の計算で「ふだんのSNS時間」の申告値を読む。
+      //   実装は SharedPreferences（プラグイン）で、widget テストの FakeAsync では
+      //   プラットフォーム応答が pump の時間内に返らず、提出が 50ms に間に合わない。
+      //   提出の配線を見るテストなので、申告は「未申告（既定の 120 分）」に固定する。
+      usualMinutesRepositoryProvider
+          .overrideWithValue(const _NoUsualMinutesRepository()),
       // 実ルーター（オンボ判定・全タブ構築）を持ち込まない最小ルート。
       appRouterProvider.overrideWithValue(
-        GoRouter(
-          routes: [
-            GoRoute(path: '/', builder: (_, __) => const SizedBox.shrink()),
-          ],
-        ),
+        router ??
+            GoRouter(
+              routes: [
+                GoRoute(path: '/', builder: (_, __) => const SizedBox.shrink()),
+              ],
+            ),
       ),
     ];
+
+/// build のたびに数えるだけのホームコントローラ（復帰で作り直されることを見る）。
+class _CountingHomeController extends HomeController {
+  _CountingHomeController(this._onBuild);
+  final void Function() _onBuild;
+
+  @override
+  Future<HomeState> build() async {
+    _onBuild();
+    return const HomeState(
+      permission: UsagePermissionStatus.notApplicable,
+      todayUsage: null,
+      usualMinutes: 120,
+      usualMinutesSource: 'default',
+      yesterday: null,
+      isFirstDay: true,
+      activeEgg: null,
+      pointBalance: 0,
+      gemBalance: 0,
+      pooledPoints: 0,
+      isOffline: false,
+      params: EconomyParams.defaults,
+    );
+  }
+}
 
 /// OS 利用統計の差し替え。提出対象日を記録する。
 class _FakeUsageProvider implements UsageProvider {
@@ -284,6 +365,26 @@ class _FakeUsageProvider implements UsageProvider {
     required List<String> targetPackages,
   }) async =>
       const [];
+}
+
+/// 「ふだんのSNS時間」を一度も申告していない端末（0018）。
+class _NoUsualMinutesRepository implements UsualMinutesRepository {
+  const _NoUsualMinutesRepository();
+
+  @override
+  Future<int?> localReported() async => null;
+
+  @override
+  Future<bool> hasBeenAsked() async => false;
+
+  @override
+  Future<void> markAsked() async {}
+
+  @override
+  Future<void> report(int minutes) async {}
+
+  @override
+  Future<void> syncPending() async {}
 }
 
 /// サーバー側の状態（対象日・確定済みフラグ）を模した差し替え。
