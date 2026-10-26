@@ -22,9 +22,9 @@ class WarmupCelebration extends StatelessWidget {
   Widget build(BuildContext context) {
     final body = grant.day == 1
         ? '最初のボーナス卵にためました。'
-            '白い卵に模様が浮かび、ヒビが入り、光がもれるところまで一気に育ちます。'
+            '白い卵に模様が浮かび、ヒビが入り、光が漏れるところまで一気に育ちます。'
         : '戻ってきてくれてありがとう。孵化までの残りを全部入れました。'
-            '卵をタップして、はじめてのMofiに会いに行こう。';
+            '卵をタップして、初めてのMofiに会いに行こう。';
     return Semantics(
       // アクセシビリティ: スクリーンリーダーに付与内容を1文で伝える。
       label: 'ボーナス ${grant.grantedPoints} ポイントを獲得し、卵にためました',

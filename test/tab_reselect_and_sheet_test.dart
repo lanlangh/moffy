@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:moffy/core/iap/iap_models.dart';
 import 'package:moffy/core/iap/iap_providers.dart';
+import 'package:moffy/core/iap/server_entitlement.dart';
 import 'package:moffy/core/navigation/app_tab.dart';
 import 'package:moffy/core/navigation/bottom_nav_scaffold.dart';
 import 'package:moffy/core/navigation/tab_scroll.dart';
@@ -16,6 +18,17 @@ import 'package:moffy/features/eggs/presentation/widgets/egg_detail_sheet.dart';
 ///      下へ引く操作も中身のスクロールに取られる。閉じるボタンも無かった）。
 ///   2. 開いているタブをもう一度押したら、そのページの先頭へ戻ってほしい。
 void main() {
+  // 課金の状態は固定する（RevenueCat などのプラグインを呼ばせない）。
+  final premiumOverrides = [
+    premiumStatusProvider.overrideWith(
+      (ref) => Stream.value(
+        const PremiumStatus(isPremium: true, source: PremiumSource.mock),
+      ),
+    ),
+    serverPremiumProvider.overrideWith((ref) async => null),
+    isPremiumProvider.overrideWithValue(true),
+  ];
+
   group('卵の詳細シート', () {
     testWidgets('小さい iPhone でも、上に余白が残り「閉じる」で元の画面に戻れる',
         (tester) async {
@@ -26,7 +39,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [isOnlineProvider.overrideWithValue(true)],
+          overrides: [
+            isOnlineProvider.overrideWithValue(true),
+            ...premiumOverrides,
+          ],
           child: MaterialApp.router(
             routerConfig: GoRouter(
               routes: [
@@ -61,7 +77,7 @@ void main() {
       return ProviderScope(
         overrides: [
           // 広告の枠と孵化バッジは今回の対象外（プラグインや通信に触れないように固定）。
-          isPremiumProvider.overrideWithValue(true),
+          ...premiumOverrides,
           hasHatchableEggProvider.overrideWithValue(false),
         ],
         child: MaterialApp(
