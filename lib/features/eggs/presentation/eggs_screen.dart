@@ -227,37 +227,66 @@ class _EggsBody extends ConsumerWidget {
   }
 
   void _openDetail(BuildContext context, WidgetRef ref, Egg egg) {
+    // シートは下のタブや広告の上ではなく、画面全体（root navigator）に重ねる。
+    // タブの上の領域に出すと、広告とタブの分だけ狭くなって高さの上限が効かず、
+    // iPhone ではステータスバーと「閉じる」が重なった（2026-10-26 TestFlight で発覚）。
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    var sheetOpen = true;
+    Route<dynamic>? sheetRoute;
+    // 操作後にシートを閉じる。閉じるのは**このシートの route だけ**:
+    //   * 利用者がもう閉じていたら何もしない
+    //   * 待っている間に別の画面がシートの上に開いていたら、その画面は残してシートだけ外す
+    //     （pop だと一番上の別の画面を閉じてしまう / 第三者レビュー Codex 2026-10-26）
+    void closeSheet() {
+      final route = sheetRoute;
+      if (!sheetOpen || route == null) return;
+      sheetOpen = false;
+      if (route.isCurrent) {
+        rootNavigator.pop();
+      } else if (route.isActive) {
+        rootNavigator.removeRoute(route);
+      }
+    }
+
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       // 上に閉じられる余白を必ず残す（全面に広がると iPhone で閉じられなくなる）。
       constraints: detailSheetConstraints(context),
-      builder: (_) => EggDetailSheet(
-        egg: egg,
-        state: state,
-        onSetActive: () {
-          _clearPendingHatch(ref);
-          unawaited(
-            _runEggAction(
-              context,
-              () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
-            ),
-          );
-        },
-        onMoveToStorage: () => _runEggAction(
-          context,
-          () => ref.read(eggsControllerProvider.notifier).moveToStorage(egg.id),
-        ),
-        onMoveToIncubator: (slot) => _runEggAction(
-          context,
-          () => ref
-              .read(eggsControllerProvider.notifier)
-              .moveToIncubator(egg.id, slot),
-        ),
-        onHatch: () => _hatch(context, ref, egg),
-      ),
-    );
+      builder: (sheetContext) {
+        sheetRoute ??= ModalRoute.of(sheetContext);
+        return EggDetailSheet(
+          egg: egg,
+          state: state,
+          onSetActive: () {
+            _clearPendingHatch(ref);
+            unawaited(
+              _runEggAction(
+                context,
+                closeSheet,
+                () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
+              ),
+            );
+          },
+          onMoveToStorage: () => _runEggAction(
+            context,
+            closeSheet,
+            () => ref.read(eggsControllerProvider.notifier).moveToStorage(egg.id),
+          ),
+          onMoveToIncubator: (slot) => _runEggAction(
+            context,
+            closeSheet,
+            () => ref
+                .read(eggsControllerProvider.notifier)
+                .moveToIncubator(egg.id, slot),
+          ),
+          onHatch: () => _hatch(context, ref, egg, closeSheet),
+        );
+      },
+    ).whenComplete(() => sheetOpen = false);
   }
 
   /// 枠操作（セット/戻す/切替）の共通実行。完了で詳細シートを閉じ、失敗は握って
@@ -269,32 +298,37 @@ class _EggsBody extends ConsumerWidget {
 
   Future<void> _runEggAction(
     BuildContext context,
+    VoidCallback closeSheet,
     Future<void> Function() action,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
     try {
       await action();
-      navigator.pop();
+      closeSheet();
     } on StorageFullException {
       // 保管枠が上限（無料20/プレミアム200 は 0010 で実際に強制）。満杯は事実なので
       // 具体的に案内する（孵化 or プレミアム拡張）。上部の保管枠アップセルから課金導線へ。
-      navigator.pop();
+      closeSheet();
       messenger.showSnackBar(
         const SnackBar(
           content: Text('保管庫がいっぱいです。卵を孵化させるか、プレミアムで枠を増やせます。'),
         ),
       );
     } catch (_) {
-      navigator.pop();
+      closeSheet();
       messenger.showSnackBar(
         const SnackBar(content: Text('この操作はできませんでした。もう一度お試しください。')),
       );
     }
   }
 
-  Future<void> _hatch(BuildContext context, WidgetRef ref, Egg egg) async {
-    Navigator.of(context).pop(); // 詳細シートを閉じる
+  Future<void> _hatch(
+    BuildContext context,
+    WidgetRef ref,
+    Egg egg,
+    VoidCallback closeSheet,
+  ) async {
+    closeSheet(); // 詳細シートを閉じる
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
     final navigator = Navigator.of(context, rootNavigator: true);

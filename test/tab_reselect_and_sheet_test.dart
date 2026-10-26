@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +10,11 @@ import 'package:moffy/core/iap/server_entitlement.dart';
 import 'package:moffy/core/navigation/app_tab.dart';
 import 'package:moffy/core/navigation/bottom_nav_scaffold.dart';
 import 'package:moffy/core/navigation/tab_scroll.dart';
+import 'package:moffy/core/constants/economy.dart';
 import 'package:moffy/core/sync/connectivity_provider.dart';
+import 'package:moffy/core/sync/finalize_models.dart';
+import 'package:moffy/features/eggs/data/egg_repository.dart';
+import 'package:moffy/features/eggs/domain/egg_models.dart';
 import 'package:moffy/features/eggs/presentation/eggs_screen.dart';
 import 'package:moffy/features/eggs/presentation/widgets/egg_detail_sheet.dart';
 
@@ -30,23 +36,50 @@ void main() {
   ];
 
   group('卵の詳細シート', () {
-    testWidgets('小さい iPhone でも、上に余白が残り「閉じる」で元の画面に戻れる',
-        (tester) async {
-      // iPhone SE（375x667）。中身はこの高さに収まらない。
+    /// 本番に近い形で出す: 下タブのシェルの中に たまご画面、上にステータスバー、下にホームバー。
+    /// 以前はタブもステータスバーも無い状態で確かめていて、iPhone で「閉じる」が
+    /// ステータスバーと重なる不具合（2026-10-26 TestFlight）を見逃した。
+    Future<void> pumpEggsInShell(
+      WidgetTester tester, {
+      _OneEggRepository? repo,
+    }) async {
+      // iPhone SE 相当の幅に、ノッチ付き端末のステータスバー(47)とホームバー(34)。
       tester.view.physicalSize = const Size(750, 1334);
       tester.view.devicePixelRatio = 2;
+      tester.view.padding = const FakeViewPadding(top: 94, bottom: 68);
+      tester.view.viewPadding = const FakeViewPadding(top: 94, bottom: 68);
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             isOnlineProvider.overrideWithValue(true),
+            hasHatchableEggProvider.overrideWithValue(false),
+            // テストごとに新しい卵の状態を使う（モックの共有データは書き換えない）。
+            eggRepositoryProvider.overrideWithValue(repo ?? _OneEggRepository()),
             ...premiumOverrides,
           ],
           child: MaterialApp.router(
             routerConfig: GoRouter(
+              initialLocation: AppTab.eggs.path,
               routes: [
-                GoRoute(path: '/', builder: (_, __) => const EggsScreen()),
+                StatefulShellRoute.indexedStack(
+                  builder: (context, state, shell) => BottomNavScaffold(
+                    currentIndex: shell.currentIndex,
+                    onTap: (_) {},
+                    child: shell,
+                  ),
+                  branches: [
+                    StatefulShellBranch(
+                      routes: [
+                        GoRoute(
+                          path: AppTab.eggs.path,
+                          builder: (_, __) => const EggsScreen(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -55,19 +88,73 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // 主役ステージの卵（モックは 350pt＝次の変化まで あと 150pt）をタップ。
+      // 主役ステージの卵（350pt＝次の変化まで あと 150pt）をタップ。
       await tester.tap(find.textContaining('次の変化まで').first);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.byType(EggDetailSheet), findsOneWidget);
+    }
 
-      // 画面の 85% までに収まる＝上に外側をタップできる余白が残る。
-      final sheetHeight = tester.getSize(find.byType(EggDetailSheet)).height;
-      expect(sheetHeight, lessThanOrEqualTo(667 * 0.85 + 0.5));
+    testWidgets('タブとステータスバーがあっても、上に余白が残り「閉じる」が隠れない',
+        (tester) async {
+      await pumpEggsInShell(tester);
+
+      // シートの上端はステータスバー(47)より十分下＝外側をタップできる余白が残る。
+      final top = tester.getTopLeft(find.byType(EggDetailSheet)).dy;
+      expect(top, greaterThanOrEqualTo(47 + 40));
+      // 「閉じる」もステータスバーの下にある。
+      final close = tester.getTopLeft(find.byTooltip('閉じる')).dy;
+      expect(close, greaterThan(47));
 
       await tester.tap(find.byTooltip('閉じる'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(EggDetailSheet), findsNothing);
+      expect(find.text('育成枠'), findsOneWidget); // 元の画面に戻っている
+    });
+
+    testWidgets('シートの操作（保管庫に戻す）が終わると、シートだけが閉じる', (tester) async {
+      await pumpEggsInShell(tester);
+
+      final button = find.text('保管庫に戻す');
+      await tester.ensureVisible(button);
+      await tester.pump();
+      await tester.tap(button);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.byType(EggDetailSheet), findsNothing);
+      expect(find.text('育成枠'), findsOneWidget); // たまご画面は残っている
+    });
+    testWidgets('待っている間に別の画面が上に開いたら、その画面は残してシートだけ閉じる',
+        (tester) async {
+      // 第三者レビュー（Codex）: 一番上を pop すると、上に開いた別の画面を閉じてしまう。
+      final gate = Completer<void>();
+      await pumpEggsInShell(tester, repo: _OneEggRepository(gate: gate));
+
+      final button = find.text('保管庫に戻す');
+      await tester.ensureVisible(button);
+      await tester.pump();
+      await tester.tap(button);
+      await tester.pump();
+
+      // 通信を待っている間に、画面全体の navigator へ別の画面を積む。
+      final root = tester.state<NavigatorState>(find.byType(Navigator).first);
+      unawaited(
+        root.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('上に開いた画面')),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.text('上に開いた画面'), findsOneWidget);
       expect(find.byType(EggDetailSheet), findsNothing);
     });
   });
@@ -130,4 +217,56 @@ void main() {
       expect(taps, [3]);
     });
   });
+}
+
+/// 育成中の卵が1つだけ（350pt＝次の変化まで あと 150pt）。「保管庫に戻す」で保管へ移る。
+/// テストごとに作るので、テストの順番に左右されない。
+class _OneEggRepository implements EggRepository {
+  _OneEggRepository({this.gate});
+
+  /// 渡されたら「保管庫に戻す」はこれが完了するまで待つ（通信中を模す）。
+  final Completer<void>? gate;
+  bool _stored = false;
+
+  Egg get _egg => Egg(
+        id: 'egg_one',
+        rarity: EggRarity.normal,
+        growthPoints: 350,
+        location: _stored ? EggLocation.storage : EggLocation.incubating,
+        slotIndex: _stored ? null : 1,
+        isActive: !_stored,
+        acquiredSource: 'starter',
+      );
+
+  @override
+  Future<EggsState> loadEggs(EconomyParams params) async => EggsState(
+        incubatorSlots: [_stored ? null : _egg, null, null],
+        storage: _stored ? [_egg] : const [],
+        pooledPoints: 0,
+        isOffline: false,
+        params: params,
+      );
+
+  @override
+  Future<void> moveToStorage(String eggId) async {
+    await gate?.future;
+    _stored = true;
+  }
+
+  @override
+  Future<EnsureFirstEggResult> ensureFirstEgg() async =>
+      EnsureFirstEggResult.notGranted;
+
+  @override
+  Future<void> setActiveEgg(String eggId) => throw UnimplementedError();
+
+  @override
+  Future<void> moveToIncubator({
+    required String eggId,
+    required int slotIndex,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<HatchResult> hatch(String eggId) => throw UnimplementedError();
 }

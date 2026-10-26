@@ -47,7 +47,13 @@ class EggDetailSheet extends StatelessWidget {
       child: Stack(
         children: [
           SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpace.xl),
+            // 下端はホームバーの分だけ余白を足す（シートは画面全体に重ねて出すため）。
+            padding: EdgeInsets.fromLTRB(
+              AppSpace.xl,
+              AppSpace.xl,
+              AppSpace.xl,
+              AppSpace.xl + MediaQuery.paddingOf(context).bottom,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

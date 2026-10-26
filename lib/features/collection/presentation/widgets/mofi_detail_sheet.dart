@@ -167,7 +167,11 @@ class _MofiDetailSheetState extends State<MofiDetailSheet> {
                             textAlign: TextAlign.center,
                           ),
                         ),
-                      const SizedBox(height: AppSpace.lg),
+                      // 下端はホームバーの分だけ余白を足す（シートは画面全体に重ねて出すため）。
+                      SizedBox(
+                        height:
+                            AppSpace.lg + MediaQuery.paddingOf(context).bottom,
+                      ),
                     ],
                   ),
                 ),
