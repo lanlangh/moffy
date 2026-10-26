@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/navigation/app_tab.dart';
+import '../../../core/navigation/tab_scroll.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/widgets/state_views.dart';
 import '../domain/quest_models.dart';
@@ -47,6 +49,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> {
           ),
           data: (state) => _QuestsBody(
             state: state,
+            scrollController: ref.watch(tabScrollControllerProvider(AppTab.quests)),
             claimingId: _claimingId,
             onClaim: _onClaim,
             onRefresh: controller.refresh,
@@ -73,12 +76,16 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> {
 class _QuestsBody extends StatelessWidget {
   const _QuestsBody({
     required this.state,
+    required this.scrollController,
     required this.claimingId,
     required this.onClaim,
     required this.onRefresh,
   });
 
   final QuestsState state;
+
+  /// 下タブの再タップで先頭へ戻すための controller（[tabScrollControllerProvider]）。
+  final ScrollController scrollController;
   final String? claimingId;
   final void Function(Quest) onClaim;
   final Future<void> Function() onRefresh;
@@ -109,6 +116,7 @@ class _QuestsBody extends StatelessWidget {
             onRefresh: onRefresh,
             color: AppColors.primary,
             child: ListView(
+              controller: scrollController,
               padding: const EdgeInsets.all(AppSpace.lg),
               children: [
                 // ストリークヘッダ（連続日数 + 倍率 / S14）。

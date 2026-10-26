@@ -73,10 +73,10 @@ class _Slot extends StatelessWidget {
     final stage = e.stage(params);
     // 0018 §4-4: S1（しろいたまご）はレア度を隠す。読み上げも「なぞのたまご」、
     // 発光もレア度の色ではなく暖色にする（色で正体が割れないように）。
-    final name = stage.hidesRarity ? 'なぞのたまご' : '${e.rarity.label}のたまご';
+    final name = stage.hidesRarity ? '謎の卵' : '${e.rarity.label}の卵';
     return Semantics(
       button: true,
-      label: '$name・${active ? '育成中' : 'まちぼうけ'}',
+      label: '$name・${active ? '育成中' : '待機中'}',
       child: GestureDetector(
         onTap: onTap,
         child: Column(
@@ -97,7 +97,7 @@ class _Slot extends StatelessWidget {
             ),
             const SizedBox(height: AppSpace.xs),
             Text(
-              active ? '育成中' : 'まちぼうけ',
+              active ? '育成中' : '待機中',
               style: AppType.caption.copyWith(
                 color: active ? AppColors.primary : AppColors.textSecondary,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w400,

@@ -176,3 +176,29 @@ class AppCard extends StatelessWidget {
     );
   }
 }
+
+/// 下から出る詳細シートの高さの上限（画面の85%）。
+///
+/// 中身が画面より高いとシートが全面に広がり、外側をタップして閉じる場所が無くなる。
+/// 下へ引く操作も中身のスクロールに取られ、iPhone では閉じられなくなった
+/// （2026-10-26 オーナー報告・卵の詳細）。上に必ず閉じられる余白を残す。
+BoxConstraints detailSheetConstraints(BuildContext context) =>
+    BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85);
+
+/// 詳細シートの「閉じる」ボタン（右上に固定し、中身をスクロールしても隠れない）。
+class SheetCloseButton extends StatelessWidget {
+  const SheetCloseButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: () => Navigator.of(context).maybePop(),
+      tooltip: '閉じる',
+      icon: const Icon(Icons.close_rounded),
+      color: AppColors.textSecondary,
+      style: IconButton.styleFrom(
+        backgroundColor: AppColors.surface.withValues(alpha: 0.85),
+      ),
+    );
+  }
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/tokens.dart';
+import '../../../../core/widgets/common_widgets.dart';
 import '../../../../core/widgets/nest_panel.dart';
 import '../../../../core/widgets/world_stage.dart';
 import '../../../eggs/presentation/egg_visuals.dart';
@@ -46,120 +47,139 @@ class _MofiDetailSheetState extends State<MofiDetailSheet> {
       // 絵が狭く見える（オーナー指摘 2026-08-19「左右はまだ余裕がある」）。
       // padding はステージより下の文章側にだけ掛ける。
       clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: AppSpace.md),
-            const _SheetGrip(),
-            const SizedBox(height: AppSpace.md),
-            // 発見済みの子だけ「世界の風景」の上に立たせる。未発見はシルエットで
-            // 正体を伏せる場面なので、背景を出すと発見の驚きが先に漏れる。
-            // 砂色の円台は出さない（風景の上だと貼り紙のように浮くため）。
-            SizedBox(
-              // 🔴 幅を指定しないと中身の巣(160px)の幅に縮み、背景が左右に
-              // 余白を残したまま小さく出る（2026-08-19 の指摘の原因はこれ）。
-              width: double.infinity,
-              height: 240,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (discovered)
-                    const Positioned.fill(child: WorldStageBackground()),
-                  NestRing(
-                    diameter: 160,
-                    glow: discovered ? rarity.main : null,
-                    showBase: !discovered,
-                    child: MofiSubject(
-                      speciesId: entry.species.id,
-                      family: entry.species.family,
-                      rarity: entry.species.rarity,
-                      stage: shownStage,
-                      silhouette: !discovered,
-                      isShiny: entry.isShiny,
-                    ),
+      // 閉じるボタンはスクロールの外に置き、中身を動かしても右上に残す。
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: AppSpace.md),
+                const _SheetGrip(),
+                const SizedBox(height: AppSpace.md),
+                // 発見済みの子だけ「世界の風景」の上に立たせる。未発見はシルエットで
+                // 正体を伏せる場面なので、背景を出すと発見の驚きが先に漏れる。
+                // 砂色の円台は出さない（風景の上だと貼り紙のように浮くため）。
+                SizedBox(
+                  // 🔴 幅を指定しないと中身の巣(160px)の幅に縮み、背景が左右に
+                  // 余白を残したまま小さく出る（2026-08-19 の指摘の原因はこれ）。
+                  width: double.infinity,
+                  height: 240,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (discovered)
+                        const Positioned.fill(child: WorldStageBackground()),
+                      NestRing(
+                        diameter: 160,
+                        glow: discovered ? rarity.main : null,
+                        showBase: !discovered,
+                        child: MofiSubject(
+                          speciesId: entry.species.id,
+                          family: entry.species.family,
+                          rarity: entry.species.rarity,
+                          stage: shownStage,
+                          silhouette: !discovered,
+                          isShiny: entry.isShiny,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: AppSpace.lg),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        // 表示中の段階の名前を出す（進化前と進化後で名前が違う）。
+                        discovered
+                            ? entry.species.nameForStage(shownStage)
+                            : '？？？',
+                        style: AppType.display,
+                      ),
+                      if (discovered && entry.isShiny) ...[
+                        const SizedBox(height: AppSpace.sm),
+                        // キラキラのアイコンを添えるのはやめ、色付きのバッジにする
+                        // （2026-08-19 オーナー指摘「絵文字は安っぽく見える」）。
+                        // 装飾で特別さを出すのではなく、**面と色**で出す。
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.md,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.warn.withValues(alpha: 0.16),
+                            borderRadius: AppRadius.pillR,
+                          ),
+                          child: Text(
+                            '色違い',
+                            style: AppType.bodyStrong
+                                .copyWith(color: AppColors.warn),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpace.xl),
+                      if (discovered) ...[
+                        _DetailRow(
+                          label: 'レアリティ',
+                          value: entry.species.rarity.label,
+                        ),
+                        _DetailRow(
+                          label: '種族',
+                          value: entry.species.family.label,
+                        ),
+                        // 進化ライン（docs/EVOLUTION.md §5。仕様にあったが未実装だった）。
+                        // 進化すると こどもの姿が二度と見られないのは収集ゲームとして
+                        // もったいない、というオーナー指摘への対応でもある。
+                        const SizedBox(height: AppSpace.md),
+                        _EvolutionLine(
+                          entry: entry,
+                          stage2Count: stage2Count,
+                          shownStage: shownStage,
+                          onSelectStage: (s) => setState(() => _shownStage = s),
+                        ),
+                        const SizedBox(height: AppSpace.md),
+                        _DetailRow(
+                          label: '進化',
+                          value: entry.evolutionStage(stage2Count) >= 2
+                              ? '進化済み'
+                              : (entry.toNextEvolution(stage2Count) > 0
+                                  ? 'あと${entry.toNextEvolution(stage2Count)}体で進化'
+                                  : '進化前'),
+                        ),
+                        _DetailRow(
+                          label: '色違い',
+                          value: entry.isShiny ? 'あり' : '通常色',
+                        ),
+                        _DetailRow(
+                          label: '発見日時',
+                          value: _formatDate(entry.discoveredAt),
+                        ),
+                      ] else
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: AppSpace.lg),
+                          child: Text(
+                            '${entry.species.rarity.label}のMofi。卵を育てて孵化させると見つかります。',
+                            style: AppType.body,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      const SizedBox(height: AppSpace.lg),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: AppSpace.lg),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-            Text(
-              // 表示中の段階の名前を出す（進化前と進化後で名前が違う）。
-              discovered ? entry.species.nameForStage(shownStage) : '？？？',
-              style: AppType.display,
-            ),
-            if (discovered && entry.isShiny) ...[
-              const SizedBox(height: AppSpace.sm),
-              // キラキラのアイコンを添えるのはやめ、色付きのバッジにする
-              // （2026-08-19 オーナー指摘「絵文字は安っぽく見える」）。
-              // 装飾で特別さを出すのではなく、**面と色**で出す。
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpace.md,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.warn.withValues(alpha: 0.16),
-                  borderRadius: AppRadius.pillR,
-                ),
-                child: Text(
-                  '色違い',
-                  style: AppType.bodyStrong.copyWith(color: AppColors.warn),
-                ),
-              ),
-            ],
-            const SizedBox(height: AppSpace.xl),
-
-            if (discovered) ...[
-              _DetailRow(label: 'レアリティ', value: entry.species.rarity.label),
-              _DetailRow(label: '種族', value: entry.species.family.label),
-              // 進化ライン（docs/EVOLUTION.md §5。仕様にあったが未実装だった）。
-              // 進化すると こどもの姿が二度と見られないのは収集ゲームとして
-              // もったいない、というオーナー指摘への対応でもある。
-              const SizedBox(height: AppSpace.md),
-              _EvolutionLine(
-                entry: entry,
-                stage2Count: stage2Count,
-                shownStage: shownStage,
-                onSelectStage: (s) => setState(() => _shownStage = s),
-              ),
-              const SizedBox(height: AppSpace.md),
-              _DetailRow(
-                label: '進化',
-                value: entry.evolutionStage(stage2Count) >= 2
-                    ? '進化済み'
-                    : (entry.toNextEvolution(stage2Count) > 0
-                        ? 'あと${entry.toNextEvolution(stage2Count)}体で進化'
-                        : '進化前'),
-              ),
-              _DetailRow(
-                label: '色違い',
-                value: entry.isShiny ? 'あり' : '通常色',
-              ),
-              _DetailRow(
-                label: '発見日時',
-                value: _formatDate(entry.discoveredAt),
-              ),
-            ] else
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
-                child: Text(
-                  '${entry.species.rarity.label}のMofi。卵を育てて孵化させると見つかります。',
-                  style: AppType.body,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            const SizedBox(height: AppSpace.lg),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+          const Positioned(
+            top: AppSpace.sm,
+            right: AppSpace.sm,
+            child: SheetCloseButton(),
+          ),
+        ],
       ),
     );
   }
@@ -267,8 +287,8 @@ class _EvolutionStep extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
+        mainAxisSize: MainAxisSize.min,
+        children: [
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(

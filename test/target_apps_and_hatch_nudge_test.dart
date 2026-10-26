@@ -186,11 +186,11 @@ void main() {
       expect(find.text('孵化する'), findsOneWidget);
     });
 
-    testWidgets('まだ育ち途中なら孵化ボタンを出さない（段階名と残りptを出す）', (tester) async {
+    testWidgets('まだ育ち途中なら孵化ボタンを出さない（次の変化までの残りptを出す）', (tester) async {
       await tester.pumpWidget(panel(growth: 460, onHatch: () {}));
       await _settleReveal(tester);
 
-      expect(find.text('ひかり・つぎの変化まで あと 40pt'), findsOneWidget);
+      expect(find.text('次の変化まで あと 40pt'), findsOneWidget);
       expect(find.text('孵化する'), findsNothing);
     });
   });

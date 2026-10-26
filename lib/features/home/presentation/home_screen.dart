@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/navigation/tab_scroll.dart';
 import '../../../core/constants/remote_config.dart';
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/theme/tokens.dart';
@@ -85,6 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           data: (state) => _HomeBody(
             state: state,
+            scrollController: ref.watch(tabScrollControllerProvider(AppTab.home)),
             onRefresh: controller.refresh,
             onRequestPermission: controller.requestPermissionAndReload,
             // 判定できるまで（loading/error）は警告を出さない側に倒す。
@@ -101,6 +103,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _HomeBody extends StatelessWidget {
   const _HomeBody({
     required this.state,
+    required this.scrollController,
     required this.onRefresh,
     required this.onRequestPermission,
     required this.hasAppSelection,
@@ -108,6 +111,9 @@ class _HomeBody extends StatelessWidget {
   });
 
   final HomeState state;
+
+  /// 下タブの再タップで先頭へ戻すための controller（[tabScrollControllerProvider]）。
+  final ScrollController scrollController;
   final Future<void> Function() onRefresh;
   final Future<void> Function() onRequestPermission;
 
@@ -126,6 +132,7 @@ class _HomeBody extends StatelessWidget {
             onRefresh: onRefresh,
             color: AppColors.primary,
             child: ListView(
+              controller: scrollController,
               padding: const EdgeInsets.all(AppSpace.lg),
               children: [
                 _TopBar(state: state),

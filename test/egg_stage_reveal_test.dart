@@ -92,6 +92,20 @@ void main() {
       );
     }
 
+    /// 見出し「次の変化まで あと Npt」と、読み上げに残した段階名を確かめる。
+    /// 見出しから段階名を外したので（2026-10-26 オーナー指摘）、段階は読み上げの文で見分ける。
+    Future<void> expectCaption(
+      WidgetTester tester,
+      String stage,
+      int remaining,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pump();
+      expect(find.text('次の変化まで あと ${remaining}pt'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^たまご: $stage。')), findsOneWidget);
+      semantics.dispose();
+    }
+
     /// 記憶の読み込み（非同期）を終えて最初の絵を出す。
     Future<void> settleStart(WidgetTester tester) async {
       await tester.pump();
@@ -109,7 +123,7 @@ void main() {
       await settleStart(tester);
 
       // 0.5秒の「前の絵」: 前の段階名の見出し（残り pt は実際の値）。
-      expect(find.text('もよう・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, '模様', 100);
       expect(find.text('ピキッ！'), findsNothing);
 
       // 0.5秒ホールド + 0.6秒フラッシュ → チップ（段階名 + ひとこと）。
@@ -122,7 +136,7 @@ void main() {
       // 1.5秒のチップ → 定常（新しい段階名の見出し）。
       await advance(tester, 1600);
       expect(find.text('ピキッ！'), findsNothing);
-      expect(find.text('ヒビ・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, 'ヒビ', 100);
       expect(await memory.lastSeenStep('e1'), 2);
 
       final e = analytics.single(AnalyticsEvents.eggStageUp);
@@ -138,7 +152,7 @@ void main() {
       await tester.pumpWidget(harness(growth: 300, lastSeen: 1));
       await settleStart(tester);
       // 見出しの段階名は「前の絵」、残り pt は実際の卵（300 → 次は 500）。
-      expect(find.text('もよう・つぎの変化まで あと 200pt'), findsOneWidget);
+      await expectCaption(tester, '模様', 200);
 
       // 1段目のチップ（0.5 + 0.6 秒後）。
       await advance(tester, 1200);
@@ -147,11 +161,11 @@ void main() {
       // 1段目のチップ 1.5秒 → 間 0.8秒 → 2段目のフラッシュ 0.6秒 → 2段目のチップ。
       await advance(tester, 1500 + 800 + 600 + 100);
       expect(find.text('ピキッ！'), findsNothing);
-      expect(find.text('ヒビから ひかりが…もうすぐ うまれそう'), findsOneWidget);
+      expect(find.text('ヒビから光が…もうすぐ生まれそう'), findsOneWidget);
       expect(await memory.lastSeenStep('e1'), 1); // まだ見終わっていない
 
       await advance(tester, 1600);
-      expect(find.text('ひかり・つぎの変化まで あと 200pt'), findsOneWidget);
+      await expectCaption(tester, '光', 200);
       expect(await memory.lastSeenStep('e1'), 3);
       final e = analytics.single(AnalyticsEvents.eggStageUp);
       expect(e.props?[AnalyticsProps.fromStep], 1);
@@ -159,26 +173,26 @@ void main() {
       expect(e.props?[AnalyticsProps.steps], 2);
     });
 
-    testWidgets('S1→S2: レア度が分かる瞬間は「レアのたまご！」', (tester) async {
+    testWidgets('S1→S2: レア度が分かる瞬間は「レアの卵！」', (tester) async {
       await tester.pumpWidget(
         harness(growth: 100, lastSeen: 0, rarity: 'rare'),
       );
       await settleStart(tester);
-      expect(find.text('しろいたまご・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, '白い卵', 100);
 
       // 0.5秒ホールド → 浮かび上がり開始（アニメーションの 0 秒目は次のフレーム）。
       await advance(tester, 600);
-      expect(find.text('もようが うかんできた！'), findsNothing);
+      expect(find.text('模様が浮かんできた！'), findsNothing);
       // 1.2秒かけて浮かび上がる。完了判定は「1.2秒を超えたフレーム」で起き、
       // 完了の合図（チップ）はその次のフレームで出る。
       await advance(tester, 1250);
       await tester.pump();
-      expect(find.text('もようが うかんできた！'), findsOneWidget);
-      expect(find.text('レアのたまご！'), findsOneWidget);
+      expect(find.text('模様が浮かんできた！'), findsOneWidget);
+      expect(find.text('レアの卵！'), findsOneWidget);
 
       await advance(tester, 1600);
-      expect(find.text('レアのたまご！'), findsNothing);
-      expect(find.text('もよう・つぎの変化まで あと 100pt'), findsOneWidget);
+      expect(find.text('レアの卵！'), findsNothing);
+      await expectCaption(tester, '模様', 100);
       expect(await memory.lastSeenStep('e1'), 1);
       final e = analytics.single(AnalyticsEvents.eggStageUp);
       expect(e.props?[AnalyticsProps.eggRarity], 'rare');
@@ -194,7 +208,7 @@ void main() {
 
       // 演出中はボタンを出さない（タップの取り合いを避ける）。
       await advance(tester, 1200);
-      expect(find.text('うまれる！'), findsWidgets);
+      expect(find.text('孵化できます！'), findsWidgets);
       expect(find.text('孵化する'), findsNothing);
 
       await advance(tester, 1600);
@@ -208,7 +222,7 @@ void main() {
       await tester.pumpWidget(harness(growth: 200));
       await settleStart(tester);
 
-      expect(find.text('ヒビ・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, 'ヒビ', 100);
       expect(await memory.lastSeenStep('e1'), 2);
       await advance(tester, 3000);
       expect(find.text('ピキッ！'), findsNothing);
@@ -233,14 +247,14 @@ void main() {
         harness(growth: 200, lastSeen: 1, reduceMotion: true),
       );
       await settleStart(tester);
-      expect(find.text('もよう・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, '模様', 100);
 
       // 通常は 1.1秒後にチップが出るが、動きなしでは 0.5秒のホールド直後に出る。
       await advance(tester, 600);
       expect(find.text('ピキッ！'), findsOneWidget);
 
       await advance(tester, 1600);
-      expect(find.text('ヒビ・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, 'ヒビ', 100);
       expect(await memory.lastSeenStep('e1'), 2);
       final e = analytics.single(AnalyticsEvents.eggStageUp);
       expect(e.props?[AnalyticsProps.steps], 1);
@@ -255,7 +269,7 @@ void main() {
       await tester.tap(find.byType(EggStageReveal));
       await tester.pump();
 
-      expect(find.text('ひかり・つぎの変化まで あと 200pt'), findsOneWidget);
+      await expectCaption(tester, '光', 200);
       expect(await memory.lastSeenStep('e1'), 3);
       final e = analytics.single(AnalyticsEvents.eggStageUp);
       expect(e.props?[AnalyticsProps.fromStep], 0);
@@ -293,14 +307,14 @@ void main() {
         ),
       );
       await settleStart(tester);
-      expect(find.text('もよう・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, '模様', 100);
 
       growth.value = 200; // 前日分の確定が入った
       await tester.pump();
       await advance(tester, 700);
       expect(find.text('ピキッ！'), findsOneWidget);
       await advance(tester, 1600);
-      expect(find.text('ヒビ・つぎの変化まで あと 100pt'), findsOneWidget);
+      await expectCaption(tester, 'ヒビ', 100);
       final e = analytics.single(AnalyticsEvents.eggStageUp);
       expect(e.props?[AnalyticsProps.fromStep], 1);
       expect(e.props?[AnalyticsProps.toStep], 2);

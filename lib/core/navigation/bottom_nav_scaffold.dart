@@ -6,6 +6,7 @@ import '../ads/ad_banner.dart';
 import '../theme/tokens.dart';
 import 'app_tab.dart';
 import 'tab_icons.dart';
+import 'tab_scroll.dart';
 
 /// 孵化できる卵があるか（下タブのバッジ用）。
 ///
@@ -85,7 +86,14 @@ class _MoffyBottomNav extends ConsumerWidget {
                   child: _TabButton(
                     tab: AppTab.values[i],
                     active: i == currentIndex,
-                    onTap: () => onTap(i),
+                    onTap: () {
+                      // 開いているタブをもう一度押したら、そのページの先頭へ戻す
+                      // （画面の積み重ねは onTap 側の goBranch(initialLocation) が戻す）。
+                      if (i == currentIndex) {
+                        scrollTabToTop(ref, AppTab.values[i]);
+                      }
+                      onTap(i);
+                    },
                     // 孵化できる卵があるときだけ、たまごタブに印を出す。
                     badge: hasHatchable && AppTab.values[i] == AppTab.eggs,
                   ),
@@ -157,7 +165,8 @@ class _TabButton extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: AppColors.primary,
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.surface, width: 2),
+                          border:
+                              Border.all(color: AppColors.surface, width: 2),
                         ),
                       ),
                     ),
