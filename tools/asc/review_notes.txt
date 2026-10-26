@@ -1,12 +1,15 @@
-[Version 1.2.0]
-Visual/UX update only: the egg now animates (breathing, then wobbling after it
-cracks), a world background was added, evolved characters have their own names, and
-an effect plays on evolution. No change to permissions, data handling, or purchases.
+[Version 1.3.0]
+Game-balance and visual update. Each day is now rated in three levels (◎ / ○ / △)
+against the user's self-reported "usual SNS time" (asked once on a new onboarding page,
+skippable; default 2 hours), and the egg grows by a fixed amount per rating. The egg now
+shows five visual stages. A hatch-animation bug was fixed. No change to permissions,
+data collected, or purchases.
 
 【Family Controls / Screen Time の用途について】
 
-本アプリは、ユーザー自身が「減らしたい」と選んだアプリの利用削減量を、
-キャラクター育成ゲームのポイントに換算する、デジタルウェルビーイング目的のアプリです。
+本アプリは、ユーザー自身が「減らしたい」と選んだアプリの利用時間をもとに、
+その日どれだけ離れられたかを評価し、キャラクター育成ゲームのポイントに換算する、
+デジタルウェルビーイング目的のアプリです。
 
 ・対象アプリはユーザーがOS標準の FamilyActivityPicker で自分で選択します。
 ・DeviceActivityMonitor 拡張は「設定した時間しきい値に到達したか」のみを
@@ -14,80 +17,68 @@ an effect plays on evolution. No change to permissions, data handling, or purcha
 ・iOS の仕様上、選択されたアプリは不透明トークンとして扱われ、開発者側からは
   どのアプリかを識別できません。アプリ名や個別の内訳をサーバーへ送信することは
   一切ありません。
-・サーバーへ送るのは日次の合計利用分数のみで、ポイント確定計算に使用します。
+・サーバーへ送るのは日次の合計利用分数（しきい値の段階）と、計測できたかどうかのみで、
+  ポイント確定計算に使用します。
 
 【サインインについて】
 アカウント登録・ログイン画面はありません。初回起動時に匿名アカウントが自動作成される
 ため、デモアカウントは不要です。
 
 【審査時の動作について】
-初回起動から7日間は基準値（過去の平均利用時間）を算出する準備期間のため、
-削減ポイントの代わりに固定のボーナスポイントが付与され、最初の卵が孵ります。
-短時間のレビューでも、この付与によりゲームの主要な流れをご確認いただけます。
+・初回起動時のオンボーディングで「ふだんのSNS時間」を1タップで選びます（スキップ可・
+  未選択時は2時間として扱います）。これが毎日の評価の基準になります。
+・初回起動日に最初の卵へ300ポイントが付与され、卵の見た目が4段階目（光がもれる状態）
+  まで進みます。これにより、短時間のレビューでも卵が段階的に育つ様子をご確認いただけます。
+・毎日の評価は「前日の利用時間」で確定するため、その日のうちには付きません。
+  最初の卵は、初回起動日より後にアプリを開いた日に残りのポイントが付与され、孵化します。
 
 【広告について】
 無料プランでは AdMob のバナー広告を表示しますが、非パーソナライズ広告のみで、
 ATT（トラッキング許可）は求めず、IDFA をトラッキング目的で使用しません。
-iOS 側は AdMob の配信承認がまだ下りていないため、審査時点ではバナーが表示されない
-場合があります。
+審査時点ではバナーが表示されない場合があります。
 
-【アプリ内課金について（重要・ご確認ください）】
-本バージョンにはサブスクリプションを同梱できていませんが、これは入力漏れでは
-ありません。当社のサブスク2件（moffy_premium_monthly / moffy_premium_yearly）は
-2026-07-23 の提出物 755e8857-3ab8-421d-bdc1-e4642569acb4 の中で
-「審査中（In Review）」のまま固着しており、提出も削除もできない状態です。
-どちらを試しても App Store Connect が HTTP 409 を返し、「審査用に追加」ボタンも
-グレーアウトして押せません。この件は Developer Support と App Review の双方に
-問い合わせ中です。
-
-そのため、本ビルドの課金画面（ペイウォール）は商品が並ばず「プランがありません」
-という空の状態で表示されます。これはアプリの不具合ではなく、上記の固着による
-一時的な結果です。中核機能（利用時間の計測、ポイント、卵、孵化、図鑑の収集）は
-すべて無料で利用でき、通常どおりご確認いただけます。
+【アプリ内課金について】
+サブスクリプション2件（moffy_premium_monthly / moffy_premium_yearly）は承認済みで、
+本バージョンでの変更はありません。メニュー タブ →「プレミアムにする」から課金画面を
+ご確認いただけます。中核機能（利用時間の計測、ポイント、卵、孵化、図鑑の収集）は
+すべて無料で利用できます。
 
 ----------------------------------------------------------------------
 
 [Family Controls / Screen Time usage]
 
-This app converts the reduction in usage of apps that the user themselves selects
-into points for a pet-raising game. It is a digital wellbeing app.
+This app rates how far the user stayed away from the apps they themselves selected,
+and converts that daily rating into points for a pet-raising game. It is a digital
+wellbeing app.
 
 - The user selects target apps via the OS-standard FamilyActivityPicker.
 - The DeviceActivityMonitor extension only records whether a configured time
   threshold was reached, storing it in an App Group.
 - Per iOS design, selected apps are opaque tokens; we cannot identify which apps
   they are. No app names or per-app breakdowns are ever sent to our server.
-- Only the daily total minutes are sent, used solely to finalize points.
+- Only the daily total minutes (threshold level) and whether it could be measured are
+  sent, used solely to finalize points.
 
 [Sign-in]
 There is no account registration or login screen. An anonymous account is created
 automatically on first launch, so no demo account is required.
 
 [Note for review]
-For the first 7 days, the app establishes a baseline of past usage, so fixed bonus
-points are granted instead of reduction points, which hatches the first egg. This
-lets you verify the core game loop within a short review session.
+- During onboarding the user picks their "usual SNS time" with one tap (skippable;
+  2 hours is assumed if skipped). This is the baseline for the daily rating.
+- On the first day, 300 bonus points are added to the first egg, which advances it to
+  the fourth visual stage (light shining through). This lets you see the egg grow
+  through its stages within a short review session.
+- Daily ratings are finalized from the previous day's usage, so none are granted on
+  the same day. The first egg receives its remaining points and hatches the next time
+  the app is opened on a later day.
 
 [Ads]
 The free tier shows AdMob banners, non-personalized only. We do not request ATT and
-do not use IDFA for tracking. AdMob has not yet approved serving for the iOS app, so
-banners may not appear during review.
+do not use IDFA for tracking. Banners may not appear during review.
 
-[In-App Purchases - please read]
-This submission does not include our auto-renewable subscriptions, and this is not
-an oversight. Our two subscriptions (moffy_premium_monthly, moffy_premium_yearly)
-and their subscription group have been stuck "In Review" inside an earlier
-submission, 755e8857-3ab8-421d-bdc1-e4642569acb4, since 2026-07-23. We can neither
-submit them nor remove them: both operations return HTTP 409 from App Store Connect
-("is not in valid state" when submitting, "there is already an inflight version"
-when trying to replace them), and the "Add for Review" button on the subscription
-group is greyed out. We have open cases with both Developer Support and App Review
-about this.
-
-As a result, the paywall screen in this build shows an empty "no plans available"
-state instead of purchasable products. This is a temporary consequence of the stuck
-submission, not a defect in the app, and no purchase flow can be triggered. All core
-functionality (usage measurement, points, eggs, hatching, and the collection) is
-fully available for free and can be reviewed normally.
-
-Once the subscriptions are released, we will submit them separately.
+[In-App Purchases]
+Our two auto-renewable subscriptions (moffy_premium_monthly, moffy_premium_yearly) are
+already approved and unchanged in this version. To review the paywall, open the
+"メニュー" (Menu) tab, then tap "プレミアムにする" (Go Premium). All core functionality
+(usage measurement, points, eggs, hatching, and the collection) is available for free.
