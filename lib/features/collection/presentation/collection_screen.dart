@@ -134,6 +134,10 @@ class _CollectionBody extends ConsumerWidget {
   void _openDetail(BuildContext context, MofiDexEntry entry, int stage2Count) {
     showModalBottomSheet<void>(
       context: context,
+      // 下のタブや広告の上ではなく画面全体に重ね、ステータスバーの下から出す
+      // （タブの上に出すと高さの上限が効かず、iPhone で「閉じる」が隠れた）。
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       // 上に閉じられる余白を必ず残す（全面に広がると iPhone で閉じられなくなる）。
