@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +10,11 @@ import 'package:moffy/core/iap/server_entitlement.dart';
 import 'package:moffy/core/navigation/app_tab.dart';
 import 'package:moffy/core/navigation/bottom_nav_scaffold.dart';
 import 'package:moffy/core/navigation/tab_scroll.dart';
+import 'package:moffy/core/constants/economy.dart';
 import 'package:moffy/core/sync/connectivity_provider.dart';
+import 'package:moffy/core/sync/finalize_models.dart';
+import 'package:moffy/features/eggs/data/egg_repository.dart';
+import 'package:moffy/features/eggs/domain/egg_models.dart';
 import 'package:moffy/features/eggs/presentation/eggs_screen.dart';
 import 'package:moffy/features/eggs/presentation/widgets/egg_detail_sheet.dart';
 
@@ -33,7 +39,10 @@ void main() {
     /// 本番に近い形で出す: 下タブのシェルの中に たまご画面、上にステータスバー、下にホームバー。
     /// 以前はタブもステータスバーも無い状態で確かめていて、iPhone で「閉じる」が
     /// ステータスバーと重なる不具合（2026-10-26 TestFlight）を見逃した。
-    Future<void> pumpEggsInShell(WidgetTester tester) async {
+    Future<void> pumpEggsInShell(
+      WidgetTester tester, {
+      _OneEggRepository? repo,
+    }) async {
       // iPhone SE 相当の幅に、ノッチ付き端末のステータスバー(47)とホームバー(34)。
       tester.view.physicalSize = const Size(750, 1334);
       tester.view.devicePixelRatio = 2;
@@ -46,6 +55,8 @@ void main() {
           overrides: [
             isOnlineProvider.overrideWithValue(true),
             hasHatchableEggProvider.overrideWithValue(false),
+            // テストごとに新しい卵の状態を使う（モックの共有データは書き換えない）。
+            eggRepositoryProvider.overrideWithValue(repo ?? _OneEggRepository()),
             ...premiumOverrides,
           ],
           child: MaterialApp.router(
@@ -77,7 +88,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // 主役ステージの卵（モックは 350pt＝次の変化まで あと 150pt）をタップ。
+      // 主役ステージの卵（350pt＝次の変化まで あと 150pt）をタップ。
       await tester.tap(find.textContaining('次の変化まで').first);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
@@ -114,6 +125,37 @@ void main() {
 
       expect(find.byType(EggDetailSheet), findsNothing);
       expect(find.text('育成枠'), findsOneWidget); // たまご画面は残っている
+    });
+    testWidgets('待っている間に別の画面が上に開いたら、その画面は残してシートだけ閉じる',
+        (tester) async {
+      // 第三者レビュー（Codex）: 一番上を pop すると、上に開いた別の画面を閉じてしまう。
+      final gate = Completer<void>();
+      await pumpEggsInShell(tester, repo: _OneEggRepository(gate: gate));
+
+      final button = find.text('保管庫に戻す');
+      await tester.ensureVisible(button);
+      await tester.pump();
+      await tester.tap(button);
+      await tester.pump();
+
+      // 通信を待っている間に、画面全体の navigator へ別の画面を積む。
+      final root = tester.state<NavigatorState>(find.byType(Navigator).first);
+      unawaited(
+        root.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('上に開いた画面')),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.text('上に開いた画面'), findsOneWidget);
+      expect(find.byType(EggDetailSheet), findsNothing);
     });
   });
 
@@ -175,4 +217,56 @@ void main() {
       expect(taps, [3]);
     });
   });
+}
+
+/// 育成中の卵が1つだけ（350pt＝次の変化まで あと 150pt）。「保管庫に戻す」で保管へ移る。
+/// テストごとに作るので、テストの順番に左右されない。
+class _OneEggRepository implements EggRepository {
+  _OneEggRepository({this.gate});
+
+  /// 渡されたら「保管庫に戻す」はこれが完了するまで待つ（通信中を模す）。
+  final Completer<void>? gate;
+  bool _stored = false;
+
+  Egg get _egg => Egg(
+        id: 'egg_one',
+        rarity: EggRarity.normal,
+        growthPoints: 350,
+        location: _stored ? EggLocation.storage : EggLocation.incubating,
+        slotIndex: _stored ? null : 1,
+        isActive: !_stored,
+        acquiredSource: 'starter',
+      );
+
+  @override
+  Future<EggsState> loadEggs(EconomyParams params) async => EggsState(
+        incubatorSlots: [_stored ? null : _egg, null, null],
+        storage: _stored ? [_egg] : const [],
+        pooledPoints: 0,
+        isOffline: false,
+        params: params,
+      );
+
+  @override
+  Future<void> moveToStorage(String eggId) async {
+    await gate?.future;
+    _stored = true;
+  }
+
+  @override
+  Future<EnsureFirstEggResult> ensureFirstEgg() async =>
+      EnsureFirstEggResult.notGranted;
+
+  @override
+  Future<void> setActiveEgg(String eggId) => throw UnimplementedError();
+
+  @override
+  Future<void> moveToIncubator({
+    required String eggId,
+    required int slotIndex,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<HatchResult> hatch(String eggId) => throw UnimplementedError();
 }

@@ -232,12 +232,20 @@ class _EggsBody extends ConsumerWidget {
     // iPhone ではステータスバーと「閉じる」が重なった（2026-10-26 TestFlight で発覚）。
     final rootNavigator = Navigator.of(context, rootNavigator: true);
     var sheetOpen = true;
-    // 操作後にシートを閉じる。利用者がもう閉じていたら何もしない
-    // （root navigator の別の画面を閉じてしまわないように）。
+    Route<dynamic>? sheetRoute;
+    // 操作後にシートを閉じる。閉じるのは**このシートの route だけ**:
+    //   * 利用者がもう閉じていたら何もしない
+    //   * 待っている間に別の画面がシートの上に開いていたら、その画面は残してシートだけ外す
+    //     （pop だと一番上の別の画面を閉じてしまう / 第三者レビュー Codex 2026-10-26）
     void closeSheet() {
-      if (!sheetOpen) return;
+      final route = sheetRoute;
+      if (!sheetOpen || route == null) return;
       sheetOpen = false;
-      rootNavigator.pop();
+      if (route.isCurrent) {
+        rootNavigator.pop();
+      } else if (route.isActive) {
+        rootNavigator.removeRoute(route);
+      }
     }
 
     showModalBottomSheet<void>(
@@ -248,33 +256,36 @@ class _EggsBody extends ConsumerWidget {
       isScrollControlled: true,
       // 上に閉じられる余白を必ず残す（全面に広がると iPhone で閉じられなくなる）。
       constraints: detailSheetConstraints(context),
-      builder: (_) => EggDetailSheet(
-        egg: egg,
-        state: state,
-        onSetActive: () {
-          _clearPendingHatch(ref);
-          unawaited(
-            _runEggAction(
-              context,
-              closeSheet,
-              () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
-            ),
-          );
-        },
-        onMoveToStorage: () => _runEggAction(
-          context,
-          closeSheet,
-          () => ref.read(eggsControllerProvider.notifier).moveToStorage(egg.id),
-        ),
-        onMoveToIncubator: (slot) => _runEggAction(
-          context,
-          closeSheet,
-          () => ref
-              .read(eggsControllerProvider.notifier)
-              .moveToIncubator(egg.id, slot),
-        ),
-        onHatch: () => _hatch(context, ref, egg, closeSheet),
-      ),
+      builder: (sheetContext) {
+        sheetRoute ??= ModalRoute.of(sheetContext);
+        return EggDetailSheet(
+          egg: egg,
+          state: state,
+          onSetActive: () {
+            _clearPendingHatch(ref);
+            unawaited(
+              _runEggAction(
+                context,
+                closeSheet,
+                () => ref.read(eggsControllerProvider.notifier).setActive(egg.id),
+              ),
+            );
+          },
+          onMoveToStorage: () => _runEggAction(
+            context,
+            closeSheet,
+            () => ref.read(eggsControllerProvider.notifier).moveToStorage(egg.id),
+          ),
+          onMoveToIncubator: (slot) => _runEggAction(
+            context,
+            closeSheet,
+            () => ref
+                .read(eggsControllerProvider.notifier)
+                .moveToIncubator(egg.id, slot),
+          ),
+          onHatch: () => _hatch(context, ref, egg, closeSheet),
+        );
+      },
     ).whenComplete(() => sheetOpen = false);
   }
 
