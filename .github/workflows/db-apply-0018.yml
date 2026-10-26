@@ -32,7 +32,8 @@ name: DB Apply 0018 (egg pacing bands)
 #
 # 冪等: add column if not exists / create or replace / drop if exists / on conflict do update /
 #       revoke・grant は再実行安全。ops のスナップショットは if not exists なので初回の値が残る。
-# 接続は Secret SUPABASE_DB_URL。前提: 0001〜0017 は適用済み（db-apply-v11 まで）。手動実行のみ。
+# 接続は Secret SUPABASE_DB_URL。前提: 0001〜0016 は適用済み（db-apply-v11 まで）。
+# 0017（進化名の列）は本番に未適用でよい（0018 は使わない）。手動実行のみ。
 on:
   workflow_dispatch:
     inputs:
@@ -85,7 +86,7 @@ jobs:
           fi
           psql --version
 
-      # --- 前提の確認: 0011 / 0012 / 0016 / 0017 が入っていること -----------------
+      # --- 前提の確認: 0011 / 0012 / 0016 が入っていること --------------------------
       # 0018 は 0011 の提出RPC・0016 の fn_finalize_day / fn_claim_warmup・0015 の
       # quest_condition_met を**全文置換**する。土台が無い DB に当てると、置換で
       # 以前の修正（基準値の fail-closed・発生源キー）が巻き戻った状態になる。
@@ -111,13 +112,10 @@ jobs:
             if to_regprocedure('public.fn_apply_growth(uuid,integer,date,text)') is null then
               raise exception '適用中止: 0016 が未適用（4引数版 fn_apply_growth が無い）。先に db-apply-v11 を実行すること。';
             end if;
-            -- 0017: 進化名の列（v1.1 の最後）。
-            if not exists (select 1 from information_schema.columns
-                            where table_schema='public' and table_name='mofi_species'
-                              and column_name='evolved_name') then
-              raise exception '適用中止: 0017 が未適用（mofi_species.evolved_name が無い）。';
-            end if;
-            raise notice '=== 前提ゲート PASS（0011/0012/0016/0017 適用済み）===';
+            -- 0017（mofi_species.evolved_name）は確認しない。0018 はこの列を使わず、
+            -- 0017 自体も「名前の実体はアプリ側。リリースの前提ではない」として本番に
+            -- 当てていない（2026-10-26 の初回実行がここで止まった。DB は無変更）。
+            raise notice '=== 前提ゲート PASS（0011/0012/0016 適用済み）===';
           end $$;
           SQL
 
