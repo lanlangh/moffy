@@ -60,7 +60,7 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 |---|---|
 | 本番DB | ✅ `DB Apply 0018` 適用（run #2 / 40260259858・検証 PASS・残高と卵は1行も不変・初日で止まっていたボーナス卵 90個）。初回 run #1 は Gate で停止（0017 未適用を前提にしていた。0018 は 0017 を使わないので Gate から外した＝#110）。`DB Permission Check` も全 PASS |
 | Android | ✅ **2026-10-26 送信**（`play_release.mjs apply`）。1.3.0 / **versionCode 32** / completed、説明文・スクショ5枚・リリースノート込み |
-| iOS | 1.3.0（id `868b1166-6e49-42c0-9d2d-ef0c1325be1c`）に文章・スクショ5枚・**build 43**・審査メモを設定。`asc_preflight` ブロッカー0／要確認0。空箱0・サブスク2件 APPROVED（同梱されない）。**2026-10-26 14:43 JST オーナーが提出** → 、提出物  items=1（サブスク同梱なし） |
+| iOS | 1.3.0（id `868b1166-6e49-42c0-9d2d-ef0c1325be1c`）に文章・スクショ5枚・**build 43**・審査メモを設定。`asc_preflight` ブロッカー0／要確認0。空箱0・サブスク2件 APPROVED（同梱されない）。**2026-10-26 14:43 JST オーナーが提出** → `WAITING_FOR_REVIEW`、提出物 `288d2696-ac68-406a-9a55-c063ab13e353` items=1（サブスク同梱なし） |
 
 **TestFlight で直したもの（オーナー指摘）**: ①卵の見出しを「次の変化まで あと Npt」に（段階名は読み上げだけ）②ひらがな＋分かち書き→普通の表記（擬音「ピキッ！」は残す）③卵・図鑑の詳細シートが iPhone で閉じられない（#111 で85%上限＋×、#113 で root navigator＋SafeArea。タブの上に出していたので広告とタブの分だけ狭くなり上限が効かなかった）④開いているタブの再タップで先頭へ。
 **教訓**: Web プレビューには広告もステータスバーも無い。シートや余白の確認は「タブ・広告・ステータスバー・ホームバー」がある状態のテストで行う（`test/tab_reselect_and_sheet_test.dart`）。
