@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/navigation/app_tab.dart';
+import '../../../core/navigation/tab_scroll.dart';
 import '../../../core/ads/ads.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/iap/iap_providers.dart';
@@ -55,7 +57,11 @@ class MenuScreen extends ConsumerWidget {
             message: 'プロフィールの読み込みに失敗しました。通信環境を確認してもう一度お試しください。',
             onRetry: () => ref.invalidate(profileStateProvider),
           ),
-          data: (state) => _MenuBody(state: state, isPremium: isPremium),
+          data: (state) => _MenuBody(
+            state: state,
+            isPremium: isPremium,
+            scrollController: ref.watch(tabScrollControllerProvider(AppTab.menu)),
+          ),
         ),
       ),
     );
@@ -63,9 +69,16 @@ class MenuScreen extends ConsumerWidget {
 }
 
 class _MenuBody extends StatelessWidget {
-  const _MenuBody({required this.state, required this.isPremium});
+  const _MenuBody({
+    required this.state,
+    required this.isPremium,
+    required this.scrollController,
+  });
   final ProfileState state;
   final bool isPremium;
+
+  /// 下タブの再タップで先頭へ戻すための controller（[tabScrollControllerProvider]）。
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +88,7 @@ class _MenuBody extends StatelessWidget {
         if (state.isOffline) const OfflineBar(),
         Expanded(
           child: ListView(
+            controller: scrollController,
             padding: const EdgeInsets.all(AppSpace.lg),
             children: [
               // 署名要素「巣リング」をプロフィール頭に反復（全画面共通の核 / DESIGN_DIRECTION）。

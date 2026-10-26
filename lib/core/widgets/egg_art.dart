@@ -60,12 +60,12 @@ enum EggLook {
 
   /// 段階名（吹き出し・読み上げ用）。
   String get label => switch (this) {
-        EggLook.blank => 'しろいたまご',
-        EggLook.pattern => 'もよう',
+        EggLook.blank => '白い卵',
+        EggLook.pattern => '模様',
         EggLook.crack => 'ヒビ',
-        EggLook.glow => 'ひかり',
-        EggLook.glowStrong => 'ひかり',
-        EggLook.ready => 'うまれる！',
+        EggLook.glow => '光',
+        EggLook.glowStrong => '光',
+        EggLook.ready => '孵化',
       };
 }
 

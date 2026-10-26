@@ -79,7 +79,7 @@ class _StorageEggTile extends StatelessWidget {
     final hidden = stage.hidesRarity;
     return Semantics(
       button: true,
-      label: '${hidden ? 'なぞのたまご' : '${egg.rarity.label}のたまご'} '
+      label: '${hidden ? '謎の卵' : '${egg.rarity.label}の卵'} '
           '${egg.growthPoints}ポイント',
       child: GestureDetector(
         onTap: onTap,

@@ -74,20 +74,20 @@ enum EggGrowthStage {
 
   /// 表示ラベル（吹き出し・卵詳細の段階表示）。
   String get label => switch (this) {
-        EggGrowthStage.blank => 'しろいたまご',
-        EggGrowthStage.pattern => 'もよう',
+        EggGrowthStage.blank => '白い卵',
+        EggGrowthStage.pattern => '模様',
         EggGrowthStage.crack => 'ヒビ',
-        EggGrowthStage.glow => 'ひかり',
-        EggGrowthStage.ready => 'うまれる！',
+        EggGrowthStage.glow => '光',
+        EggGrowthStage.ready => '孵化',
       };
 
   /// 段階が上がった瞬間のひとこと（§4-2）。
   String get stageUpLine => switch (this) {
-        EggGrowthStage.blank => 'なにが うまれるかな？',
-        EggGrowthStage.pattern => 'もようが うかんできた！',
+        EggGrowthStage.blank => '何が生まれるかな？',
+        EggGrowthStage.pattern => '模様が浮かんできた！',
         EggGrowthStage.crack => 'ピキッ！',
-        EggGrowthStage.glow => 'ヒビから ひかりが…もうすぐ うまれそう',
-        EggGrowthStage.ready => 'うまれる！',
+        EggGrowthStage.glow => 'ヒビから光が…もうすぐ生まれそう',
+        EggGrowthStage.ready => '孵化できます！',
       };
 
   /// レア度を隠す段階か（S1 は「なぞのたまご」）。

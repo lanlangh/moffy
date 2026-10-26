@@ -263,13 +263,13 @@ class _EggStageRevealState extends ConsumerState<EggStageReveal>
     final stage = widget.egg.stage;
     if (special) {
       final rarity = EggRarity.fromWire(widget.egg.rarityLabel);
-      _chipText = 'もようが うかんできた！';
-      _chipSub = '${rarity.label}のたまご！';
+      _chipText = '模様が浮かんできた！';
+      _chipSub = '${rarity.label}の卵！';
       return;
     }
     if (look == EggLook.glowStrong) {
-      _chipText = 'ひかり';
-      _chipSub = 'あと少しで うまれる！';
+      _chipText = '光';
+      _chipSub = 'もうすぐ生まれそう！';
       return;
     }
     _chipText = look.label;
@@ -393,11 +393,11 @@ class _EggStageRevealState extends ConsumerState<EggStageReveal>
     final remaining = egg.remainingToNextStage;
     final captionText = egg.canHatch && step == EggLook.ready.step
         ? '孵化できます！'
-        : '${look.label}・つぎの変化まで あと ${remaining}pt';
+        : '次の変化まで あと ${remaining}pt';
 
     return Semantics(
       label: 'たまご: ${look.label}。'
-          '${egg.canHatch ? '孵化できます' : 'つぎの変化まであと$remainingポイント'}',
+          '${egg.canHatch ? '孵化できます' : '次の変化まであと$remainingポイント'}',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: busy ? _skip : null,

@@ -43,101 +43,112 @@ class EggDetailSheet extends StatelessWidget {
         color: AppColors.bg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
       ),
-      padding: const EdgeInsets.all(AppSpace.xl),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // つまみ
-            const _SheetGrip(),
-            const SizedBox(height: AppSpace.lg),
-            NestPanel(
-              diameter: 160,
-              // S4 以降は暖色の光（レア度の色は使わない / 0018 §4-1）。
-              glow: egg.isNearHatch(params) || canHatch
-                  ? AppColors.eggLight
-                  : null,
-              subject: EggSubject(
-                rarity: egg.rarity,
-                stage: stage,
-                strong: egg.isStrongGlow(params),
-              ),
-              caption: Text(
-                stage.hidesRarity ? 'なぞのたまご' : '${egg.rarity.label}のたまご',
-                style: AppType.title,
-              ),
-              footer: Column(
-                children: [
-                  GrowthProgressBar(value: egg.stageProgress(params)),
+      // 閉じるボタンはスクロールの外に置き、中身を動かしても右上に残す。
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpace.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // つまみ
+                const _SheetGrip(),
+                const SizedBox(height: AppSpace.lg),
+                NestPanel(
+                  diameter: 160,
+                  // S4 以降は暖色の光（レア度の色は使わない / 0018 §4-1）。
+                  glow: egg.isNearHatch(params) || canHatch
+                      ? AppColors.eggLight
+                      : null,
+                  subject: EggSubject(
+                    rarity: egg.rarity,
+                    stage: stage,
+                    strong: egg.isStrongGlow(params),
+                  ),
+                  caption: Text(
+                    stage.hidesRarity ? '謎の卵' : '${egg.rarity.label}の卵',
+                    style: AppType.title,
+                  ),
+                  footer: Column(
+                    children: [
+                      GrowthProgressBar(value: egg.stageProgress(params)),
+                      const SizedBox(height: AppSpace.sm),
+                      Text(
+                        canHatch
+                            ? '孵化できます'
+                            : '次の変化まで あと '
+                                '${egg.remainingToNextStage(params)}pt',
+                        style: AppType.numLabel,
+                      ),
+                      const SizedBox(height: AppSpace.xs),
+                      Text(
+                        '${egg.growthPoints} / ${params.eggThresholds.hatch}pt',
+                        style: AppType.caption,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpace.xl),
+
+                // 段階ラダー（0/100/200/300/500）。
+                _StageLadder(egg: egg, params: params),
+                const SizedBox(height: AppSpace.xl),
+
+                // アクション群。
+                if (canHatch)
+                  SizedBox(
+                    width: double.infinity,
+                    child: PrimaryButton(
+                      label: '孵化させる',
+                      icon: Icons.auto_awesome_rounded,
+                      // オフライン: 孵化確定不可（グレーアウト / S8）。
+                      onPressed: state.isOffline ? null : onHatch,
+                    ),
+                  )
+                else if (inIncubator && !egg.isActive)
+                  SizedBox(
+                    width: double.infinity,
+                    child:
+                        PrimaryButton(label: 'この卵を育てる', onPressed: onSetActive),
+                  ),
+
+                if (state.isOffline && canHatch) ...[
                   const SizedBox(height: AppSpace.sm),
                   Text(
-                    canHatch
-                        ? '${stage.label}・孵化できます'
-                        : '${stage.label}・つぎの変化まで あと '
-                            '${egg.remainingToNextStage(params)}pt',
-                    style: AppType.numLabel,
-                  ),
-                  const SizedBox(height: AppSpace.xs),
-                  Text(
-                    '${egg.growthPoints} / ${params.eggThresholds.hatch}pt',
-                    style: AppType.caption,
+                    '孵化準備完了・接続したら確定します',
+                    style: AppType.caption.copyWith(color: AppColors.offline),
+                    textAlign: TextAlign.center,
                   ),
                 ],
-              ),
+
+                const SizedBox(height: AppSpace.sm),
+
+                // 枠移動（育成中→保管 / 保管→育成）。
+                if (inIncubator)
+                  _SecondaryAction(
+                    label: '保管庫に戻す',
+                    onTap: onMoveToStorage,
+                  )
+                else if (emptySlot != null)
+                  _SecondaryAction(
+                    label: '育成枠にセット（枠$emptySlot）',
+                    onTap: () => onMoveToIncubator(emptySlot),
+                  )
+                else
+                  Text(
+                    '育成枠が満杯です。どれかを保管庫に戻すとセットできます。',
+                    style: AppType.caption,
+                    textAlign: TextAlign.center,
+                  ),
+              ],
             ),
-            const SizedBox(height: AppSpace.xl),
-
-            // 段階ラダー（0/100/200/300/500）。
-            _StageLadder(egg: egg, params: params),
-            const SizedBox(height: AppSpace.xl),
-
-            // アクション群。
-            if (canHatch)
-              SizedBox(
-                width: double.infinity,
-                child: PrimaryButton(
-                  label: '孵化させる',
-                  icon: Icons.auto_awesome_rounded,
-                  // オフライン: 孵化確定不可（グレーアウト / S8）。
-                  onPressed: state.isOffline ? null : onHatch,
-                ),
-              )
-            else if (inIncubator && !egg.isActive)
-              SizedBox(
-                width: double.infinity,
-                child: PrimaryButton(label: 'この卵を育てる', onPressed: onSetActive),
-              ),
-
-            if (state.isOffline && canHatch) ...[
-              const SizedBox(height: AppSpace.sm),
-              Text(
-                '孵化準備完了・接続したら確定します',
-                style: AppType.caption.copyWith(color: AppColors.offline),
-                textAlign: TextAlign.center,
-              ),
-            ],
-
-            const SizedBox(height: AppSpace.sm),
-
-            // 枠移動（育成中→保管 / 保管→育成）。
-            if (inIncubator)
-              _SecondaryAction(
-                label: '保管庫に戻す',
-                onTap: onMoveToStorage,
-              )
-            else if (emptySlot != null)
-              _SecondaryAction(
-                label: '育成枠にセット（枠$emptySlot）',
-                onTap: () => onMoveToIncubator(emptySlot),
-              )
-            else
-              Text(
-                '育成枠が満杯です。どれかを保管庫に戻すとセットできます。',
-                style: AppType.caption,
-                textAlign: TextAlign.center,
-              ),
-          ],
-        ),
+          ),
+          const Positioned(
+            top: AppSpace.sm,
+            right: AppSpace.sm,
+            child: SheetCloseButton(),
+          ),
+        ],
       ),
     );
   }

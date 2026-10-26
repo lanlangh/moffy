@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/navigation/tab_scroll.dart';
 import '../../../core/ads/ads.dart';
 import '../../../core/iap/iap_providers.dart';
 import '../../../core/navigation/app_tab.dart';
@@ -103,6 +104,8 @@ class _CollectionBody extends ConsumerWidget {
                 ref.read(collectionControllerProvider.notifier).refresh,
             color: AppColors.primary,
             child: GridView.builder(
+              controller:
+                  ref.watch(tabScrollControllerProvider(AppTab.collection)),
               padding: const EdgeInsets.all(AppSpace.lg),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
@@ -133,6 +136,8 @@ class _CollectionBody extends ConsumerWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      // 上に閉じられる余白を必ず残す（全面に広がると iPhone で閉じられなくなる）。
+      constraints: detailSheetConstraints(context),
       builder: (_) => MofiDetailSheet(entry: entry, stage2Count: stage2Count),
     );
   }

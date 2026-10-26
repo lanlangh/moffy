@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/navigation/tab_scroll.dart';
 import '../../../core/config/env.dart';
 import '../../../core/constants/economy.dart';
 import '../../../core/constants/pricing.dart';
@@ -118,6 +119,7 @@ class _EggsBody extends ConsumerWidget {
             // （2026-08-19 オーナー指摘「上部のみ背景を左右上部全面に」）。
             // 余白は下のカード群だけに付け直す。
             child: ListView(
+              controller: ref.watch(tabScrollControllerProvider(AppTab.eggs)),
               padding: EdgeInsets.zero,
               children: [
                 // ① 育成枠はステージの上に戻した。ステージが画面最上部だと
@@ -229,6 +231,8 @@ class _EggsBody extends ConsumerWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      // 上に閉じられる余白を必ず残す（全面に広がると iPhone で閉じられなくなる）。
+      constraints: detailSheetConstraints(context),
       builder: (_) => EggDetailSheet(
         egg: egg,
         state: state,
@@ -514,15 +518,14 @@ class _EggStageState extends State<_EggStage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // 文字は必ず淡い座布団の上に置く（空や草の上だと読めない）。
-                      // 0018 §4-5: 段階名＋「つぎの変化まで あと Npt」（S5 は「孵化できます！」）。
+                      // 「次の変化まで あと Npt」（S5 は「孵化できます！」）。段階名は卵の絵と5つの点で分かるので出さない。
                       StageChip(
                         child: Text(
                           mofi != null
                               ? '${mofi.label}（見本）'
                               : canHatch
                                   ? '孵化できます！'
-                                  : '${stage.label}・つぎの変化まで '
-                                      'あと ${remainingToNext}pt',
+                                  : '次の変化まで あと ${remainingToNext}pt',
                           style: AppType.title,
                         ),
                       ),
