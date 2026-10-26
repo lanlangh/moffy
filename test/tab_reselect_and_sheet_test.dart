@@ -30,23 +30,45 @@ void main() {
   ];
 
   group('卵の詳細シート', () {
-    testWidgets('小さい iPhone でも、上に余白が残り「閉じる」で元の画面に戻れる',
-        (tester) async {
-      // iPhone SE（375x667）。中身はこの高さに収まらない。
+    /// 本番に近い形で出す: 下タブのシェルの中に たまご画面、上にステータスバー、下にホームバー。
+    /// 以前はタブもステータスバーも無い状態で確かめていて、iPhone で「閉じる」が
+    /// ステータスバーと重なる不具合（2026-10-26 TestFlight）を見逃した。
+    Future<void> pumpEggsInShell(WidgetTester tester) async {
+      // iPhone SE 相当の幅に、ノッチ付き端末のステータスバー(47)とホームバー(34)。
       tester.view.physicalSize = const Size(750, 1334);
       tester.view.devicePixelRatio = 2;
+      tester.view.padding = const FakeViewPadding(top: 94, bottom: 68);
+      tester.view.viewPadding = const FakeViewPadding(top: 94, bottom: 68);
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             isOnlineProvider.overrideWithValue(true),
+            hasHatchableEggProvider.overrideWithValue(false),
             ...premiumOverrides,
           ],
           child: MaterialApp.router(
             routerConfig: GoRouter(
+              initialLocation: AppTab.eggs.path,
               routes: [
-                GoRoute(path: '/', builder: (_, __) => const EggsScreen()),
+                StatefulShellRoute.indexedStack(
+                  builder: (context, state, shell) => BottomNavScaffold(
+                    currentIndex: shell.currentIndex,
+                    onTap: (_) {},
+                    child: shell,
+                  ),
+                  branches: [
+                    StatefulShellBranch(
+                      routes: [
+                        GoRoute(
+                          path: AppTab.eggs.path,
+                          builder: (_, __) => const EggsScreen(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -60,15 +82,38 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.byType(EggDetailSheet), findsOneWidget);
+    }
 
-      // 画面の 85% までに収まる＝上に外側をタップできる余白が残る。
-      final sheetHeight = tester.getSize(find.byType(EggDetailSheet)).height;
-      expect(sheetHeight, lessThanOrEqualTo(667 * 0.85 + 0.5));
+    testWidgets('タブとステータスバーがあっても、上に余白が残り「閉じる」が隠れない',
+        (tester) async {
+      await pumpEggsInShell(tester);
+
+      // シートの上端はステータスバー(47)より十分下＝外側をタップできる余白が残る。
+      final top = tester.getTopLeft(find.byType(EggDetailSheet)).dy;
+      expect(top, greaterThanOrEqualTo(47 + 40));
+      // 「閉じる」もステータスバーの下にある。
+      final close = tester.getTopLeft(find.byTooltip('閉じる')).dy;
+      expect(close, greaterThan(47));
 
       await tester.tap(find.byTooltip('閉じる'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.byType(EggDetailSheet), findsNothing);
+      expect(find.text('育成枠'), findsOneWidget); // 元の画面に戻っている
+    });
+
+    testWidgets('シートの操作（保管庫に戻す）が終わると、シートだけが閉じる', (tester) async {
+      await pumpEggsInShell(tester);
+
+      final button = find.text('保管庫に戻す');
+      await tester.ensureVisible(button);
+      await tester.pump();
+      await tester.tap(button);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(find.byType(EggDetailSheet), findsNothing);
+      expect(find.text('育成枠'), findsOneWidget); // たまご画面は残っている
     });
   });
 
