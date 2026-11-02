@@ -52,7 +52,14 @@ node tools/asc/asc_iap_diag.mjs <p8> <keyId> <issuer> com.moffy.app <version>
 
 ---
 
-### 🚀 **1.3.0 を両OSとも提出（2026-10-26）＝審査待ち**
+### 🎉 **1.3.0 が両OSで公開（2026-11-02 オーナー報告）**
+
+- **iOS**: 審査通過 → オーナーが「このバージョンをリリース」。ASC で `READY_FOR_SALE` / `READY_FOR_DISTRIBUTION` を確認（2026-11-02）。iTunes lookup はまだ 1.2.1（反映待ち）。
+- **Android**: オーナーが審査通過を確認。製品版トラックは 1.3.0 / versionCode 32 / completed（審査状態そのものは API では読めない）。
+- **後始末**: `asc_prepare_version.mjs` の `FORBIDDEN_VERSIONS` に 1.3.0（`868b1166-…`）を追記済み。
+- **残り**: ①`ops.snap_0018_functions / snap_0018_app_config` の drop（個人データは含まない。ロールバックの材料なので、公開後しばらく問題が出ないのを見てから。取り消せないのでオーナー合意の上で単独実行）②公開から数日後に PostHog の `egg_hatched`（#108 以前は本番でほぼ出ていなかったはず）と Sentry を見る ③ホームのスクショ（1枚目）は旧UIのまま。
+
+### 🚀 **1.3.0 を両OSとも提出（2026-10-26）**
 
 **中身**: 0018 の評価制（◎○△・5段階の見た目・2日目「残り全部」）＋ #104〜#106 ＋孵化演出の修正（#108）＋ TestFlight 指摘の修正（#111 / #113）。
 
